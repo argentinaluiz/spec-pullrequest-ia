@@ -9,7 +9,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Etapa | Peça | Estado |
 | --- | --- | --- |
 | 1 | Script de verificação e CI | Implementado |
-| 2 | Proteção da `main` e guarda do harness | Implementado no repositório; o ruleset ainda não foi aplicado no GitHub |
+| 2 | Proteção da `main` e guarda do harness | Implementado. O ruleset está aplicado no repositório de teste, e ainda não no repositório principal |
 | 3 | Hook de fim de turno | Ainda não implementado |
 | 4 | Tabela de aceite | Ainda não implementado |
 | 5 | Revisor em contexto novo | Ainda não implementado |
