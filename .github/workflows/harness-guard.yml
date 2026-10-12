@@ -1,0 +1,39 @@
+name: Guarda do harness
+
+# Reprova o pull request que altera um arquivo protegido do harness. Sem isto, um pull request
+# poderia enfraquecer a CI e ser aprovado pela CI enfraquecida. O desenho está no docs/harness.md.
+#
+# O `pull_request_target` roda a versão da `main` deste workflow e do script, e não a do pull
+# request. O código do pull request nunca é baixado nem executado aqui.
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: harness-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Guarda do harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Sem `ref`, o checkout traz a branch de destino, que é a versão confiável do script.
+      - uses: actions/checkout@v4
+
+      - name: Conferir os arquivos alterados
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # O nome anterior entra na lista para que renomear um arquivo protegido também conte.
+          gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > changed-files.txt
+          scripts/harness-guard.sh < changed-files.txt

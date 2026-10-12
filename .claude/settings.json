@@ -6,7 +6,14 @@
       "Read(./docs/specs/**)",
       "Edit(./docs/specs/**)",
       "Read(./docs/Gerenciador de arquivos.fig)",
-      "Edit(./docs/Gerenciador de arquivos.fig)"
+      "Edit(./docs/Gerenciador de arquivos.fig)",
+      "Bash(gh pr merge:*)"
+    ],
+    "ask": [
+      "Edit(./.github/**)",
+      "Edit(./.claude/settings.json)",
+      "Edit(./.claude/hooks/**)",
+      "Edit(./scripts/**)"
     ]
   },
   "enabledMcpjsonServers": [

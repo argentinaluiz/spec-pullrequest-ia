@@ -9,7 +9,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Etapa | Peça | Estado |
 | --- | --- | --- |
 | 1 | Script de verificação e CI | Implementado |
-| 2 | Proteção da `main` e guarda do harness | Ainda não implementado |
+| 2 | Proteção da `main` e guarda do harness | Implementado no repositório; o ruleset ainda não foi aplicado no GitHub |
 | 3 | Hook de fim de turno | Ainda não implementado |
 | 4 | Tabela de aceite | Ainda não implementado |
 | 5 | Revisor em contexto novo | Ainda não implementado |
@@ -66,14 +66,54 @@ O workflow `CI` roda em todo pull request e em todo push na `main`. O job `Vered
 
 ## Proteção da `main` e guarda do harness
 
-Ainda não implementado. Decisão:
+A CI só é um veredito se ninguém puder ignorá-la nem alterá-la em silêncio. Esta etapa fecha os dois pontos.
 
-- **Ruleset na `main`:** pull request obrigatório, o check `Veredito` obrigatório, nenhuma aprovação exigida, sem push direto e sem force push. Não se exige aprovação porque o projeto tem um único humano, e o GitHub não deixa aprovar o próprio PR.
-- **Override:** só o admin pula o ruleset, e só em PR. O registro do GitHub de quem pulou a regra é a trilha de override. Serve para o bloqueio por engano, como o de um teste instável.
-- **O agente não faz merge.** O `.claude/settings.json` nega o `gh pr merge`. O agente usa a credencial do humano, então só essa regra garante que um merge foi um ato humano. Ela contém o erro, não a má-fé: o mesmo merge é possível pela API do GitHub.
-- **Guarda do harness:** um segundo check obrigatório, que roda com a definição de workflow da `main`, e não a do PR. Ele reprova o PR que altera um workflow, o `.claude/settings.json` ou um hook. Sem ele, um PR poderia enfraquecer a CI e ser aprovado pela CI enfraquecida. A consequência é que toda mudança no harness entra por override do admin.
-- **Confirmação local:** editar esses mesmos arquivos pede a confirmação do humano, mesmo no modo automático.
-- **Fora do guarda:** as configurações de lint e de teste e os `AGENTS.md` mudam em tarefas normais. O guarda só anota um aviso quando as configurações mudam.
+### Ruleset da `main`
+
+A definição fica versionada em `.github/rulesets/main.json`, e é aplicada no GitHub pelo admin:
+
+```bash
+gh api repos/<dono>/<repositório>/rulesets --method POST --input .github/rulesets/main.json
+```
+
+| Regra | Valor | Por quê |
+| --- | --- | --- |
+| Pull request obrigatório | Sim, sem push direto | Toda mudança passa pela CI |
+| Checks obrigatórios | `Veredito` e `Guarda do harness` | Os dois têm de passar para o merge |
+| Aprovações exigidas | Nenhuma | O projeto tem um único humano, e o GitHub não deixa aprovar o próprio PR |
+| Force push e exclusão da branch | Proibidos | O histórico da `main` é a trilha |
+| Quem pula as regras | Só o admin, e só em PR | É o override identificado |
+
+- **Ordem de aplicação:** o ruleset só é aplicado depois que os dois workflows estão na `main`. O `Guarda do harness` roda com a versão da `main`, então, antes disso, o check exigido nunca apareceria.
+- **Override:** o merge com bypass fica registrado no GitHub, com quem pulou a regra e quando. Serve para o bloqueio por engano, como o de um teste instável, e para as mudanças no próprio harness.
+
+### O agente não faz merge
+
+O `.claude/settings.json` nega o `gh pr merge`. O agente usa a credencial do humano, então, para o GitHub, os dois têm a mesma identidade. É essa regra que faz a trilha de override significar "um humano liberou".
+
+Ela contém o erro, e não a má-fé: o mesmo merge é possível pela API do GitHub. Fechar isso de vez pede uma credencial própria para o agente, sem permissão de merge.
+
+### Guarda do harness
+
+O workflow `Guarda do harness` roda em todo pull request com `pull_request_target`. Com esse gatilho, o GitHub usa a versão da `main` do workflow e do `scripts/harness-guard.sh`, e não a do pull request. Ele lê pela API a lista de arquivos alterados, sem baixar nem executar o código do PR.
+
+| Caminho alterado | Efeito |
+| --- | --- |
+| `.github/**` (workflows e ruleset) | Bloqueia |
+| `.claude/settings.json` | Bloqueia |
+| `.claude/hooks/**` | Bloqueia |
+| `scripts/**` | Bloqueia |
+| `.oxlintrc.json`, `eslint.config.mjs`, `vitest*.ts`, `playwright.config.ts` e `tsconfig*.json` dos projetos | Aviso no PR |
+
+- **Por que os scripts entram:** a CI chama o `scripts/verify.sh`. Um PR que o trocasse por um comando que sempre passa seria aprovado pelo próprio script trocado.
+- **Arquivo renomeado:** o nome anterior também é conferido, para que mover um arquivo protegido conte como alterá-lo.
+- **Lista vazia reprova:** se a API não devolver nenhum arquivo, o guarda sai com erro, em vez de aprovar sem ter conferido.
+- **Consequência:** toda mudança no harness é reprovada pelo guarda e só entra por override do admin. Mexer nas regras vira sempre um ato humano registrado.
+- **O que o guarda não cobre:** os `package.json`, o `compose.dev.yaml` e os `Dockerfile.dev`. Um PR pode enfraquecer a verificação por eles, por exemplo trocando o comando de um script do `pnpm`. Eles mudam em tarefas normais, e a leitura do diff no merge é o controle para esse caso.
+
+### Confirmação local
+
+Editar `.github/**`, `.claude/settings.json`, `.claude/hooks/**` e `scripts/**` pede a confirmação do humano, mesmo com o modo automático ligado. É a regra `ask` do `.claude/settings.json`. Ela não é `deny` porque mudanças legítimas no harness existem.
 
 ## Hook de fim de turno
 
