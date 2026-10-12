@@ -54,7 +54,7 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
 - **Relatórios:** cada suíte grava um JSON em `reports/`, na pasta do projeto, e o `scripts/check-report.cjs` o confere. Os relatórios antigos são apagados no começo, para que só valha a evidência da execução atual.
 - **Web e API no ar:** a suíte no navegador depende das duas em modo de desenvolvimento. Na máquina, o script exige que elas já estejam respondendo. Com `--start-apps`, usado pela CI, ele mesmo as sobe.
-- **Segredos:** o gitleaks, em versão fixa, olha os commits que a branch tem a mais do que a `origin/main`. A variável `HARNESS_BASE_REF` troca essa base.
+- **Segredos:** o gitleaks, em versão fixa, olha os commits que a branch tem a mais do que a `origin/main`. A variável `HARNESS_BASE_REF` troca essa base. Num push na `main`, a CI a aponta para o commit anterior ao push, porque ali a `origin/main` já é o próprio commit enviado.
 
 ## CI
 
@@ -104,16 +104,23 @@ O workflow `Guarda do harness` roda em todo pull request com `pull_request_targe
 | `.claude/hooks/**` | Bloqueia |
 | `scripts/**` | Bloqueia |
 | `.oxlintrc.json`, `eslint.config.mjs`, `vitest*.ts`, `playwright.config.ts` e `tsconfig*.json` dos projetos | Aviso no PR |
+| `package.json` dos projetos, com a seção `scripts` alterada | Bloqueia |
+| `package.json` dos projetos, com outra mudança (dependências, por exemplo) | Aviso no PR |
+| `Dockerfile.dev` dos projetos e o `compose.dev.yaml` | Aviso no PR |
 
 - **Por que os scripts entram:** a CI chama o `scripts/verify.sh`. Um PR que o trocasse por um comando que sempre passa seria aprovado pelo próprio script trocado.
 - **Arquivo renomeado:** o nome anterior também é conferido, para que mover um arquivo protegido conte como alterá-lo.
 - **Lista vazia reprova:** se a API não devolver nenhum arquivo, o guarda sai com erro, em vez de aprovar sem ter conferido.
 - **Consequência:** toda mudança no harness é reprovada pelo guarda e só entra por override do admin. Mexer nas regras vira sempre um ato humano registrado.
-- **O que o guarda não cobre:** os `package.json`, o `compose.dev.yaml` e os `Dockerfile.dev`. Um PR pode enfraquecer a verificação por eles, por exemplo trocando o comando de um script do `pnpm`. Eles mudam em tarefas normais, e a leitura do diff no merge é o controle para esse caso.
+- **PR grande demais reprova:** a API do GitHub lista no máximo 3.000 arquivos por pull request. A partir desse total, um arquivo protegido poderia ficar fora da lista, então o guarda sai com erro.
+- **Comandos do `pnpm`:** o `scripts/verify.sh` chama os comandos da seção `scripts` de cada `package.json`. Trocar `vitest run` por um comando que sempre passa enfraqueceria a verificação com os dois checks verdes. O guarda compara essa seção entre a `main` e o PR e bloqueia quando ela muda. O `package.json` do PR é baixado só para leitura, e nada dele é executado. Um `package.json` criado, apagado ou renomeado conta como mudança.
+- **O que só avisa, e o risco disso:** o `compose.dev.yaml` e os `Dockerfile.dev` definem o ambiente em que a verificação roda, e as dependências do `package.json` definem as ferramentas. Um PR pode enfraquecer a verificação por eles, e os dois checks continuam verdes. Eles mudam em tarefas normais, e bloqueá-los tornaria o bypass rotineiro. O aviso no PR aponta a mudança, mas quem a lê e decide é o humano no merge: neste ponto, o controle é a leitura do diff, e não um bloqueio.
 
 ### Confirmação local
 
-Editar `.github/**`, `.claude/settings.json`, `.claude/hooks/**` e `scripts/**` pede a confirmação do humano, mesmo com o modo automático ligado. É a regra `ask` do `.claude/settings.json`. Ela não é `deny` porque mudanças legítimas no harness existem.
+Editar ou criar um arquivo em `.github/**`, `.claude/settings.json`, `.claude/hooks/**` e `scripts/**` pelas ferramentas de edição do agente pede a confirmação do humano, mesmo com o modo automático ligado. É a regra `ask` do `.claude/settings.json`. Ela não é `deny` porque mudanças legítimas no harness existem.
+
+A regra não cobre o que o agente faz por comando de shell: um redirecionamento ou um script que grave nesses caminhos não passa por ela. Por isso ela é um aviso cedo para o caminho comum, e não uma garantia. A garantia é o guarda na CI, que confere o que chegou ao pull request, seja qual for o meio usado para escrever.
 
 ## Hook de fim de turno
 

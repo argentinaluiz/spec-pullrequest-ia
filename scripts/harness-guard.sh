@@ -7,9 +7,35 @@
 # Quem chama é o workflow "Guarda do harness", que roda com a versão da `main` deste script,
 # e não com a do pull request.
 #
+#   scripts/harness-guard.sh [arquivos que o pull request diz alterar] < lista de caminhos
+#
 # Sai com 0 se nenhum arquivo protegido mudou, 1 se algum mudou e 2 se não deu para conferir.
 
 set -uo pipefail
+
+# A API do GitHub lista no máximo este número de arquivos por pull request.
+API_FILE_LIMIT=3000
+
+# Quantos arquivos o pull request diz alterar. Vem do workflow, e é opcional na máquina.
+declared="${1:-}"
+if [[ -n "$declared" && "$declared" -ge "$API_FILE_LIMIT" ]]; then
+  echo "::error title=Guarda do harness::O pull request altera $declared arquivos, e a API só lista $API_FILE_LIMIT. Um arquivo protegido poderia ficar fora da lista."
+  echo "Como resolver: divida o pull request, ou o admin confere os arquivos protegidos à mão e faz o merge com bypass."
+  exit 2
+fi
+
+# Os comandos do `pnpm` são o que o scripts/verify.sh chama: trocar um deles por um comando que
+# sempre passa enfraquece a verificação. Compara a seção `scripts` da versão da `main`, que é a
+# do diretório atual, com a do pull request, que o workflow baixa em $HEAD_DIR.
+# Sem $HEAD_DIR, como na máquina, não há o que comparar, e o arquivo só gera aviso.
+scripts_changed() {
+  local file="$1"
+  [[ -z "${HEAD_DIR:-}" ]] && return 1
+  # Arquivo criado, apagado ou renomeado: não dá para comparar, então conta como mudança.
+  [[ -f "$file" && -f "$HEAD_DIR/$file" ]] || return 0
+  ! diff -q <(jq -S '.scripts // {}' "$file" 2>&1) \
+    <(jq -S '.scripts // {}' "$HEAD_DIR/$file" 2>&1) >/dev/null
+}
 
 blocked=()
 warned=()
@@ -23,9 +49,19 @@ while IFS= read -r file; do
     .github/* | .claude/settings.json | .claude/hooks/* | scripts/*)
       blocked+=("$file")
       ;;
-    # Configuração de lint e de teste: muda em tarefas normais, então só avisa.
+    # Mudança de dependência é tarefa normal e só avisa. Mudança nos comandos bloqueia.
+    apps/*/package.json)
+      if scripts_changed "$file"; then
+        blocked+=("$file (seção scripts)")
+      else
+        warned+=("$file")
+      fi
+      ;;
+    # O que define o que a verificação roda, mas muda em tarefas normais: só avisa.
+    # Configuração de lint e de teste e o ambiente dos contêineres.
     apps/api/.oxlintrc.json | apps/web/eslint.config.mjs | apps/api/vitest*.ts | \
-      apps/web/playwright.config.ts | apps/*/tsconfig*.json)
+      apps/web/playwright.config.ts | apps/*/tsconfig*.json | \
+      compose.dev.yaml | apps/*/Dockerfile.dev)
       warned+=("$file")
       ;;
   esac
@@ -38,7 +74,7 @@ if [[ $total -eq 0 ]]; then
 fi
 
 for file in "${warned[@]}"; do
-  echo "::warning title=Configuração de verificação alterada::$file muda o que o lint ou os testes conferem. Leia essa mudança antes do merge."
+  echo "::warning title=Entrada da verificação alterada::$file define o que a verificação roda ou confere. Leia essa mudança antes do merge."
 done
 
 if [[ ${#blocked[@]} -gt 0 ]]; then

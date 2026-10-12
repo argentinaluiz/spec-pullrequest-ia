@@ -13,7 +13,11 @@
       "Edit(./.github/**)",
       "Edit(./.claude/settings.json)",
       "Edit(./.claude/hooks/**)",
-      "Edit(./scripts/**)"
+      "Edit(./scripts/**)",
+      "Write(./.github/**)",
+      "Write(./.claude/settings.json)",
+      "Write(./.claude/hooks/**)",
+      "Write(./scripts/**)"
     ]
   },
   "enabledMcpjsonServers": [

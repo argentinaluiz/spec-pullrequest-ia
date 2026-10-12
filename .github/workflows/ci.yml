@@ -35,6 +35,10 @@ jobs:
         run: docker compose -f compose.dev.yaml up -d --build --wait
 
       - name: Verificar
+        env:
+          # Num push, a `origin/main` já é o próprio commit enviado, e a varredura de segredos
+          # não teria commit nenhum para olhar. A base passa a ser o commit anterior ao push.
+          HARNESS_BASE_REF: ${{ github.event_name == 'push' && github.event.before || 'origin/main' }}
         run: scripts/verify.sh full --start-apps
 
       - name: Logs dos contêineres
