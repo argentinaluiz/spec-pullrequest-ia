@@ -21,6 +21,16 @@ Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da
 - **Nunca nos dois.** Uma informação tem um dono só, e o outro arquivo aponta para ele pelo nome do documento e da seção, sem repetir o conteúdo.
 - **Este arquivo** só traz o que vale para todos os projetos.
 
+**Arquivos que não devem ser lidos**
+
+Os caminhos abaixo existem para quem lê o repositório, e não para os agentes. **Nunca os leia nem os edite**, nem para buscar contexto de uma tarefa:
+
+- `docs/sessoes/`: transcrições de sessões anteriores. São longas e registram decisões que podem ter mudado depois. A decisão vigente está no documento dono dela.
+- `docs/specs/`: cópia das specs e dos tickets, tirada do Linear só para conferência. Ela não acompanha as mudanças feitas depois. A fonte é o Linear, como descrito em [Issues e tickets no Linear](#issues-e-tickets-no-linear).
+- `docs/Gerenciador de arquivos.fig`: exportação binária do arquivo do Figma. O design é lido pelo servidor MCP do Figma, como descrito em [Design e Figma](#design-e-figma).
+
+O `.claude/settings.json` nega a leitura e a escrita nesses caminhos.
+
 ## Execução no Docker
 
 Tudo roda dentro dos contêineres do Docker Compose: instalação de dependências, servidor de desenvolvimento, testes, lint, compilação do TypeScript e qualquer outro comando do projeto. **Nunca rode `pnpm`, `node` ou `npx` direto na máquina.**
