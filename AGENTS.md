@@ -188,6 +188,43 @@ Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Ta
 
 Para conferir a tabela antes de abrir o PR, salve o corpo num arquivo e rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`.
 
+**Revisão em contexto novo**
+
+Quem escreveu o código não é quem o revisa. Todo pull request que altera código em `apps/` passa pelo subagente `revisor`, que não viu a implementação. Ela é a revisão que vale para o PR; uma revisão feita na mesma sessão que escreveu o código não a substitui.
+
+1. **Gere o diff num arquivo,** com a implementação terminada e a verificação completa passando:
+
+   ```bash
+   git diff origin/main...HEAD > "$(git rev-parse --git-dir)/harness/review.diff"
+   ```
+
+2. **Chame o subagente `revisor`** passando só o caminho desse arquivo e o identificador do ticket. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
+3. **Corrija os achados com que você concorda** e rode a verificação de novo.
+4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
+
+   ```markdown
+   ## Revisão em contexto novo
+
+   | # | Severidade | Achado | Situação | Motivo |
+   | --- | --- | --- | --- | --- |
+   | 1 | alta | O que o revisor apontou | Corrigido | O que mudou, e em que commit |
+   | 2 | média | O que o revisor apontou | Não corrigido | Por que ficou como está |
+
+   <details>
+   <summary>Relatório do revisor, na íntegra</summary>
+
+   (o relatório, sem edição)
+
+   </details>
+   ```
+
+- **Todo achado entra na tabela,** inclusive o que você considera errado. Nesse caso, a situação é "Não corrigido" e o motivo diz por quê. Não omita achado nem edite o relatório.
+- **A revisão não bloqueia.** O que fazer com um achado não corrigido é decisão do usuário no merge. A CI não lê esse comentário.
+- **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
+- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor.md`, e publique o comentário do mesmo jeito.
+
+O desenho e os limites estão em `docs/harness.md`, seção "Revisor em contexto novo".
+
 O desenho e os motivos estão no `docs/harness.md`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
@@ -232,7 +269,7 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
-- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/` e `scripts/` só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/` e `scripts/` só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
 

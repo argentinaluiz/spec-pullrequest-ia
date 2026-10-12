@@ -13,6 +13,7 @@
       "Edit(./.github/**)",
       "Edit(./.claude/settings.json)",
       "Edit(./.claude/hooks/**)",
+      "Edit(./.claude/agents/**)",
       "Edit(./scripts/**)"
     ]
   },
