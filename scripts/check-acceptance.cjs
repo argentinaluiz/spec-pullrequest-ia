@@ -43,7 +43,12 @@ function cells(line) {
     .map((cell) => normalize(cell.replace(/\\\|/g, '|')));
 }
 
-/** As linhas da primeira tabela depois do título, sem o cabeçalho e o separador. */
+/**
+ * As linhas da primeira tabela depois do título, sem o cabeçalho e o separador.
+ * Devolve `null` quando não há a seção e `'malformed'` quando a tabela não começa pelo
+ * cabeçalho de três colunas e pela linha separadora. Sem essa conferência, uma tabela só
+ * com linhas de critério perderia as duas primeiras, que ficariam sem verificação.
+ */
 function tableRows(body) {
   const lines = body.split(/\r?\n/);
   const start = lines.findIndex((line) => HEADING.test(line.trim()));
@@ -55,6 +60,12 @@ function tableRows(body) {
     if (isRow) table.push(line);
     else if (table.length > 0 || line.trim() !== '') break;
   }
+  if (table.length === 0) return [];
+
+  const [header, separator = []] = table.slice(0, 2).map(cells);
+  const isSeparator = separator.length >= 3 && separator.every((cell) => /^:?-+:?$/.test(cell));
+  if (header.length < 3 || !isSeparator) return 'malformed';
+
   return table.slice(2).map(cells);
 }
 
@@ -111,6 +122,14 @@ if (rows === null) {
   error(
     'o pull request altera código em apps/ e não tem a seção "Tabela de aceite". ' +
       'Acrescente-a ao corpo do PR, no formato descrito no AGENTS.md da raiz.',
+  );
+  finish();
+}
+
+if (rows === 'malformed') {
+  error(
+    'a tabela da seção "Tabela de aceite" está malformada. Ela começa pela linha de cabeçalho, ' +
+      'com as três colunas (critério, arquivo de teste e nome do teste), seguida da linha separadora (| --- | --- | --- |).',
   );
   finish();
 }
