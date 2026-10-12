@@ -13,11 +13,21 @@
       "Edit(./.github/**)",
       "Edit(./.claude/settings.json)",
       "Edit(./.claude/hooks/**)",
-      "Edit(./scripts/**)",
-      "Write(./.github/**)",
-      "Write(./.claude/settings.json)",
-      "Write(./.claude/hooks/**)",
-      "Write(./scripts/**)"
+      "Edit(./scripts/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/stop-verify.sh",
+            "timeout": 300,
+            "statusMessage": "Verificando tipos e lint do código alterado"
+          }
+        ]
+      }
     ]
   },
   "enabledMcpjsonServers": [
