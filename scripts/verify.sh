@@ -77,6 +77,11 @@ fast_api() {
 
 fast_web() {
   require_container web
+  # Os tipos globais das rotas (`PageProps`, `LayoutProps`) são gerados pelo Next.js. Num clone
+  # novo, sem `pnpm dev` nem `pnpm build` rodados, eles não existem e o tsc acusa erro falso.
+  step "Web: tipos de rota" \
+    "rode \`docker compose -f compose.dev.yaml exec web pnpm exec next typegen\` e leia o erro." \
+    in_container web pnpm exec next typegen
   step "Web: tipos" \
     "corrija os erros apontados e rode \`docker compose -f compose.dev.yaml exec web pnpm exec tsc --noEmit\`." \
     in_container web pnpm exec tsc --noEmit

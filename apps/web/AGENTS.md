@@ -25,6 +25,7 @@ docker compose -f compose.dev.yaml exec web <comando>
 | `pnpm dev --hostname 0.0.0.0` | Sobe o servidor de desenvolvimento (`http://localhost:3000`) |
 | `pnpm lint` | ESLint com as regras do `eslint-config-next` |
 | `pnpm exec tsc --noEmit` | Checagem de tipos |
+| `pnpm exec next typegen` | Gera os tipos globais das rotas (`PageProps`, `LayoutProps`). O `pnpm dev` e o `pnpm build` já os geram; num clone novo, rode antes do `tsc`. |
 | `pnpm build` | Build de produção, em modo `standalone` |
 
 A web tem uma suíte só, a dos testes no navegador, que roda no contêiner `playwright`, e não no `web`:
