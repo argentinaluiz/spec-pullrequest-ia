@@ -7,8 +7,6 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ['src/**/*.spec.ts'],
-      // A suíte pode ficar sem nenhum teste e, mesmo assim, tem de passar.
-      passWithNoTests: true,
     },
   }),
 );

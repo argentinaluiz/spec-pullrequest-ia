@@ -9,7 +9,14 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  reporter: [["list"], ["html", { open: "never" }]],
+  // Na CI, o teste que falha tem uma nova tentativa. Se passar nela, vira aviso no PR.
+  retries: process.env.CI ? 1 : 0,
+  // O JSON é a evidência que o scripts/verify.sh confere.
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["json", { outputFile: "reports/playwright.json" }],
+  ],
   use: {
     baseURL: requiredEnv("WEB_URL"),
     trace: "retain-on-failure",
