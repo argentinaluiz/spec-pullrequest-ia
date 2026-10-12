@@ -46,7 +46,7 @@ while IFS= read -r file; do
   total=$((total + 1))
   case "$file" in
     # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin.
-    .github/* | .claude/settings.json | .claude/hooks/* | scripts/*)
+    .github/* | .claude/settings.json | .claude/hooks/* | .claude/agents/* | scripts/*)
       blocked+=("$file")
       ;;
     # Mudança de dependência é tarefa normal e só avisa. Mudança nos comandos bloqueia.
