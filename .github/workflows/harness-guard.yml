@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 5
     steps:
       # Sem `ref`, o checkout traz a branch de destino, que é a versão confiável do script.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Conferir os arquivos alterados
         env:

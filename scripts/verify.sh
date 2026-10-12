@@ -10,6 +10,9 @@
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. No modo completo,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
 #
+# Com ACCEPTANCE_BODY_FILE apontando para um arquivo com o corpo do pull request, o modo
+# completo confere também a tabela de aceite.
+#
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
 set -uo pipefail
@@ -24,7 +27,7 @@ BASE_REF="${HARNESS_BASE_REF:-origin/main}"
 failures=()
 
 usage() {
-  sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -135,6 +138,25 @@ ensure_apps() {
   fi
 }
 
+# Confere a tabela de aceite do pull request contra os relatórios das quatro suítes.
+# A tabela só é exigida quando a branch altera código em apps/.
+acceptance() {
+  local mode=--optional
+  [[ -n "$(git diff --name-only "$BASE_REF...HEAD" -- apps/)" ]] && mode=--required
+
+  # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e o
+  # relatório da web chegam a ele pela entrada padrão, sem depender da permissão da pasta.
+  in_container api sh -c 'mkdir -p reports && cat >reports/pr-body.md' <"$ACCEPTANCE_BODY_FILE" || return 1
+  in_container web cat reports/playwright.json |
+    in_container api sh -c 'cat >reports/playwright.json' || return 1
+
+  in_container api node - "$mode" reports/pr-body.md \
+    apps/api=vitest:reports/unit.json \
+    apps/api=vitest:reports/int.json \
+    apps/api=vitest:reports/e2e.json \
+    apps/web/e2e=playwright:reports/playwright.json <scripts/check-acceptance.cjs
+}
+
 secret_scan() {
   git rev-parse --verify --quiet "$BASE_REF" >/dev/null ||
     abort "a referência \`$BASE_REF\` não existe neste clone." \
@@ -171,6 +193,14 @@ run_full() {
   step "Web: relatório da suíte no navegador" \
     "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.fixme\`." \
     check_report web playwright reports/playwright.json
+
+  # Só há tabela para conferir quando há um corpo de pull request: na CI, ou na máquina,
+  # com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
+  if [[ -n "${ACCEPTANCE_BODY_FILE:-}" ]]; then
+    step "Tabela de aceite" \
+      "corrija a tabela no corpo do pull request, no formato descrito no AGENTS.md da raiz, ou escreva o teste que falta." \
+      acceptance
+  fi
 
   step "Segredos nos commits da branch" \
     "tire o segredo do código, troque-o na origem (ele já vazou para o histórico) e reescreva o commit que o trouxe." \
