@@ -1,6 +1,7 @@
 /**
  * Um prazo em segundos, escrito para uma pessoa ler: em horas quando fecha em
  * horas inteiras, e em minutos nos demais casos, arredondado para cima.
+ * Exemplo: 86400 segundos viram "24 horas".
  */
 export function formatDuration(seconds: number): string {
   if (seconds % 3600 === 0) {
