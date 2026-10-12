@@ -10,7 +10,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | --- | --- | --- |
 | 1 | Script de verificação e CI | Implementado |
 | 2 | Proteção da `main` e guarda do harness | Implementado. O ruleset está aplicado no repositório de teste, e ainda não no repositório principal |
-| 3 | Hook de fim de turno | Ainda não implementado |
+| 3 | Hook de fim de turno | Implementado |
 | 4 | Tabela de aceite | Ainda não implementado |
 | 5 | Revisor em contexto novo | Ainda não implementado |
 
@@ -48,7 +48,7 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 
 | Modo | O que roda | Quem chama |
 | --- | --- | --- |
-| `fast [api] [web]` | Tipos e lint dos projetos citados | O hook de fim de turno (etapa 3) |
+| `fast [api] [web]` | Tipos e lint dos projetos citados | O hook de fim de turno |
 | `full [--start-apps]` | O modo rápido, as três suítes da API, o build da web, a suíte no navegador e a varredura de segredos | A CI, e o agente antes de concluir |
 
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
@@ -124,10 +124,25 @@ A regra não cobre o que o agente faz por comando de shell: um redirecionamento 
 
 ## Hook de fim de turno
 
-Ainda não implementado. Decisão:
+A CI dá o veredito, mas leva minutos. O hook traz os checks rápidos para dentro do laço do agente, sem depender de ele lembrar da definição de pronto.
 
-- **O que faz:** quando o agente encerra o turno com código alterado em `apps/api` ou `apps/web`, o hook roda o modo rápido do projeto alterado. Se falhar, a saída volta ao agente, que continua o trabalho.
-- **Falha fechada:** com código alterado e os contêineres fora do ar, o hook bloqueia e diz para subir o ambiente. Sem alteração em `apps/`, ele não faz nada.
+O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `Stop` do Claude Code, que dispara quando o agente tenta encerrar o turno.
+
+| Situação ao encerrar o turno | O que o hook faz |
+| --- | --- |
+| Nenhum código alterado em `apps/api` nem em `apps/web` | Nada |
+| Código alterado, igual ao da última verificação aprovada | Nada |
+| Código alterado e ainda não verificado | Roda `scripts/verify.sh fast` nos projetos alterados |
+| A verificação passa | Deixa o turno encerrar e guarda o estado aprovado |
+| A verificação falha | Bloqueia o encerramento e devolve a saída ao agente, que continua |
+| Os contêineres estão fora do ar | Bloqueia, com a instrução de subir o ambiente |
+| Três bloqueios seguidos na mesma sessão | Deixa o turno encerrar e mostra um aviso ao usuário |
+
+- **O que conta como alterado:** a diferença entre a base da branch (o ponto em que ela saiu da `origin/main`) e a pasta de trabalho, mais os arquivos novos. Assim, o código que o agente commitou no mesmo turno também é verificado.
+- **Por que guardar o estado aprovado:** numa branch com código alterado, um turno que só mexe em documento não precisa pagar a verificação de novo. O hook guarda um resumo do estado de cada projeto na pasta `.git`, fora do versionamento.
+- **Falha fechada:** com código alterado e os contêineres fora do ar, o hook bloqueia, em vez de passar calado.
+- **Limite de três bloqueios:** um erro que o agente não consegue corrigir viraria um laço sem fim. Depois do terceiro bloqueio seguido, o turno encerra e o usuário vê um aviso de que a verificação continua falhando. É o único ponto em que o hook deixa passar uma falha, e ela continua sendo pega pela CI.
+- **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
 - **Fora:** hook a cada edição de arquivo (o código fica quebrado no meio de uma mudança, e o hook viraria ruído), suítes de teste no hook (lentas) e hook de Git (redundante com a CI e contornável com `--no-verify`).
 
 ## Tabela de aceite
