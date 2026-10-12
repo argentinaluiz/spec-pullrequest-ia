@@ -26,22 +26,26 @@ blocks_file="$state_dir/stop-blocks-$session"
 
 # Bloqueia o encerramento e devolve a mensagem ao agente. Depois de MAX_BLOCKS bloqueios
 # seguidos, deixa o turno encerrar e avisa o usuário.
-#   block <resumo de uma linha> <detalhe para o agente>
+#   block <resumo de uma linha> <como resolver, em uma linha> <detalhe para o agente>
 block() {
-  local summary="$1" detail="$2"
+  local summary="$1" fix="$2" detail="$3"
   local blocks=$(($(cat "$blocks_file" 2>/dev/null || echo 0) + 1))
 
   if [[ $blocks -gt $MAX_BLOCKS ]]; then
     rm -f "$blocks_file"
-    printf '{"systemMessage": "Hook de fim de turno: %s, mesmo depois de %d tentativas de correção. O agente encerrou o turno sem resolver. Rode scripts/verify.sh fast para ver o erro."}\n' \
-      "$summary" "$MAX_BLOCKS"
+    # O `jq` escapa o que vier nas mensagens, como o nome de uma referência do Git.
+    jq -n \
+      --arg message "Hook de fim de turno: $summary, mesmo depois de $MAX_BLOCKS tentativas de correção. O agente encerrou o turno sem resolver. $fix" \
+      '{systemMessage: $message}' ||
+      printf '{"systemMessage": "Hook de fim de turno: a verificação continua falhando, e o agente encerrou o turno sem resolver."}\n'
     exit 0
   fi
 
   echo "$blocks" >"$blocks_file"
   {
     echo "O turno não pode encerrar: $summary (tentativa $blocks de $MAX_BLOCKS)."
-    echo "$detail"
+    echo "Como resolver: $fix"
+    [[ -n "$detail" ]] && echo "$detail"
   } >&2
   exit 2
 }
@@ -52,7 +56,8 @@ block() {
 # sem verificação. Por isso a falta dela bloqueia, em vez de cair para o HEAD.
 base="$(git merge-base HEAD "$BASE_REF" 2>/dev/null)" ||
   block "não deu para achar a base da branch em relação a \`$BASE_REF\`" \
-    "Como resolver: rode \`git fetch origin\`. Se a referência tem outro nome neste clone, defina a variável HARNESS_BASE_REF."
+    "Rode \`git fetch origin\`. Se a referência tem outro nome neste clone, defina a variável HARNESS_BASE_REF." \
+    ""
 
 changed_files() {
   git diff --name-only "$base" -- "apps/$1"
@@ -93,6 +98,7 @@ fi
 
 # O fim da saída traz o resumo do que falhou e como corrigir.
 block "a verificação rápida de ${projects[*]} não passou" \
+  "Rode \`scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
   "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
 
 $(echo "$output" | tail -n 80)"
