@@ -11,7 +11,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 1 | Script de verificação e CI | Implementado |
 | 2 | Proteção da `main` e guarda do harness | Implementado. O ruleset está aplicado no repositório de teste, e ainda não no repositório principal |
 | 3 | Hook de fim de turno | Implementado |
-| 4 | Tabela de aceite | Ainda não implementado |
+| 4 | Tabela de aceite | Implementado |
 | 5 | Revisor em contexto novo | Ainda não implementado |
 
 As seções das etapas ainda não implementadas registram a decisão tomada. Cada uma é completada quando a etapa entra.
@@ -39,7 +39,7 @@ As seções das etapas ainda não implementadas registram a decisão tomada. Cad
 | PR que altera arquivo protegido do harness | Bloqueia | 2 |
 | PR que altera configuração de lint ou de teste | Aviso no PR | 2 |
 | Linha da tabela de aceite sem teste, com teste inexistente ou pulado | Bloqueia | 4 |
-| PR sem tabela de aceite, fora das branches `docs/*` | Bloqueia | 4 |
+| PR que altera código em `apps/` sem tabela de aceite | Bloqueia | 4 |
 | Achado do revisor | Comentário no PR | 5 |
 
 ## Script de verificação
@@ -148,12 +148,26 @@ O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `S
 
 ## Tabela de aceite
 
-Ainda não implementado. Decisão:
+A CI passar prova que os testes que existem passam. Não prova que cada critério de aceite tem um teste. A tabela de aceite fecha essa distância: o pull request declara qual teste cobre cada critério, e a CI confere a declaração.
 
-- **O que é:** uma tabela no corpo do PR, com uma linha por critério de aceite e, em cada linha, o arquivo e o nome do teste que o prova. Os critérios vêm do ticket ou, em PR sem ticket, do próprio PR.
-- **O que a CI confere:** que cada teste citado existe, rodou e passou, pelos relatórios da própria execução.
-- **O que o humano confere no merge:** que as linhas da tabela são os critérios do ticket. A CI não lê o Linear.
-- **Limite:** a tabela prova que o teste citado passou, e não que ele verifica o critério. Uma asserção fraca continua passando.
+O formato da tabela e a regra de quando escrevê-la estão no `AGENTS.md` da raiz, seção "Tabela de aceite no pull request".
+
+| Situação | Efeito |
+| --- | --- |
+| O PR altera código em `apps/` e não tem a tabela | Bloqueia |
+| A tabela não tem nenhuma linha | Bloqueia |
+| Uma linha sem critério, sem arquivo ou sem nome de teste | Bloqueia |
+| O arquivo citado não tem nenhum teste que rodou | Bloqueia |
+| O teste citado não existe no arquivo | Bloqueia |
+| O teste citado falhou ou foi pulado | Bloqueia |
+| Falta o relatório de alguma suíte | Bloqueia |
+| O PR não altera nada em `apps/` e não tem a tabela | Passa |
+
+- **Onde é conferida:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os relatórios JSON das quatro suítes da própria execução. Faz parte do `Veredito`.
+- **Quando é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um PR só de documento ou de harness não precisa da tabela; se a trouxer, ela é conferida.
+- **Corpo editado, CI de novo:** a tabela mora no corpo do PR, então a CI roda outra vez quando ele é editado.
+- **O que o humano confere no merge:** que as linhas da tabela são os critérios do ticket. A CI não lê o Linear, porque isso pediria um segredo de API no repositório.
+- **Limite:** a tabela prova que o teste citado existe, rodou e passou. Não prova que ele verifica o critério: uma asserção fraca continua passando, e nada impede citar um teste que não tem relação com o critério. O que cobre isso é a leitura no merge e, como evolução, o mutation testing.
 
 ## Revisor em contexto novo
 

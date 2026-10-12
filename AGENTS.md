@@ -167,6 +167,27 @@ scripts/verify.sh full
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
 
+**Tabela de aceite no pull request**
+
+Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Tabela de aceite`, com uma linha por critério de aceite e o teste que o prova:
+
+```markdown
+## Tabela de aceite
+
+| Critério | Arquivo de teste | Nome do teste |
+| --- | --- | --- |
+| O login bloqueia a sexta tentativa | apps/api/test/auth-rate-limit.e2e-spec.ts | devolve rate_limited na sexta tentativa, exista ou não o Usuário, com a mesma resposta |
+| O Usuário entra e sai pela interface | apps/web/e2e/session.spec.ts | o Usuário entra, vê o próprio e-mail na página provisória e sai |
+```
+
+- **Critério:** os critérios de aceite do ticket, um por linha, sem pular nenhum. Em PR sem ticket, os critérios do próprio PR.
+- **Arquivo de teste:** o caminho a partir da raiz do repositório.
+- **Nome do teste:** o nome exato, como está no `it` ou no `test`. Quando o mesmo nome se repete no arquivo, use o nome completo, com os `describe` separados por ` › `.
+- **Um teste por linha.** Se um critério precisa de dois testes, repita o critério em duas linhas.
+- **Critério sem teste não entra na tabela:** escreva o teste. A CI reprova linha incompleta, teste inexistente, teste que falhou e teste pulado.
+
+Para conferir a tabela antes de abrir o PR, salve o corpo num arquivo e rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`.
+
 O desenho e os motivos estão no `docs/harness.md`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
