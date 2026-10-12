@@ -179,7 +179,7 @@ O princípio é que quem faz não avalia. A separação é de papel, e não de m
 | Aspecto | Como é |
 | --- | --- |
 | Quem revisa | O subagente `revisor`, definido em `.claude/agents/revisor.md` |
-| O que ele recebe | O arquivo de diff e o identificador do ticket. Nunca o resumo nem a opinião de quem implementou |
+| O que ele recebe | O arquivo de diff, com a mudança já em commit, e o identificador do ticket. Em PR sem ticket, os critérios de aceite no lugar dele. Nunca o resumo nem a opinião de quem implementou |
 | O que ele pode fazer | Ler o repositório e o ticket. Não tem ferramenta de escrita nem de shell |
 | O que ele confere | Se o diff entrega cada critério de aceite, se os testes provam os critérios, defeitos, regras do projeto e documentos desatualizados |
 | Onde fica o resultado | Num comentário no PR, com cada achado marcado como corrigido ou não, o motivo e o relatório na íntegra |
@@ -192,6 +192,7 @@ O passo a passo que o agente segue e o formato do comentário estão no `AGENTS.
 - **Todo achado fica registrado,** inclusive o que o agente que implementou considera errado. Assim, a decisão sobre um achado não corrigido é do humano no merge, e não de quem escreveu o código.
 - **A definição do revisor é arquivo do harness.** O `.claude/agents/` está entre os caminhos protegidos pelo guarda, porque enfraquecer as instruções do revisor enfraqueceria a revisão sem alterar nenhum check.
 - **Limite:** este passo é uma instrução, e instrução pode ser pulada. A CI poderia reprovar o PR sem o comentário, mas isso daria poder de bloqueio a uma peça inferencial pela porta dos fundos. A falta do comentário aparece só para o humano, no merge.
+- **Limite:** o diff só traz o que está em commit. Mudança que ficou fora do commit fica fora da revisão, e por isso o passo a passo exige a árvore de trabalho limpa antes de gerar o diff.
 - **Limite:** o revisor não roda o código nem os testes. Ele lê. O que só aparece em execução fica para a CI.
 - **Limite:** nenhum revisor pega bem um requisito mal entendido quando o ticket também está errado. A atenção humana continua necessária na fronteira entre especificar e implementar.
 

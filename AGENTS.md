@@ -192,14 +192,17 @@ Para conferir a tabela antes de abrir o PR, salve o corpo num arquivo e rode `AC
 
 Quem escreveu o código não é quem o revisa. Todo pull request que altera código em `apps/` passa pelo subagente `revisor`, que não viu a implementação. Ela é a revisão que vale para o PR; uma revisão feita na mesma sessão que escreveu o código não a substitui.
 
-1. **Gere o diff num arquivo,** com a implementação terminada e a verificação completa passando:
+1. **Gere o diff num arquivo,** com a implementação terminada, a verificação completa passando e tudo commitado:
 
    ```bash
+   git status --short
    git diff origin/main...HEAD > "$(git rev-parse --git-dir)/harness/review.diff"
    ```
 
+   O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso.
+
 2. **Chame o subagente `revisor`** passando só o caminho desse arquivo e o identificador do ticket. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
-3. **Corrija os achados com que você concorda** e rode a verificação de novo.
+3. **Corrija os achados com que você concorda,** faça o commit das correções e rode a verificação de novo.
 4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
 
    ```markdown
