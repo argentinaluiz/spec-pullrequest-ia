@@ -210,6 +210,8 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - **Branch principal:** `main`. Nunca faça commit direto nela.
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
+- **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/` e `scripts/` só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
 
