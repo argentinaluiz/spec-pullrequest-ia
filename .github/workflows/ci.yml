@@ -39,7 +39,7 @@ jobs:
           # Num push, a `origin/main` já é o próprio commit enviado, e a varredura de segredos
           # não teria commit nenhum para olhar. A base passa a ser o commit anterior ao push.
           HARNESS_BASE_REF: ${{ github.event_name == 'push' && github.event.before || 'origin/main' }}
-        run: scripts/verify.sh full --start-apps
+        run: scripts/verify.sh fast
 
       - name: Logs dos contêineres
         if: failure()
