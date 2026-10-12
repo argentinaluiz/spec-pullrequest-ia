@@ -3,6 +3,8 @@
     "deny": [
       "Read(./docs/sessoes/**)",
       "Edit(./docs/sessoes/**)",
+      "Read(./docs/specs/**)",
+      "Edit(./docs/specs/**)",
       "Read(./docs/Gerenciador de arquivos.fig)",
       "Edit(./docs/Gerenciador de arquivos.fig)"
     ]
