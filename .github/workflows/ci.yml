@@ -1,0 +1,54 @@
+name: CI
+
+# O veredito do projeto: reexecuta a definição de pronto inteira, no mesmo Compose do
+# desenvolvimento. O desenho está no docs/harness.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verdict:
+    name: Veredito
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A varredura de segredos compara a branch com a main.
+          fetch-depth: 0
+
+      # Os contêineres rodam com o usuário 1000 e escrevem na pasta montada
+      # (node_modules, .env, relatórios). O usuário do runner é outro.
+      - name: Liberar a escrita dos contêineres em apps/
+        run: chmod -R a+rwX apps
+
+      - name: Subir o ambiente
+        run: docker compose -f compose.dev.yaml up -d --build --wait
+
+      - name: Verificar
+        run: scripts/verify.sh full --start-apps
+
+      - name: Logs dos contêineres
+        if: failure()
+        run: docker compose -f compose.dev.yaml logs --no-color --tail 200
+
+      - name: Guardar os relatórios
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios
+          if-no-files-found: ignore
+          path: |
+            apps/api/reports/
+            apps/web/reports/
+            apps/web/playwright-report/
+            apps/web/test-results/

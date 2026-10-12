@@ -29,7 +29,7 @@ docker compose -f compose.dev.yaml exec api <comando>
 
 **Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para cumprir a definição de pronto, rode as três: `pnpm test`, `pnpm test:int` e `pnpm test:e2e`.
 
-A suíte de unidade passa mesmo sem nenhum arquivo de teste. As de integração e de ponta a ponta precisam do `postgres` e do `mailpit` no ar, o que o Compose já garante.
+Uma suíte que não roda nenhum teste falha. As de integração e de ponta a ponta precisam do `postgres` e do `mailpit` no ar, o que o Compose já garante.
 
 O `pnpm lint` só aponta os problemas, sem corrigir. A formatação é conferida à parte, pelo `pnpm format`.
 

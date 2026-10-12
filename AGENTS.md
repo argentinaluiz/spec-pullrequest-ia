@@ -8,6 +8,7 @@ Em `docs/` estão os documentos que definem o produto, a arquitetura e os detalh
 2. `docs/hld.md`: High-level design, documento de arquitetura de alto nível. Aqui ficam as decisões de arquitetura, os fluxos principais e a visão geral do sistema.
 3. `docs/lld.md`: Low-level design, documento de arquitetura de baixo nível. Aqui ficam a estrutura de pastas, as bibliotecas escolhidas, os esquemas de banco, os contratos de API, os estados, as regras de cota, as tarefas do worker, o upload em chunks e as variáveis de ambiente.
 4. `docs/design-system.md`: linguagem visual da interface. Aqui ficam os tokens de cor, tipografia, espaçamento, raio e sombra, os estados de interação, os componentes, o comportamento responsivo e o fluxo de trabalho com o Figma.
+5. `docs/harness.md`: como o trabalho dos agentes é verificado. Aqui ficam o script de verificação, a CI, a política do que bloqueia e do que só avisa e o que ficou de fora.
 
 Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da stack e as práticas de código dele:
 
@@ -153,6 +154,20 @@ Uma mudança no código só está concluída quando **todos** os itens abaixo pa
 5. Em mudanças de interface, a validação visual descrita em `docs/design-system.md` foi feita.
 
 Se algum item falhar, a tarefa não está pronta. Corrija a causa antes de declarar a conclusão.
+
+**Verificação completa**
+
+O `scripts/verify.sh full` roda os itens 2 a 4 de uma vez, mais o build da web e a varredura de segredos. Rode-o da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
+
+```bash
+scripts/verify.sh full
+```
+
+- **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
+- **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
+- **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
+
+O desenho e os motivos estão no `docs/harness.md`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
