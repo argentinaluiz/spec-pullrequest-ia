@@ -136,6 +136,7 @@ O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `S
 | A verificação passa | Deixa o turno encerrar e guarda o estado aprovado |
 | A verificação falha | Bloqueia o encerramento e devolve a saída ao agente, que continua |
 | Os contêineres estão fora do ar | Bloqueia, com a instrução de subir o ambiente |
+| A base da branch não é encontrada (falta a `origin/main` no clone) | Bloqueia, com a instrução de buscar a referência |
 | Três bloqueios seguidos na mesma sessão | Deixa o turno encerrar e mostra um aviso ao usuário |
 
 - **O que conta como alterado:** a diferença entre a base da branch (o ponto em que ela saiu da `origin/main`) e a pasta de trabalho, mais os arquivos novos. Assim, o código que o agente commitou no mesmo turno também é verificado.

@@ -24,9 +24,35 @@ state_dir="$(git rev-parse --git-dir)/harness"
 mkdir -p "$state_dir"
 blocks_file="$state_dir/stop-blocks-$session"
 
+# Bloqueia o encerramento e devolve a mensagem ao agente. Depois de MAX_BLOCKS bloqueios
+# seguidos, deixa o turno encerrar e avisa o usuário.
+#   block <resumo de uma linha> <detalhe para o agente>
+block() {
+  local summary="$1" detail="$2"
+  local blocks=$(($(cat "$blocks_file" 2>/dev/null || echo 0) + 1))
+
+  if [[ $blocks -gt $MAX_BLOCKS ]]; then
+    rm -f "$blocks_file"
+    printf '{"systemMessage": "Hook de fim de turno: %s, mesmo depois de %d tentativas de correção. O agente encerrou o turno sem resolver. Rode scripts/verify.sh fast para ver o erro."}\n' \
+      "$summary" "$MAX_BLOCKS"
+    exit 0
+  fi
+
+  echo "$blocks" >"$blocks_file"
+  {
+    echo "O turno não pode encerrar: $summary (tentativa $blocks de $MAX_BLOCKS)."
+    echo "$detail"
+  } >&2
+  exit 2
+}
+
 # "Alterado" é a diferença entre a base da branch e a pasta de trabalho, mais os arquivos novos.
 # Assim, o código que o agente já commitou no mesmo turno também conta.
-base="$(git merge-base HEAD "$BASE_REF" 2>/dev/null || git rev-parse HEAD)"
+# Sem a base, só o que não foi commitado apareceria, e o código já commitado na branch ficaria
+# sem verificação. Por isso a falta dela bloqueia, em vez de cair para o HEAD.
+base="$(git merge-base HEAD "$BASE_REF" 2>/dev/null)" ||
+  block "não deu para achar a base da branch em relação a \`$BASE_REF\`" \
+    "Como resolver: rode \`git fetch origin\`. Se a referência tem outro nome neste clone, defina a variável HARNESS_BASE_REF."
 
 changed_files() {
   git diff --name-only "$base" -- "apps/$1"
@@ -65,22 +91,8 @@ if [[ $status -eq 0 ]]; then
   exit 0
 fi
 
-blocks=$(($(cat "$blocks_file" 2>/dev/null || echo 0) + 1))
+# O fim da saída traz o resumo do que falhou e como corrigir.
+block "a verificação rápida de ${projects[*]} não passou" \
+  "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
 
-if [[ $blocks -gt $MAX_BLOCKS ]]; then
-  rm -f "$blocks_file"
-  printf '{"systemMessage": "A verificação rápida (%s) continua falhando depois de %d tentativas de correção. O agente encerrou o turno sem resolver. Rode scripts/verify.sh fast para ver o erro."}\n' \
-    "${projects[*]}" "$MAX_BLOCKS"
-  exit 0
-fi
-
-echo "$blocks" >"$blocks_file"
-
-{
-  echo "O turno não pode encerrar: a verificação rápida de ${projects[*]} não passou (tentativa $blocks de $MAX_BLOCKS)."
-  echo "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação."
-  echo
-  # O fim da saída traz o resumo do que falhou e como corrigir.
-  echo "$output" | tail -n 80
-} >&2
-exit 2
+$(echo "$output" | tail -n 80)"
