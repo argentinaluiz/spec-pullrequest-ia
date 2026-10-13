@@ -226,9 +226,7 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
 - **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
 - **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor.md`, e publique o comentário do mesmo jeito.
 
-O desenho e os limites estão em `docs/harness.md`, seção "Revisor em contexto novo".
-
-O desenho e os motivos estão no `docs/harness.md`.
+O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor em contexto novo". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 

@@ -14,8 +14,6 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 4 | Tabela de aceite | Implementado |
 | 5 | Revisor em contexto novo | Implementado |
 
-As seções das etapas ainda não implementadas registram a decisão tomada. Cada uma é completada quando a etapa entra.
-
 ## Princípios
 
 - **Quem faz não dá o veredito.** O agente declara que terminou, mas quem decide se passou é a CI, num ambiente que ele não controla.

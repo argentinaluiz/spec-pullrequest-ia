@@ -19,6 +19,11 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 COMPOSE=(docker compose -f compose.dev.yaml)
+# O mesmo comando, como texto, para as mensagens de como corrigir.
+EXEC="${COMPOSE[*]} exec"
+# Onde a API e a web respondem, cada uma dentro do próprio contêiner.
+API_URL=http://127.0.0.1:3000/v1
+WEB_URL=http://127.0.0.1:3000/
 # Versão fixa, para o mesmo diff dar sempre o mesmo resultado.
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A varredura de segredos olha os commits que a branch tem a mais do que esta referência.
@@ -59,7 +64,7 @@ in_container() {
 require_container() {
   in_container "$1" true >/dev/null 2>&1 ||
     abort "o contêiner \`$1\` não está no ar." \
-      "suba o ambiente com \`docker compose -f compose.dev.yaml up -d --build --wait\` e rode de novo."
+      "suba o ambiente com \`${COMPOSE[*]} up -d --build --wait\` e rode de novo."
 }
 
 # Confere o relatório JSON de uma suíte dentro do contêiner, onde está o Node.
@@ -68,36 +73,35 @@ check_report() {
   in_container "$service" node - "$kind" "$file" <scripts/check-report.cjs
 }
 
-fast_api() {
-  require_container api
-  step "API: tipos" \
-    "corrija os erros apontados e rode \`docker compose -f compose.dev.yaml exec api pnpm exec tsc --noEmit\`." \
-    in_container api pnpm exec tsc --noEmit
-  step "API: lint" \
-    "corrija os problemas apontados e rode \`docker compose -f compose.dev.yaml exec api pnpm lint\`." \
-    in_container api pnpm lint
-}
-
-fast_web() {
-  require_container web
-  # Os tipos globais das rotas (`PageProps`, `LayoutProps`) são gerados pelo Next.js. Num clone
-  # novo, sem `pnpm dev` nem `pnpm build` rodados, eles não existem e o tsc acusa erro falso.
-  step "Web: tipos de rota" \
-    "rode \`docker compose -f compose.dev.yaml exec web pnpm exec next typegen\` e leia o erro." \
-    in_container web pnpm exec next typegen
-  step "Web: tipos" \
-    "corrija os erros apontados e rode \`docker compose -f compose.dev.yaml exec web pnpm exec tsc --noEmit\`." \
-    in_container web pnpm exec tsc --noEmit
-  step "Web: lint" \
-    "corrija os problemas apontados e rode \`docker compose -f compose.dev.yaml exec web pnpm lint\`." \
-    in_container web pnpm lint
+# fast_project <api|web>
+fast_project() {
+  local service="$1" label
+  case "$service" in
+    api) label=API ;;
+    web) label=Web ;;
+    *) usage ;;
+  esac
+  require_container "$service"
+  if [[ "$service" == web ]]; then
+    # Os tipos globais das rotas (`PageProps`, `LayoutProps`) são gerados pelo Next.js. Num clone
+    # novo, sem `pnpm dev` nem `pnpm build` rodados, eles não existem e o tsc acusa erro falso.
+    step "$label: tipos de rota" \
+      "rode \`$EXEC $service pnpm exec next typegen\` e leia o erro." \
+      in_container "$service" pnpm exec next typegen
+  fi
+  step "$label: tipos" \
+    "corrija os erros apontados e rode \`$EXEC $service pnpm exec tsc --noEmit\`." \
+    in_container "$service" pnpm exec tsc --noEmit
+  step "$label: lint" \
+    "corrija os problemas apontados e rode \`$EXEC $service pnpm lint\`." \
+    in_container "$service" pnpm lint
 }
 
 # api_suite <nome> <script do pnpm> <arquivo do relatório>
 api_suite() {
   local name="$1" script="$2" report="$3"
   step "API: suíte $name" \
-    "rode \`docker compose -f compose.dev.yaml exec api pnpm $script\`, leia a falha e corrija o código ou o teste." \
+    "rode \`$EXEC api pnpm $script\`, leia a falha e corrija o código ou o teste." \
     in_container api pnpm "$script" --reporter=default --reporter=json "--outputFile.json=$report"
   step "API: relatório da suíte $name" \
     "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.todo\`." \
@@ -121,7 +125,7 @@ wait_for() {
 # A suíte no navegador fala com a web e a API reais, em modo de desenvolvimento.
 ensure_apps() {
   local start="$1"
-  if responds api http://127.0.0.1:3000/v1 && responds web http://127.0.0.1:3000/; then
+  if responds api "$API_URL" && responds web "$WEB_URL"; then
     return 0
   fi
   if [[ "$start" != yes ]]; then
@@ -130,7 +134,7 @@ ensure_apps() {
   fi
   "${COMPOSE[@]}" exec -d api sh -c 'pnpm start:dev >/tmp/api.log 2>&1'
   "${COMPOSE[@]}" exec -d web sh -c 'pnpm dev --hostname 0.0.0.0 >/tmp/web.log 2>&1'
-  if ! wait_for api http://127.0.0.1:3000/v1 || ! wait_for web http://127.0.0.1:3000/; then
+  if ! wait_for api "$API_URL" || ! wait_for web "$WEB_URL"; then
     in_container api cat /tmp/api.log >&2
     in_container web cat /tmp/web.log >&2
     abort "a web ou a API não respondeu em três minutos." \
@@ -175,20 +179,20 @@ run_full() {
   in_container api rm -rf reports
   in_container web rm -rf reports
 
-  fast_api
-  fast_web
+  fast_project api
+  fast_project web
 
   api_suite "de unidade" test reports/unit.json
   api_suite "de integração" test:int reports/int.json
   api_suite "de ponta a ponta" test:e2e reports/e2e.json
 
   step "Web: build" \
-    "rode \`docker compose -f compose.dev.yaml exec web pnpm build\` e corrija o erro de pré-renderização ou de compilação." \
+    "rode \`$EXEC web pnpm build\` e corrija o erro de pré-renderização ou de compilação." \
     in_container web pnpm build
 
   ensure_apps "$start_apps"
   step "Web: suíte no navegador" \
-    "rode \`docker compose -f compose.dev.yaml exec playwright npx playwright test\` e abra o trace em apps/web/test-results/." \
+    "rode \`$EXEC playwright npx playwright test\` e abra o trace em apps/web/test-results/." \
     "${COMPOSE[@]}" exec -T -e "CI=${CI:-}" playwright npx playwright test
   step "Web: relatório da suíte no navegador" \
     "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.fixme\`." \
@@ -215,11 +219,7 @@ case "$mode" in
     projects=("$@")
     [[ ${#projects[@]} -eq 0 ]] && projects=(api web)
     for project in "${projects[@]}"; do
-      case "$project" in
-        api) fast_api ;;
-        web) fast_web ;;
-        *) usage ;;
-      esac
+      fast_project "$project"
     done
     ;;
   full)

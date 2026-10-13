@@ -24,8 +24,7 @@ state_dir="$(git rev-parse --git-dir)/harness"
 mkdir -p "$state_dir"
 blocks_file="$state_dir/stop-blocks-$session"
 
-# Bloqueia o encerramento e devolve a mensagem ao agente. Depois de MAX_BLOCKS bloqueios
-# seguidos, deixa o turno encerrar e avisa o usuário.
+# Bloqueia o encerramento e devolve a mensagem ao agente, até o limite de MAX_BLOCKS.
 #   block <resumo de uma linha> <como resolver, em uma linha> <detalhe para o agente>
 block() {
   local summary="$1" fix="$2" detail="$3"
