@@ -16,9 +16,11 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 input="$(cat)"
 command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)" || command="$input"
 
-# `git push` como subcomando: `git`, as opções globais (`-C <pasta>`, `-c <chave=valor>`,
-# `--no-pager`) e então `push`. Não casa com `git stash push` nem com `git log --grep push`.
-git_push='(^|[^[:alnum:]_./-])git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--?[[:alnum:]-]+(=[^[:space:]]+)?))*[[:space:]]+push([^[:alnum:]_-]|$)'
+# `git push` como comando: no começo de uma linha ou depois de `;`, `&`, `|` ou `(`, com
+# variáveis de ambiente na frente, as opções globais do `git` (`-C <pasta>`, `-c <chave=valor>`,
+# `--no-pager`) e então `push`. Não casa com `git stash push` nem com um texto que só cite o
+# comando no meio de uma frase, como a mensagem de um commit.
+git_push=$'(^|[;&|(\n])[[:space:]]*([[:alnum:]_]+=[^[:space:]]*[[:space:]]+)*git([[:space:]]+(-[Cc][[:space:]]+[^[:space:]]+|--?[[:alnum:]-]+(=[^[:space:]]+)?))*[[:space:]]+push([^[:alnum:]_-]|$)'
 [[ "$command" =~ $git_push ]] || exit 0
 
 # Apagar uma branch remota não envia código.
