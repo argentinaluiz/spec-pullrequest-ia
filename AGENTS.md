@@ -167,6 +167,18 @@ scripts/verify.sh full
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
 
+**Antes do push**
+
+Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. Para o push passar:
+
+1. Faça o commit de tudo. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
+2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a tabela de aceite.
+3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
+4. Faça o push.
+
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml` ou em `scripts/`. Mudança só em documento não invalida, e uma branch que só altera documento não precisa de aprovação.
+- **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
+
 **Tabela de aceite no pull request**
 
 Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Tabela de aceite`, com uma linha por critério de aceite e o teste que o prova:
@@ -186,7 +198,7 @@ Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Ta
 - **Um teste por linha.** Se um critério precisa de dois testes, repita o critério em duas linhas.
 - **Critério sem teste não entra na tabela:** escreva o teste. A CI reprova linha incompleta, teste inexistente, teste que falhou e teste pulado.
 
-Para conferir a tabela antes de abrir o PR, salve o corpo num arquivo e rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`.
+A tabela é conferida na máquina antes do push, como descrito em "Antes do push".
 
 **Revisão em contexto novo**
 

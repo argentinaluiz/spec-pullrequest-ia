@@ -13,6 +13,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 3 | Hook de fim de turno | Implementado |
 | 4 | Tabela de aceite | Implementado |
 | 5 | Revisor em contexto novo | Implementado |
+| 6 | Bloqueio no push | Implementado |
 
 ## Princípios
 
@@ -39,15 +40,18 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Linha da tabela de aceite sem teste, com teste inexistente ou pulado | Bloqueia | 4 |
 | PR que altera código em `apps/` sem tabela de aceite | Bloqueia | 4 |
 | Achado do revisor | Comentário no PR | 5 |
+| Push do agente com segredo nos commits da branch | Nega o push | 6 |
+| Push do agente sem o modo completo aprovado para o último commit | Nega o push | 6 |
 
 ## Script de verificação
 
-O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose.dev.yaml` e tem dois modos:
+O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose.dev.yaml` e tem três modos:
 
 | Modo | O que roda | Quem chama |
 | --- | --- | --- |
 | `fast [api] [web]` | Tipos e lint dos projetos citados | O hook de fim de turno |
-| `full [--start-apps]` | O modo rápido, as três suítes da API, o build da web, a suíte no navegador e a varredura de segredos | A CI, e o agente antes de concluir |
+| `full [--start-apps]` | O modo rápido, as três suítes da API, o build da web, a suíte no navegador e a varredura de segredos | A CI, e o agente antes do push |
+| `prepush` | A varredura de segredos e a conferência de que o modo completo aprovou o último commit | O hook de antes do push |
 
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
 - **Relatórios:** cada suíte grava um JSON em `reports/`, na pasta do projeto, e o `scripts/check-report.cjs` o confere. Os relatórios antigos são apagados no começo, para que só valha a evidência da execução atual.
@@ -195,10 +199,42 @@ O passo a passo que o agente segue e o formato do comentário estão no `AGENTS.
 - **Limite:** o revisor não roda o código nem os testes. Ele lê. O que só aparece em execução fica para a CI.
 - **Limite:** nenhum revisor pega bem um requisito mal entendido quando o ticket também está errado. A atenção humana continua necessária na fronteira entre especificar e implementar.
 
+## Bloqueio no push
+
+Rodar o modo completo antes de enviar o código era só uma regra do `AGENTS.md`, e controle que existe só como instrução é pulado. Quando o agente pulava, o erro aparecia minutos depois, numa rodada de CI. Esta etapa transforma a regra em mecanismo.
+
+O `.claude/settings.json` registra o `.claude/hooks/push-verify.sh` no evento `PreToolUse` do Claude Code, para a ferramenta de shell. Quando o comando é um `git push`, o hook chama `scripts/verify.sh prepush` e nega o comando se ele não passar.
+
+| Situação no push | O que o hook faz |
+| --- | --- |
+| Os commits da branch trazem um segredo | Nega |
+| A branch não altera nada do que a verificação lê | Deixa passar, depois da varredura de segredos |
+| O modo completo aprovou o conteúdo do último commit | Deixa passar |
+| O modo completo não rodou, reprovou, ou aprovou outro conteúdo | Nega, com a instrução de rodar |
+| A branch altera `apps/` e o modo completo aprovou sem conferir a tabela de aceite | Nega, com a instrução de rodar com o corpo do PR |
+| A base da branch não é encontrada, ou a varredura não consegue rodar | Nega |
+| O comando apaga uma branch remota (`--delete`) | Deixa passar, porque não envia código |
+
+O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes do push".
+
+- **O bloqueio é no push porque é ele que gasta rodada de CI.** Toda execução da CI num pull request nasce de um push, na abertura e nas correções.
+- **O que a aprovação cobre:** o conteúdo de `apps/`, do `compose.dev.yaml` e de `scripts/`, que é o que a verificação lê. O modo completo resume esse conteúdo no começo da execução e, se terminar aprovado, grava o resumo na pasta `.git`, fora do versionamento. O hook compara com o resumo do último commit.
+- **Documento não invalida a aprovação.** Tipos, lint, testes e build não mudam de resultado por causa de um documento, e exigir cinco minutos de verificação para um ajuste de texto levaria a contornar o bloqueio.
+- **A varredura de segredos roda em todo push,** inclusive no de documento. É a única verificação em que a CI chega tarde: quando ela reprova, o segredo já está no repositório remoto.
+- **A tabela de aceite entra na aprovação.** Na máquina, o modo completo só confere a tabela quando recebe o corpo do PR num arquivo. Sem essa exigência, o mesmo comando aprovaria na máquina e reprovaria na CI.
+- **Mudança sem commit conta para a tabela.** O modo completo costuma rodar antes do commit, então ele considera a pasta de trabalho, e não só os commits, para decidir se a tabela é exigida.
+- **Sem exceção para o agente.** Não há variável nem argumento que desligue o bloqueio. O push sem verificação, como o de um trabalho pela metade, é do usuário, no terminal. Segue o desenho do merge e do bypass: o caminho fora da regra é um ato humano.
+- **Limite:** o hook só vê o push que o agente faz por comando de shell. O push do usuário no terminal e um push feito pela API do GitHub não passam por ele. O bloqueio contém o esquecimento, e não a má-fé; a garantia continua sendo a CI.
+- **Limite:** o hook confere o último commit da pasta do projeto. Um push de outra branch ou de outro repositório, feito no mesmo comando, é conferido contra esse commit.
+- **Limite:** a aprovação fica na máquina. Em outro clone, ou depois de apagar a pasta `.git/harness`, o modo completo precisa rodar de novo.
+- **Limite:** o hook confere o arquivo do corpo do PR que o agente apontou, e não o corpo que ele publica depois. Se os dois divergirem, a CI reprova.
+- **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
+
 ## O que ficou de fora
 
 | Peça | Por quê |
 | --- | --- |
+| Suítes de unidade e de integração da API no hook de fim de turno | Levam cinco segundos juntas e mostrariam o teste quebrado no mesmo turno. Ficam como evolução: com o bloqueio no push, o teste quebrado já não chega à CI. O sinal para trazê-las é o agente chegar várias vezes ao push com teste quebrado. |
 | Mutation testing | Custo alto para o escopo didático. É a resposta conhecida para asserção fraca, e a primeira evolução a considerar. |
 | Piso de cobertura | Cobertura mede execução, e não verificação. |
 | Revisor com poder de bloqueio | Exige calibrar o revisor com tarefas antigas, e o projeto ainda não tem histórico para isso. |

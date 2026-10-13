@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #
 # Verificação do projeto. É a única definição de "passou": a CI chama o modo completo,
-# e os hooks chamam o modo rápido. O desenho está no docs/harness.md.
+# e os hooks chamam o modo rápido e o de antes do push. O desenho está no docs/harness.md.
 #
 #   scripts/verify.sh fast [api] [web]     tsc e lint dos projetos citados (os dois, se nenhum)
 #   scripts/verify.sh full [--start-apps]  o modo rápido, as suítes de teste, o build da web
 #                                          e a varredura de segredos
+#   scripts/verify.sh prepush              a varredura de segredos, e a conferência de que o
+#                                          modo completo aprovou o que está no último commit
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. No modo completo,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
@@ -28,11 +30,15 @@ WEB_URL=http://127.0.0.1:3000/
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A varredura de segredos olha os commits que a branch tem a mais do que esta referência.
 BASE_REF="${HARNESS_BASE_REF:-origin/main}"
+# O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
+VERIFIED_PATHS=(apps compose.dev.yaml scripts)
+# Onde o modo completo registra o que aprovou. Fica na pasta do Git, fora do versionamento.
+APPROVAL_FILE="$(git rev-parse --git-dir)/harness/full-ok"
 
 failures=()
 
 usage() {
-  sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,18p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -146,7 +152,12 @@ ensure_apps() {
 # A tabela só é exigida quando a branch altera código em apps/.
 acceptance() {
   local mode=--optional
-  [[ -n "$(git diff --name-only "$BASE_REF...HEAD" -- apps/)" ]] && mode=--required
+  # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
+  # do commit, e a tabela não pode passar como "não exigida" só por isso.
+  if [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
+    -n "$(git ls-files --others --exclude-standard -- apps/)" ]]; then
+    mode=--required
+  fi
 
   # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e o
   # relatório da web chegam a ele pela entrada padrão, sem depender da permissão da pasta.
@@ -161,16 +172,80 @@ acceptance() {
     apps/web/e2e=playwright:reports/playwright.json <scripts/check-acceptance.cjs
 }
 
-secret_scan() {
+require_base() {
   git rev-parse --verify --quiet "$BASE_REF" >/dev/null ||
     abort "a referência \`$BASE_REF\` não existe neste clone." \
       "rode \`git fetch origin\`, ou aponte outra base com a variável HARNESS_BASE_REF."
+}
+
+secret_scan() {
+  require_base
   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$GITLEAKS_IMAGE" \
     git /repo --no-banner --redact --log-opts="$BASE_REF..HEAD"
 }
 
+# Resumo do conteúdo dos caminhos que a verificação lê, numa árvore do Git.
+tree_state() {
+  local path
+  for path in "${VERIFIED_PATHS[@]}"; do
+    git rev-parse --verify --quiet "$1:$path" || echo ausente
+  done | sha256sum | cut -d' ' -f1
+}
+
+# O mesmo resumo, para a pasta de trabalho: é ela que o modo completo verifica. Usa um índice
+# temporário, para contar o que ainda não foi commitado sem mexer no índice de quem trabalha.
+worktree_state() {
+  local dir tree
+  dir="$(mktemp -d)" || return 1
+  tree="$(
+    export GIT_INDEX_FILE="$dir/index"
+    git read-tree HEAD && git add -A -- "${VERIFIED_PATHS[@]}" && git write-tree
+  )"
+  rm -rf "$dir"
+  [[ -n "$tree" ]] || return 1
+  tree_state "$tree"
+}
+
+# Confere que o modo completo aprovou exatamente o que está no último commit.
+approval() {
+  if git diff --quiet "$BASE_REF...HEAD" -- "${VERIFIED_PATHS[@]}"; then
+    echo "A branch não altera nada do que a verificação lê. Não precisa de aprovação."
+    return 0
+  fi
+
+  local approved acceptance
+  approved="$(sed -n 's/^state=//p' "$APPROVAL_FILE" 2>/dev/null)"
+  acceptance="$(sed -n 's/^acceptance=//p' "$APPROVAL_FILE" 2>/dev/null)"
+
+  if [[ -z "$approved" || "$approved" != "$(tree_state HEAD)" ]]; then
+    echo "O modo completo não aprovou o conteúdo do último commit."
+    return 1
+  fi
+  if [[ "$acceptance" != checked ]] && ! git diff --quiet "$BASE_REF...HEAD" -- apps/; then
+    echo "O modo completo aprovou este conteúdo, mas sem conferir a tabela de aceite, e a branch altera código em apps/."
+    return 1
+  fi
+  echo "O modo completo aprovou o conteúdo do último commit."
+}
+
+run_prepush() {
+  require_base
+  step "Segredos nos commits da branch" \
+    "tire o segredo do código e reescreva o commit que o trouxe. Ele ainda não saiu da máquina." \
+    secret_scan
+  step "Aprovação do modo completo" \
+    "faça o commit de tudo, salve o corpo do pull request num arquivo e rode \`ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full\`. Se mudar algo em ${VERIFIED_PATHS[*]} depois, rode de novo." \
+    approval
+}
+
 run_full() {
   local start_apps="$1"
+  require_base
+  # O estado é resumido antes de tudo, para a aprovação valer para o que foi verificado, e não
+  # para o que estiver na pasta quando a verificação terminar.
+  verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
+    "confira se o repositório do Git está íntegro, com \`git status\`."
+  rm -f "$APPROVAL_FILE"
   require_container api
   require_container web
   require_container playwright
@@ -232,6 +307,10 @@ case "$mode" in
     done
     run_full "$start_apps"
     ;;
+  prepush)
+    [[ $# -eq 0 ]] || usage
+    run_prepush
+    ;;
   *) usage ;;
 esac
 
@@ -241,6 +320,13 @@ if [[ ${#failures[@]} -gt 0 ]]; then
     printf -- '- %s\n' "$failure" >&2
   done
   exit 1
+fi
+
+# Registra o que o modo completo aprovou, para o hook de antes do push conferir.
+if [[ "$mode" == full ]]; then
+  mkdir -p "$(dirname "$APPROVAL_FILE")"
+  printf 'state=%s\nacceptance=%s\n' "$verified_state" \
+    "$([[ -n "${ACCEPTANCE_BODY_FILE:-}" ]] && echo checked || echo skipped)" >"$APPROVAL_FILE"
 fi
 
 printf '\nAPROVADO (%s).\n' "$mode"
