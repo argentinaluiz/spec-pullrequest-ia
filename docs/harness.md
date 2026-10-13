@@ -213,7 +213,8 @@ O `.claude/settings.json` registra o `.claude/hooks/push-verify.sh` no evento `P
 | O modo completo não rodou, reprovou, ou aprovou outro conteúdo | Nega, com a instrução de rodar |
 | A branch altera `apps/` e o modo completo aprovou sem conferir a tabela de aceite | Nega, com a instrução de rodar com o corpo do PR |
 | A base da branch não é encontrada, ou a varredura não consegue rodar | Nega |
-| O comando apaga uma branch remota (`--delete`) | Deixa passar, porque não envia código |
+| O comando é um push sozinho que apaga uma branch remota (`--delete`) | Deixa passar, porque não envia código |
+| O hook não consegue ler o comando, e a entrada cita `git` e `push` | Trata como push |
 
 O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes do push".
 
