@@ -28,6 +28,13 @@ function finish() {
   process.exit(0);
 }
 
+/** Problema que impede de conferir as linhas: registra e encerra o processo, sem retornar. */
+function fatal(message) {
+  error(message);
+  console.error(`\nTabela de aceite: ${errors.length} problema(s).`);
+  process.exit(1);
+}
+
 /** Tira os acentos graves do Markdown e junta os espaços, para comparar nomes. */
 function normalize(text) {
   return text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
@@ -108,8 +115,7 @@ if (!['--required', '--optional'].includes(mode) || !bodyFile || reportSpecs.len
 }
 
 if (!fs.existsSync(bodyFile)) {
-  error(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há tabela para conferir.`);
-  finish();
+  fatal(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há tabela para conferir.`);
 }
 
 const rows = tableRows(fs.readFileSync(bodyFile, 'utf8'));
@@ -119,24 +125,21 @@ if (rows === null) {
     console.log('Tabela de aceite: não exigida, porque o pull request não altera nada em apps/.');
     finish();
   }
-  error(
+  fatal(
     'o pull request altera código em apps/ e não tem a seção "Tabela de aceite". ' +
       'Acrescente-a ao corpo do PR, no formato descrito no AGENTS.md da raiz.',
   );
-  finish();
 }
 
 if (rows === 'malformed') {
-  error(
+  fatal(
     'a tabela da seção "Tabela de aceite" está malformada. Ela começa pela linha de cabeçalho, ' +
       'com as três colunas (critério, arquivo de teste e nome do teste), seguida da linha separadora (| --- | --- | --- |).',
   );
-  finish();
 }
 
 if (rows.length === 0) {
-  error('a seção "Tabela de aceite" não tem nenhuma linha de critério.');
-  finish();
+  fatal('a seção "Tabela de aceite" não tem nenhuma linha de critério.');
 }
 
 // Só agora os relatórios são lidos: relatório ausente ou ilegível reprova, sem aprovar linha.
