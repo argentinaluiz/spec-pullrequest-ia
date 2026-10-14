@@ -183,7 +183,8 @@ Apagar o link corta o acesso na hora, porque as URLs assinadas expiram em minuto
 
 | Entidade | O que guarda | Onde vive |
 | --- | --- | --- |
-| Usuário | E-mail, hash da senha, plano atual e bytes usados | Cloud SQL |
+| Usuário | E-mail e hash da senha | Cloud SQL |
+| Cota | Plano atual e bytes usados de cada usuário | Cloud SQL |
 | Token de renovação | Hash do token, usuário e validade | Cloud SQL |
 | Item | Arquivo ou pasta: tipo, nome, item pai, dono, tamanho, status, chave do objeto e data de exclusão | Cloud SQL |
 | Link de compartilhamento | Token, item, expiração e hash da senha | Cloud SQL |
@@ -195,7 +196,7 @@ Apagar o link corta o acesso na hora, porque as URLs assinadas expiram em minuto
 **Decisões do modelo**
 
 - **Hierarquia por lista de adjacência:** arquivos e pastas são a mesma entidade, e cada item aponta para o pai. Mover altera um único registro.
-- **Cota por contador:** os bytes usados ficam no usuário e são atualizados na mesma transação que cria ou expurga um arquivo.
+- **Cota por contador:** os bytes usados ficam na cota do usuário, uma linha por usuário e separada da conta, e são atualizados na mesma transação que cria ou expurga um arquivo.
 - **Busca por nome:** índice de texto do próprio PostgreSQL, sem serviço de busca separado.
 
 **Integrações externas**

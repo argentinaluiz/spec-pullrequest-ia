@@ -120,7 +120,8 @@ As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam a
 
 ```mermaid
 erDiagram
-    plans ||--o{ users : "plano atual"
+    users ||--|| quotas : "cota de"
+    plans ||--o{ quotas : "plano atual"
     users ||--o{ refresh_tokens : possui
     users ||--o{ email_tokens : possui
     users ||--o{ items : possui
@@ -133,14 +134,18 @@ erDiagram
 
 **Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens` e `rate_limits` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
-### users (colunas futuras)
+### quotas
+
+Dona: o módulo `quota`, que é também dono de `plans`. Os outros módulos leem e alteram a cota só pelo service público dele.
 
 | Coluna | Tipo | Observação |
 | --- | --- | --- |
+| `user_id` | `UUID` | Chave primária. Referência a `users`, com exclusão em cascata. |
 | `plan_id` | `UUID` | Referência a `plans`. Começa no plano gratuito. |
 | `used_bytes` | `BIGINT` | Padrão 0. Restrição `used_bytes >= 0`. |
+| `updated_at` | `TIMESTAMPTZ` | |
 
-`plan_id` e `used_bytes` não fazem parte da primeira migração. Eles são acrescentados, junto com a tabela `plans`, pela funcionalidade de cota.
+A linha nasce sob demanda, na primeira reserva ou leitura da cota, no plano gratuito (seção 4.2). A migração que cria a tabela cria também a linha dos usuários que já existem. A conta (`users`) não tem coluna de cota.
 
 ### items
 
@@ -192,6 +197,8 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 | `price_monthly_cents`, `price_yearly_cents` | `INTEGER` | Valores a definir (questão em aberto do brief) |
 | `active` | `BOOLEAN` | Plano disponível para contratação |
 
+A tabela nasce com o upload, só com `id`, `code`, `storage_bytes` e `active`, e só com o plano gratuito (15 GB), inserido pela migração: é dado de referência, que também existe em produção, e não seed. Os preços e os outros três planos entram com a cobrança.
+
 ### subscriptions
 
 | Coluna | Tipo | Observação |
@@ -234,7 +241,7 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 | Erros | RFC 9457 (`application/problem+json`), com um campo `code` estável |
 | Paginação | Por cursor: `?limit=50&cursor=...`, com máximo de 200. A resposta traz `nextCursor`. |
 | Ordenação de listagens | Pastas primeiro, depois por nome |
-| Idempotência | Cabeçalho `Idempotency-Key` em `POST /uploads` e `POST /billing/checkout` |
+| Idempotência | Cabeçalho `Idempotency-Key` em `POST /billing/checkout`. O `POST /uploads` não tem: uma repetição deixa um item `pending` invisível, que a limpeza de pendentes remove (seção 5). |
 
 **Códigos de erro**
 
@@ -250,6 +257,7 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 | 403 | `link_password_required` | Link com senha, sem token de acesso ao link |
 | 404 | `not_found` | Item inexistente ou de outro dono |
 | 409 | `upload_size_mismatch` | Tamanho real diferente do declarado |
+| 409 | `upload_incomplete` | Conclusão pedida antes de o objeto chegar inteiro ao storage |
 | 410 | `link_expired` | Link expirado ou revogado |
 | 413 | `file_too_large` | Arquivo acima de 5 GB |
 | 413 | `quota_exceeded` | Sem espaço no plano |
@@ -331,8 +339,12 @@ O id `root` é aceito como atalho para a pasta raiz do usuário.
 | `GET /uploads/{itemId}` | | `itemId`, `uploadUrl`, `expiresAt`, para retomar um upload `pending` |
 | `POST /uploads/{itemId}/complete` | | O item, já `active` |
 | `DELETE /uploads/{itemId}` | | 204. Cancela e devolve o espaço. |
-| `GET /items/{id}/download-url` | `disposition` (`attachment` ou `inline`) | `url`, `expiresAt` |
+| `GET /items/{id}/download-url` | `disposition` (`attachment` ou `inline`), opcional, com padrão `attachment` | `url`, `expiresAt` |
 | `GET /items/{id}/thumbnail-url` | | `url`, `expiresAt`, ou 404 se não houver miniatura |
+
+- **Entrada do upload:** `name` de 1 a 255 caracteres, sem `/` nem caracteres de controle. `sizeBytes` de 0 a 5 GB: acima disso, `file_too_large`, antes de reservar a cota. `mimeType` vazio é gravado como `application/octet-stream`. `parentId` é uma pasta `active` do usuário, e aceita `root`.
+- **Upload que não está `pending`:** `GET` e `DELETE` em `/uploads/{itemId}` respondem `not_found`.
+- **Download:** a URL assinada leva o nome do item no `Content-Disposition` (`filename*=UTF-8''…`), e não a chave do objeto. Pasta e item `pending` respondem `not_found`. O `disposition` entra com a pré-visualização: até lá, a rota não o recebe e é sempre `attachment`.
 
 ### 3.5 Compartilhamento
 
@@ -377,21 +389,22 @@ stateDiagram-v2
 - **Restaurar** devolve o item à pasta de origem. Se ela não existir mais ou estiver na lixeira, o item volta para a raiz.
 - **Expurgo de uma pasta** remove todos os descendentes, de baixo para cima.
 - **Mover:** a API sobe pelos ancestrais do destino e rejeita o pedido se encontrar o próprio item (`invalid_move`) ou se a profundidade passar de 50 níveis.
+- **Pasta raiz:** nasce sob demanda, na primeira vez que o usuário a usa (o atalho `root`), com `INSERT ... ON CONFLICT DO NOTHING` seguido da leitura. O índice único da raiz garante uma só, mesmo com chamadas simultâneas. Ela se chama "Meus arquivos", nunca aparece numa listagem e não pode ser renomeada, movida nem excluída.
 
 ### 4.2 Cota
 
 A reserva é um único comando, sem bloqueio explícito:
 
 ```sql
-UPDATE users u
-SET used_bytes = u.used_bytes + $size
+UPDATE quotas q
+SET used_bytes = q.used_bytes + $size
 FROM plans p
-WHERE u.id = $user_id
-  AND p.id = u.plan_id
-  AND u.used_bytes + $size <= p.storage_bytes;
+WHERE q.user_id = $user_id
+  AND p.id = q.plan_id
+  AND q.used_bytes + $size <= p.storage_bytes;
 ```
 
-Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação.
+Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação. Antes da reserva, na mesma transação, a linha da cota é criada no plano gratuito se ainda não existir (`INSERT ... ON CONFLICT DO NOTHING`).
 
 | Evento | Efeito em `used_bytes` |
 | --- | --- |
@@ -403,7 +416,7 @@ Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a cri
 
 Pastas e miniaturas não contam para a cota. Uma rotina diária recalcula `used_bytes` pela soma dos itens e registra as divergências.
 
-**Conta somente leitura:** é um estado calculado (`used_bytes > storage_bytes`), não gravado. Ele bloqueia apenas o upload. Baixar, excluir, criar pastas e restaurar da lixeira continuam funcionando.
+**Conta somente leitura:** é um estado calculado (`quotas.used_bytes > plans.storage_bytes`), não gravado. Ele bloqueia apenas o upload. Baixar, excluir, criar pastas e restaurar da lixeira continuam funcionando.
 
 ### 4.3 Assinatura
 
@@ -420,9 +433,9 @@ stateDiagram-v2
     expired --> [*]
 ```
 
-- **Ativação:** só o webhook de pagamento aprovado muda `users.plan_id`. O retorno do navegador após o checkout não altera nada, e a tela de retorno espera a confirmação (seção 7.7).
+- **Ativação:** só o webhook de pagamento aprovado muda o `plan_id` da cota (`quotas`), pelo service do módulo `quota`. O retorno do navegador após o checkout não altera nada, e a tela de retorno espera a confirmação (seção 7.7).
 - **Cancelamento:** o plano continua até `current_period_end`, sem reembolso proporcional.
-- **Expiração:** `users.plan_id` volta ao plano gratuito. Nenhum arquivo é apagado, e a conta fica somente leitura se estiver acima da cota.
+- **Expiração:** o `plan_id` da cota volta ao plano gratuito. Nenhum arquivo é apagado, e a conta fica somente leitura se estiver acima da cota.
 - **Webhook:** a API grava o evento em `payment_events` antes de processar. Se `gateway_event_id` já existir, o evento é ignorado e a resposta é 200.
 
 ### 4.4 Permissão
@@ -448,8 +461,11 @@ stateDiagram-v2
 O navegador envia cada arquivo em chunks sequenciais para a sessão de upload retomável do Cloud Storage. A API só participa no início e na conclusão, e o protocolo do navegador (chunks, retomada, erros) está na seção 7.4.
 
 - **Início:** `POST /uploads` reserva a cota (seção 4.2), cria o item `pending` e a sessão retomável no Cloud Storage, e devolve `itemId` e `uploadUrl`.
-- **Conclusão:** `POST /uploads/{itemId}/complete` confere o tamanho real do objeto. Se for diferente do declarado, responde `upload_size_mismatch`, apaga o objeto e devolve o espaço.
+- **Conclusão:** `POST /uploads/{itemId}/complete` confere o tamanho real do objeto. Se for diferente do declarado, responde `upload_size_mismatch`, apaga o objeto e devolve o espaço. Se o objeto ainda não chegou inteiro, responde `upload_incomplete`, e o item continua `pending` para o navegador retomar.
+- **Conclusão repetida:** num item já `active`, a conclusão devolve o item, sem conferir nem reservar de novo. Assim a chamada pode ser repetida com segurança.
+- **Arquivo vazio:** um arquivo de 0 bytes reserva 0 bytes e é enviado num único `PUT` vazio.
 - **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
+- **Remoção do objeto:** no cancelamento e no `upload_size_mismatch`, a API apaga a sessão ou o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
 
 **Pontos de implementação a validar**
 
@@ -522,6 +538,8 @@ O worker é a mesma imagem da API, publicada como um serviço separado do Cloud 
 | Expirar assinaturas `past_due` há mais de 7 dias e `canceled` com período encerrado | Cloud Scheduler, diário | Tenta de novo na próxima execução |
 | Reconciliar `used_bytes` | Cloud Scheduler, diário | Só registra a divergência |
 | Limpar tokens, links e contadores expirados | Cloud Scheduler, diário | Tenta de novo na próxima execução |
+
+**Antes do worker:** enquanto o serviço do worker não existe, a limpeza de uploads `pending` roda por um comando no contêiner `api`, que abre a aplicação sem o servidor HTTP e chama o mesmo service que o endpoint do worker vai chamar. É o substituto local do Cloud Scheduler (HLD, seção 6.1). O worker, o endpoint interno com OIDC e a fila entram quando houver deploy, e a miniatura entra com a pré-visualização.
 
 **Ordem do expurgo:** primeiro o objeto e a miniatura são apagados do Cloud Storage, e só depois a linha sai do banco e o espaço volta à cota. Na ordem inversa, uma falha no meio deixaria objetos órfãos, gerando custo sem registro.
 
@@ -615,7 +633,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`) | Provisória: mostra o e-mail e o "Sair" |
+| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), enviar e baixar arquivos | A detalhar: vira "Meus arquivos", a lista da pasta raiz |
 | `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
@@ -626,7 +644,8 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
 
 - **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
-- **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`), a página da lista (`cursor`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL. O diálogo de compartilhar e o menu de cada item são estado de cliente.
+- **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL.
+- **Paginação das listas:** o Server Component mostra a primeira página, e um botão "Carregar mais", no fim da lista, busca a seguinte por Server Action e a acrescenta no cliente. O cursor não vai para a URL. Depois de um upload, o `router.refresh()` atualiza a primeira página, e as páginas acrescentadas ficam como estavam. O diálogo de compartilhar e o menu de cada item são estado de cliente.
 - **Pré-visualização:** abre sobre a lista, a partir de `?ver=<id>`, e usa a rota `/arquivos/[id]/visualizar` como origem da imagem, do vídeo, do áudio, do PDF e do texto.
 - **Estrutura de pastas:** a árvore da seção 1 mostra a organização do código. As rotas desta tabela entram nos grupos `(auth)`, `(drive)` e `s/[token]` dela.
 
@@ -688,9 +707,11 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 
 **Depois de fechar a aba**
 
-- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação). A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão.
-- Ao voltar, a interface lista os uploads incompletos e pede que o usuário selecione o arquivo de novo, já que o navegador não mantém acesso ao arquivo local.
-- Se a impressão bater, o navegador chama `GET /uploads/{itemId}` para obter a `uploadUrl` e retoma pelo passo de retomada.
+- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação), numa chave com o id do usuário: outra conta no mesmo navegador nunca vê esses itens. A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão.
+- Ao voltar ao `(drive)`, o painel de envios abre com os uploads incompletos, pausados, com o pedido "Selecione o arquivo de novo para continuar", o botão de selecionar o arquivo e o de cancelar. O navegador não mantém acesso ao arquivo local.
+- Se a impressão bater, o navegador chama `GET /uploads/{itemId}` para obter a `uploadUrl` e retoma pelo passo de retomada. Se não bater, o item avisa que não é o mesmo arquivo, nada é enviado e ele continua esperando.
+- Um `not_found` em `GET /uploads/{itemId}` (o upload já foi concluído, cancelado ou limpo) tira o item da lista sem aviso. Cancelar chama `DELETE /uploads/{itemId}` e limpa o `localStorage`.
+- Com um envio em andamento, fechar ou recarregar a aba pede confirmação (`beforeunload`, com o aviso padrão do navegador).
 
 **Erros**
 
@@ -699,6 +720,7 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 | `5xx` ou falha de rede | Consultar o progresso e repetir o chunk, até 5 vezes |
 | `404` ou `410` na sessão | A sessão expirou. O navegador chama `DELETE /uploads/{itemId}` e recomeça do zero. |
 | `upload_size_mismatch` na conclusão | A API apaga o objeto e devolve o espaço. O navegador mostra o erro. |
+| `upload_incomplete` na conclusão | O navegador consulta o progresso e retoma o envio, sem mostrar erro |
 | Usuário cancela | O navegador chama `DELETE /uploads/{itemId}` |
 
 **A fila de envios**
@@ -706,7 +728,8 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 - **Onde mora:** num provider de cliente no layout do `(drive)`, com um painel fixo que mostra, por arquivo, o nome, o progresso, e os botões de pausar, retomar e cancelar. A fila sobrevive à navegação entre pastas, lixeira, busca e planos. Os envios só param quando a aba fecha ou a pessoa sai do `(drive)`, e a retomada de "depois de fechar a aba" cobre esse caso.
 - **Início e conclusão:** são Server Actions (`POST /uploads` e `POST /uploads/{itemId}/complete`). O provider dispara a ação e envia os chunks por conta própria.
 - **Depois de cada conclusão:** a lista da pasta atual é revalidada (`router.refresh()`), e o indicador de cota se atualiza junto.
-- **Arrastar e soltar, e vários arquivos:** a zona de soltar é a lista da pasta atual, e os arquivos soltos entram na fila com essa pasta como destino. Até 3 enviam ao mesmo tempo, e os demais esperam.
+- **Arrastar e soltar, e vários arquivos:** a zona de soltar é a lista da pasta atual, e os arquivos soltos entram na fila com essa pasta como destino. Até 3 enviam ao mesmo tempo, e os demais esperam. O botão "Enviar" abre o seletor com vários arquivos, sem o modo de pasta.
+- **Pasta solta:** não é enviada. Os arquivos soltos junto com ela entram na fila, e o painel avisa que pastas não podem ser enviadas e que é preciso enviar os arquivos de dentro delas.
 - **Conta somente leitura:** o envio fica desligado (seção 7.1), e `quota_exceeded` na criação do upload é tratado como na seção 7.8.
 
 ### 7.5 Miniatura, pré-visualização e download
@@ -750,7 +773,7 @@ O contrato dos erros está na seção 3.1. Um erro esperado chega ao código com
 | `unauthenticated` | Redireciona para `/sessao-encerrada`, que renova a Sessão ou leva ao login com o aviso "Sua sessão expirou" |
 | `not_found` | Numa página, a tela de "não encontrado" (`not-found.tsx`). Numa ação, um aviso no contexto dela. |
 | `invalid_move`, `max_depth_exceeded` | Aviso no contexto da ação, sem trocar de tela |
-| `file_too_large`, `quota_exceeded`, `upload_size_mismatch` | No painel de envios, como erro daquele arquivo. O `quota_exceeded` leva também o caminho para `/planos`. |
+| `file_too_large`, `quota_exceeded`, `upload_size_mismatch` | No painel de envios, como erro daquele arquivo. O `quota_exceeded` leva também o caminho para `/planos`, a partir da funcionalidade de planos; antes dela, só a mensagem. |
 | `link_password_required` | Formulário de senha em `/s/[token]` |
 | `link_expired` | Tela de "link indisponível" em `/s/[token]` |
 | `internal_error`, qualquer 5xx e falha de rede | Numa página, a tela de erro da rota (`error.tsx`). Numa ação, um aviso de "tente de novo". A Sessão não é encerrada. |
@@ -765,6 +788,7 @@ O contrato dos erros está na seção 3.1. Um erro esperado chega ao código com
 - [ ] Limpeza de usuários nunca verificados: sem rotina por enquanto. Eles não bloqueiam o cadastro do dono do e-mail.
 - [ ] Captcha no cadastro e checagem da senha contra listas de senhas vazadas: fora do MVP.
 - [ ] Download de pasta inteira em ZIP: fica fora do MVP, e o usuário baixa arquivo por arquivo.
+- [ ] Envio de pasta inteira (arrastar uma pasta e recriar as subpastas): fica fora do MVP, e o usuário envia os arquivos.
 - [ ] Operações em lote (mover ou excluir vários itens): o frontend faz uma chamada por item.
 - [ ] Direito de arrependimento de 7 dias em compras online: precisa de validação jurídica e pode exigir reembolso.
 - [ ] URL do link compartilhado visível só na criação: confirmar se esse comportamento é aceitável, ou guardar o token de forma recuperável.
