@@ -116,7 +116,7 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 Uma mudança no código está pronta quando:
 
-1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, a tabela de aceite e os segredos. O que cada passo confere está no `docs/harness.md`, seção "Script de verificação".
+1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no `docs/harness.md`, seção "Script de verificação".
 2. Em mudança de interface, a validação visual descrita em `docs/design-system.md` foi feita. É a única exigência que o script não confere.
 
 Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
@@ -136,33 +136,29 @@ scripts/verify.sh full
 Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. Para o push passar:
 
 1. Faça o commit de tudo que alterou. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
-2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a tabela de aceite.
+2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`.
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml` ou em `scripts/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/` ou em `docs/aceite/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
-**Tabela de aceite no pull request**
+**Aceite no pull request**
 
-Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Tabela de aceite`, com uma linha por critério de aceite e o teste que o prova:
+Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Aceite`, que diz qual arquivo de aceite o PR cumpre:
 
 ```markdown
-## Tabela de aceite
+## Aceite
 
-| Critério | Arquivo de teste | Nome do teste |
-| --- | --- | --- |
-| O login bloqueia a sexta tentativa | apps/api/test/auth-rate-limit.e2e-spec.ts | devolve rate_limited na sexta tentativa, exista ou não o Usuário, com a mesma resposta |
-| O Usuário entra e sai pela interface | apps/web/e2e/session.spec.ts | o Usuário entra, vê o próprio e-mail na página provisória e sai |
+docs/aceite/LUI-146.md
 ```
 
-- **Critério:** os critérios de aceite do ticket, um por linha, sem pular nenhum. Em PR sem ticket, os critérios do próprio PR.
-- **Arquivo de teste:** o caminho a partir da raiz do repositório.
-- **Nome do teste:** o nome exato, como está no `it` ou no `test`. Quando o mesmo nome se repete no arquivo, use o nome completo, com os `describe` separados por ` › `.
-- **Um teste por linha.** Se um critério precisa de dois testes, repita o critério em duas linhas.
-- **Critério sem teste não entra na tabela:** escreva o teste. A CI reprova linha incompleta, teste inexistente, teste que falhou e teste pulado.
+- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano. Os critérios e os testes não se repetem no PR.
+- **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
+- **O que a CI confere,** em todos os arquivos de `docs/aceite/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
+- **Critério sem teste:** escreva o teste, com o ID no título. Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
-A tabela é conferida na máquina antes do push, como descrito em "Antes do push".
+O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
 
 **Revisão em contexto novo**
 
@@ -258,15 +254,15 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 **Arquivo de aceite**
 
 - **Onde:** `docs/aceite/<ticket>.md`, um por ticket, permanente. O texto do critério fica só no Linear.
-- **O que traz, por ID:** a marca, o cenário em Dado, Quando, Então e, nos critérios de teste, o teste previsto (camada, arquivo e nome).
+- **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das cinco), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
 - **Desenho:** o contrato e o schema vão direto para o LLD, que é o dono deles. A lista de arquivos e interfaces fica só na mensagem do commit de plano.
 - **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
-- **Mecanismo:** por ora, o congelamento e o ID no teste são regras sem verificação automática. A cobertura por IDs e o bloqueio da edição vêm em tickets próprios (ver `docs/harness.md`).
+- **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite ainda é só regra, sem verificação automática: o bloqueio da edição vem num ticket próprio (ver `docs/harness.md`).
 
 **Teste de aceite**
 
 - **ID no título:** cada teste de aceite leva no título o token `@<ticket>-CA<n>`, com o `@`, como `@LUI-146-CA3`. O nome e o arquivo podem mudar durante o ciclo da `tdd`, porque a ligação com o critério é o ID.
-- **Transição:** a tabela de aceite do pull request, descrita em "Tabela de aceite no pull request", continua valendo até a cobertura por IDs entrar na CI. Nela entram só os critérios provados por teste: os de revisão humana e de documento ficam fora.
+- **Cobertura:** a CI confere o ID, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`.
 
 ## Convenções de Git
 

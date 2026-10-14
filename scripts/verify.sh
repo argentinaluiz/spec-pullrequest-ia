@@ -4,9 +4,9 @@
 # e os hooks chamam o modo rápido e o de antes do push. O desenho está no docs/harness.md.
 #
 #   scripts/verify.sh fast [app...]                tipos e lint das apps citadas (todas, se nenhuma)
-#   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, a tabela de
-#                                                  aceite e a varredura de segredos; é o veredito,
-#                                                  e só ele libera o push
+#   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, os testes do
+#                                                  harness, o aceite e a varredura de segredos; é o
+#                                                  veredito, e só ele libera o push
 #   scripts/verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas, para o dia
 #                                                  a dia; não libera o push
 #   scripts/verify.sh prepush                      a varredura de segredos, e a conferência de que o
@@ -17,7 +17,7 @@
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
 #
 # Com ACCEPTANCE_BODY_FILE apontando para um arquivo com o corpo do pull request, o modo
-# completo confere também a tabela de aceite.
+# completo confere também o aceite: a seção "Aceite" do PR e a cobertura dos critérios por testes.
 #
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
@@ -38,7 +38,7 @@ GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A varredura de segredos olha os commits que a branch tem a mais do que esta referência.
 BASE_REF="${HARNESS_BASE_REF:-origin/main}"
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
-VERIFIED_PATHS=(apps compose.dev.yaml scripts)
+VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/aceite)
 # Onde o modo completo registra o que aprovou. Fica na pasta do Git, fora do versionamento.
 APPROVAL_FILE="$(git rev-parse --git-dir)/harness/full-ok"
 
@@ -113,10 +113,18 @@ wait_for() {
   return 1
 }
 
-# Confere a tabela de aceite do pull request contra os relatórios que as apps declaram em
-# <app>_reports. A tabela só é exigida quando a branch altera código em apps/.
+# Roda os testes do harness no contêiner `api`, que tem o Node. O conferidor e os testes dele
+# chegam pela entrada padrão, como o resto, porque o contêiner só enxerga a pasta da própria app.
+harness_tests() {
+  tar -c scripts/check-acceptance.cjs scripts/test |
+    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test scripts/test/*.test.cjs'
+}
+
+# Confere o aceite contra os relatórios que as apps declaram em <app>_reports: a seção "Aceite" do
+# pull request e a cobertura dos critérios de todos os tickets. A seção só é exigida quando a
+# branch altera código em apps/.
 acceptance() {
-  local mode=--optional app ref spec prefix rest report target specs=()
+  local mode=--optional app ref spec report target specs=()
   # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
   # do commit, e a tabela não pode passar como "não exigida" só por isso.
   if [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
@@ -128,20 +136,20 @@ acceptance() {
   # relatórios de cada app chegam a ele pela entrada padrão, sem depender da permissão da pasta.
   in_container api sh -c 'mkdir -p reports/acceptance && cat >reports/acceptance/pr-body.md' \
     <"$ACCEPTANCE_BODY_FILE" || return 1
+  tar -c -C docs aceite |
+    in_container api sh -c 'rm -rf reports/acceptance/aceite && tar -x -C reports/acceptance' || return 1
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
     for spec in "${!ref}"; do
-      prefix="${spec%%=*}"
-      rest="${spec#*=}"
-      report="${rest#*:}"
+      report="${spec#*:}"
       target="reports/acceptance/$app-$(basename "$report")"
       in_container "$app" cat "$report" |
         in_container api sh -c "cat >'$target'" || return 1
-      specs+=("$prefix=${rest%%:*}:$target")
+      specs+=("${spec%%:*}:$target")
     done
   done
 
-  in_container api node - "$mode" reports/acceptance/pr-body.md "${specs[@]}" \
+  in_container api node - "$mode" reports/acceptance/pr-body.md reports/acceptance/aceite "${specs[@]}" \
     <scripts/check-acceptance.cjs
 }
 
@@ -195,7 +203,7 @@ approval() {
     return 1
   fi
   if [[ "$acceptance" != checked ]] && ! git diff --quiet "$BASE_REF...HEAD" -- apps/; then
-    echo "O modo completo aprovou este conteúdo, mas sem conferir a tabela de aceite, e a branch altera código em apps/."
+    echo "O modo completo aprovou este conteúdo, mas sem conferir o aceite, e a branch altera código em apps/."
     return 1
   fi
   echo "O modo completo aprovou o conteúdo do último commit."
@@ -225,11 +233,15 @@ run_full() {
     "${app}_full"
   done
 
-  # Só há tabela para conferir quando há um corpo de pull request: na CI, ou na máquina,
+  step "Testes do harness" \
+    "corrija o conferidor ou o teste que falhou, em scripts/, e rode \`scripts/verify.sh full\` de novo." \
+    harness_tests
+
+  # Só há seção "Aceite" para conferir quando há um corpo de pull request: na CI, ou na máquina,
   # com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
   if [[ -n "${ACCEPTANCE_BODY_FILE:-}" ]]; then
-    step "Tabela de aceite" \
-      "corrija a tabela no corpo do pull request, no formato descrito no AGENTS.md da raiz, ou escreva o teste que falta." \
+    step "Aceite" \
+      "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
       acceptance
   fi
 

@@ -11,10 +11,10 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 1 | Script de verificação e CI | Implementado |
 | 2 | Proteção da `main` e guarda do harness | Implementado. O ruleset está aplicado no repositório de teste, e ainda não no repositório principal |
 | 3 | Hook de fim de turno | Implementado |
-| 4 | Tabela de aceite | Implementado |
+| 4 | Aceite: seção do PR e cobertura dos critérios por ID | Implementado. Substitui a tabela de aceite |
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
-| 7 | Plano do ticket e aceite congelado | Em andamento. O processo está implementado (`AGENTS.md` e `/plan-ticket`); as conferências estão planejadas. Ver "Plano do ticket (planejado)" |
+| 7 | Plano do ticket e aceite congelado | Em andamento. O processo e a cobertura por ID estão implementados; o congelamento do aceite e o revisor estão planejados. Ver "Plano do ticket (planejado)" |
 | 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
 
 ## Princípios
@@ -39,8 +39,10 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Teste no navegador que só passou na nova tentativa | Aviso no PR | 1 |
 | PR que altera arquivo protegido do harness | Bloqueia | 2 |
 | PR que altera configuração de lint ou de teste | Aviso no PR | 2 |
-| Linha da tabela de aceite sem teste, com teste inexistente ou pulado | Bloqueia | 4 |
-| PR que altera código em `apps/` sem tabela de aceite | Bloqueia | 4 |
+| Critério de aceite com marca de teste sem teste que rodou e passou | Bloqueia | 4 |
+| Teste que cita um ID que não está em nenhum arquivo de aceite, ou que foi pulado | Bloqueia | 4 |
+| PR que altera código em `apps/` sem a seção `## Aceite` | Bloqueia | 4 |
+| Teste do harness que falhou | Bloqueia | 4 |
 | Achado do revisor | Comentário no PR | 5 |
 | Push do agente com segredo nos commits da branch | Nega o push | 6 |
 | Push do agente sem o modo completo aprovado para o último commit | Nega o push | 6 |
@@ -52,7 +54,7 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 | Modo | O que roda | Quem chama |
 | --- | --- | --- |
 | `fast [app...]` | Tipos e lint das apps citadas, ou de todas | O hook de fim de turno |
-| `full [--start-apps]` | O grupo completo de todas as apps, a tabela de aceite e a varredura de segredos. É o veredito, e grava a aprovação que o push exige | A CI, e o agente antes do push |
+| `full [--start-apps]` | O grupo completo de todas as apps, os testes do harness, o aceite e a varredura de segredos. É o veredito, e grava a aprovação que o push exige | A CI, e o agente antes do push |
 | `full <app>... [--start-apps]` | Só o grupo completo das apps citadas. Não confere a tabela nem os segredos e não grava aprovação | O agente, durante o desenvolvimento, se quiser |
 | `prepush` | A varredura de segredos e a conferência de que o modo completo aprovou o último commit | O hook de antes do push |
 | `apps` | A lista das apps registradas | O hook de fim de turno |
@@ -65,13 +67,13 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 
 ### Grupos por app
 
-O `verify.sh` é o motor: os auxiliares, o despacho dos modos e o que atravessa as apps (tabela de aceite, segredos e aprovação). O que cada app verifica fica num arquivo dela, em `scripts/verify/<app>.sh`, que define três coisas:
+O `verify.sh` é o motor: os auxiliares, o despacho dos modos e o que atravessa as apps (testes do harness, aceite, segredos e aprovação). O que cada app verifica fica num arquivo dela, em `scripts/verify/<app>.sh`, que define três coisas:
 
 | Nome | O que é |
 | --- | --- |
 | `<app>_fast` | Os passos rápidos da app, como tipos e lint |
 | `<app>_full` | O grupo completo: chama o `<app>_fast` e acrescenta as suítes, o build e o que mais a app tiver |
-| `<app>_reports` | Os relatórios das suítes que a tabela de aceite pode citar |
+| `<app>_reports` | Os relatórios das suítes que o aceite confere |
 
 O registro `APPS`, no topo do motor, lista as apps. O nome de cada uma é o da pasta em `apps/` e o do serviço no Compose. O `full` sem apps, o `fast` sem apps e o hook de fim de turno percorrem esse registro.
 
@@ -173,28 +175,35 @@ O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `S
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
 - **Fora:** hook a cada edição de arquivo (o código fica quebrado no meio de uma mudança, e o hook viraria ruído), suítes de teste no hook (lentas) e hook de Git (redundante com a CI e contornável com `--no-verify`).
 
-## Tabela de aceite
+## Aceite
 
-A CI passar prova que os testes que existem passam. Não prova que cada critério de aceite tem um teste. A tabela de aceite fecha essa distância: o pull request declara qual teste cobre cada critério, e a CI confere a declaração.
+A CI passar prova que os testes que existem passam. Não prova que cada critério de aceite tem um teste. O aceite fecha essa distância: cada ticket tem um arquivo de aceite com os critérios e seus IDs, cada teste de aceite leva o ID no título, e a CI confere que todo critério que exige teste tem um que rodou e passou.
 
-O formato da tabela e a regra de quando escrevê-la estão no `AGENTS.md` da raiz, seção "Tabela de aceite no pull request".
+O formato da seção do PR e do arquivo de aceite está no `AGENTS.md` da raiz, seções "Aceite no pull request" e "Plano do ticket".
 
 | Situação | Efeito |
 | --- | --- |
-| O PR altera código em `apps/` e não tem a tabela | Bloqueia |
-| A tabela não tem nenhuma linha | Bloqueia |
-| Uma linha sem critério, sem arquivo ou sem nome de teste | Bloqueia |
-| O arquivo citado não tem nenhum teste que rodou | Bloqueia |
-| O teste citado não existe no arquivo | Bloqueia |
-| O teste citado falhou ou foi pulado | Bloqueia |
+| Critério com marca de teste, em qualquer arquivo de `docs/aceite/`, sem nenhum teste com o ID dele | Bloqueia |
+| Um teste com o ID do critério falhou ou foi pulado | Bloqueia |
+| Um teste cita um ID que não está em nenhum arquivo de aceite | Bloqueia |
+| Marca desconhecida num arquivo de aceite, ou ID repetido | Bloqueia |
+| O PR altera código em `apps/` e não tem a seção `## Aceite` | Bloqueia |
+| A seção não cita um arquivo de aceite existente nem diz "nenhum" com o motivo | Bloqueia |
 | Falta o relatório de alguma suíte | Bloqueia |
-| O PR não altera nada em `apps/` e não tem a tabela | Passa |
+| O PR não altera nada em `apps/` e não tem a seção | Passa, e a cobertura continua conferida |
+| Critério com marca de revisão humana ou de documento | Não exige teste |
 
-- **Onde é conferida:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os relatórios JSON das quatro suítes da própria execução. Faz parte do `Veredito`.
-- **Quando é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um PR só de documento fora de `apps/` ou de harness não precisa da tabela; se a trouxer, ela é conferida. Um documento dentro de `apps/`, como o `AGENTS.md` de um projeto, conta como mudança na aplicação.
-- **Corpo editado, CI de novo:** a tabela mora no corpo do PR, então a CI roda outra vez quando ele é editado.
-- **O que o humano confere no merge:** que as linhas da tabela são os critérios do ticket. A CI não lê o Linear, porque isso pediria um segredo de API no repositório.
-- **Limite:** a tabela prova que o teste citado existe, rodou e passou. Não prova que ele verifica o critério: uma asserção fraca continua passando, e nada impede citar um teste que não tem relação com o critério. O que cobre isso é a leitura no merge e, como evolução, o mutation testing.
+- **Onde é conferido:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os arquivos de `docs/aceite/`, o corpo do PR e os relatórios JSON das suítes da própria execução. Faz parte do `Veredito`. Os contêineres só montam a pasta da própria app, então o `verify.sh` entrega ao conferidor, pela entrada padrão, o corpo do PR e os arquivos de aceite, como já fazia com os relatórios.
+- **Testes do harness:** o conferidor tem testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
+- **ID no título, e não nas `tags` do Vitest:** com `strictTags`, cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`. No Playwright, o conferidor lê o ID no título e nas tags. O formato é o token `@<ticket>-CA<n>` no título.
+- **Todos os tickets:** a cobertura confere todos os arquivos de aceite, e não só o do PR. Um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado.
+- **Quando a seção é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um documento dentro de `apps/`, como o `AGENTS.md` de um projeto, conta como mudança na aplicação.
+- **Corpo editado, CI de novo:** a seção mora no corpo do PR, então a CI roda outra vez quando ele é editado.
+- **O que o humano confere no merge:** que o arquivo citado é o do ticket e que os critérios dele são os do Linear. A CI não lê o Linear, porque isso pediria um segredo de API no repositório.
+- **Limite:** a cobertura prova que existe um teste com o ID que rodou e passou. Não prova que ele verifica o critério: uma asserção fraca continua passando, e nada impede pôr o ID num teste sem relação com o critério. O que cobre isso é o revisor, a leitura no merge e, como evolução, o mutation testing.
+- **Limite:** nada confere ainda que um critério acrescentado no Linear depois do plano chegou ao arquivo de aceite.
+- **O commit de plano sozinho não passa:** o arquivo de aceite novo traz critérios com marca de teste, e os testes só existem depois da implementação. O modo completo e a CI conferem o PR inteiro, com o plano e a implementação, e é por isso que o push vem depois da implementação, e não depois do commit de plano.
+- **O ID vale só no título do próprio teste:** o título de um `describe` não conta, porque um único teste qualquer dentro dele cobriria o critério.
 
 ## Revisor em contexto novo
 
@@ -213,7 +222,7 @@ O princípio é que quem faz não avalia. A separação é de papel, e não de m
 
 O passo a passo que o agente segue e o formato do comentário estão no `AGENTS.md` da raiz, seção "Revisão em contexto novo".
 
-- **O que ele cobre que a CI não cobre:** a tabela de aceite prova que o teste citado existe e passou. O revisor lê as asserções e aponta o teste que passaria mesmo com o comportamento quebrado.
+- **O que ele cobre que a CI não cobre:** a cobertura do aceite prova que existe um teste com o ID do critério e que ele passou. O revisor lê as asserções e aponta o teste que passaria mesmo com o comportamento quebrado.
 - **Por que não bloqueia:** o revisor é inferencial e não foi calibrado. O mesmo diff pode render achados diferentes em duas execuções, e ele pode apontar um defeito que não existe. Dar poder de bloqueio a isso trocaria um veredito reprodutível por um que não é.
 - **Todo achado fica registrado,** inclusive o que o agente que implementou considera errado. Assim, a decisão sobre um achado não corrigido é do humano no merge, e não de quem escreveu o código.
 - **A definição do revisor é arquivo do harness.** O `.claude/agents/` está entre os caminhos protegidos pelo guarda, porque enfraquecer as instruções do revisor enfraqueceria a revisão sem alterar nenhum check.
@@ -234,7 +243,7 @@ O `.claude/settings.json` registra o `.claude/hooks/push-verify.sh` no evento `P
 | A branch não altera nada do que a verificação lê | Deixa passar, depois da varredura de segredos |
 | O modo completo aprovou o conteúdo do último commit | Deixa passar |
 | O modo completo não rodou, reprovou, ou aprovou outro conteúdo | Nega, com a instrução de rodar |
-| A branch altera `apps/` e o modo completo aprovou sem conferir a tabela de aceite | Nega, com a instrução de rodar com o corpo do PR |
+| A branch altera `apps/` e o modo completo aprovou sem conferir o aceite | Nega, com a instrução de rodar com o corpo do PR |
 | A base da branch não é encontrada, ou a varredura não consegue rodar | Nega |
 | O comando é um push sozinho que apaga uma branch remota (`--delete`) | Deixa passar, porque não envia código |
 | O hook não consegue ler o comando, e a entrada cita `git` e `push` | Trata como push |
@@ -242,12 +251,12 @@ O `.claude/settings.json` registra o `.claude/hooks/push-verify.sh` no evento `P
 O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes do push".
 
 - **O bloqueio é no push porque é ele que gasta rodada de CI.** Toda execução da CI num pull request nasce de um push, na abertura e nas correções.
-- **O que a aprovação cobre:** o conteúdo de `apps/`, do `compose.dev.yaml` e de `scripts/`, que é o que a verificação lê. O modo completo resume esse conteúdo no começo da execução e, se terminar aprovado, grava o resumo na pasta `.git`, fora do versionamento. O hook compara com o resumo do último commit.
+- **O que a aprovação cobre:** o conteúdo de `apps/`, do `compose.dev.yaml`, de `scripts/` e de `docs/aceite/`, que é o que a verificação lê. O modo completo resume esse conteúdo no começo da execução e, se terminar aprovado, grava o resumo na pasta `.git`, fora do versionamento. O hook compara com o resumo do último commit.
 - **Documento fora dos caminhos verificados não invalida a aprovação.** Tipos, lint, testes e build não mudam de resultado por causa de um documento, e exigir cinco minutos de verificação para um ajuste de texto levaria a contornar o bloqueio.
 - **Documento dentro de `apps/` invalida.** A aprovação cobre a pasta inteira, sem distinguir código de texto, então mudar o `AGENTS.md` de um projeto pede o modo completo de novo.
 - **A varredura de segredos roda em todo push,** inclusive no de documento. É a única verificação em que a CI chega tarde: quando ela reprova, o segredo já está no repositório remoto.
-- **A tabela de aceite entra na aprovação.** Na máquina, o modo completo só confere a tabela quando recebe o corpo do PR num arquivo. Sem essa exigência, o mesmo comando aprovaria na máquina e reprovaria na CI.
-- **Mudança sem commit conta para a tabela.** O modo completo costuma rodar antes do commit, então ele considera a pasta de trabalho, e não só os commits, para decidir se a tabela é exigida.
+- **O aceite entra na aprovação.** Na máquina, o modo completo só confere o aceite quando recebe o corpo do PR num arquivo. Sem essa exigência, o mesmo comando aprovaria na máquina e reprovaria na CI.
+- **Mudança sem commit conta para o aceite.** O modo completo costuma rodar antes do commit, então ele considera a pasta de trabalho, e não só os commits, para decidir se a seção `## Aceite` é exigida.
 - **Sem exceção para o agente.** Não há variável nem argumento que desligue o bloqueio. O push sem verificação, como o de um trabalho pela metade, é do usuário, no terminal. Segue o desenho do merge e do bypass: o caminho fora da regra é um ato humano.
 - **Limite:** o hook só vê o push que o agente faz por comando de shell. O push do usuário no terminal e um push feito pela API do GitHub não passam por ele. O bloqueio contém o esquecimento, e não a má-fé; a garantia continua sendo a CI.
 - **Limite:** o hook reconhece o `git push` pelo texto do comando, quando ele está no começo de uma linha ou depois de `;`, `&`, `|` ou `(`. Um push embrulhado em outro programa, como `sh -c`, não é reconhecido. No sentido contrário, um texto que tenha `git push` no começo de uma linha, como o corpo de um PR, é conferido como se fosse um push.
@@ -258,9 +267,9 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 
 ## Plano do ticket (planejado)
 
-Desta seção, só o processo da etapa 7 está implementado: o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`. As conferências da etapa 7 e a etapa 8 seguem planejadas. Enquanto isso, valem as etapas 1 a 6 como descritas acima, inclusive a tabela de aceite do pull request.
+Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`) e a cobertura dos critérios por ID, descrita em "Aceite". Seguem planejados o congelamento do arquivo de aceite (o hook e a sinalização na guarda), as conferências novas do revisor e a etapa 8.
 
-A tabela de aceite liga cada critério a um teste, mas só no pull request, escrita por quem implementou, e não confere se a tabela cobre todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
+A tabela de aceite que existia antes ligava cada critério a um teste, mas só no pull request, escrita por quem implementou, e não conferia se a tabela cobria todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
 
 ### Etapa 7: plano do ticket e aceite congelado
 
@@ -279,15 +288,11 @@ A tabela de aceite liga cada critério a um teste, mas só no pull request, escr
 | Arquivo de aceite | `docs/aceite/<ticket>.md`, permanente. Por ID: a marca, o cenário (Dado, Quando, Então) e o teste previsto (camada, arquivo e nome). O texto do critério fica só no Linear |
 | O que congela | O ID e o cenário. O nome e o arquivo do teste podem mudar no ciclo da `tdd`, porque a ligação com o critério é a tag |
 | Desenho do ticket | Direto no dono: o contrato e o schema no LLD até a etapa 8, e no snapshot da OpenAPI e no `schema.prisma` depois dela. A lista de arquivos e interfaces, que é o que mais envelhece, fica só na mensagem do commit de plano |
-| Seção `## Aceite` do PR | Substitui a tabela de aceite: o arquivo de aceite do ticket, ou "nenhum" com o motivo |
+| Seção `## Aceite` do PR | Substituiu a tabela de aceite: o arquivo de aceite do ticket, ou "nenhum" com o motivo |
 
 | Situação | Efeito |
 | --- | --- |
-| ID com marca de teste sem nenhum teste com a tag dele que rodou e passou, em qualquer arquivo de `docs/aceite/` | Bloqueia |
-| Teste com tag de critério que não está em nenhum arquivo de aceite | Bloqueia |
-| Teste com tag de critério que foi pulado | Bloqueia |
-| PR que altera `apps/` sem a seção `## Aceite` | Bloqueia |
-| Arquivo citado na seção `## Aceite` que não existe | Bloqueia |
+| Conferências do aceite (cobertura por ID, ID órfão, teste pulado, seção `## Aceite`) | Implementadas, descritas em "Aceite" |
 | O agente edita um arquivo de aceite já versionado | O hook nega |
 | PR que altera um arquivo de aceite já existente, e não só o cria | Sinalizado pela guarda do harness |
 
@@ -298,11 +303,11 @@ A tabela de aceite liga cada critério a um teste, mas só no pull request, escr
 - **Por que a cobertura confere todos os arquivos de aceite:** um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado. Os arquivos de aceite formam a matriz de rastreabilidade do projeto.
 - **Descongelar é um ato humano.** Quando um ticket muda um comportamento já entregue, o humano edita o arquivo de aceite antigo, no editor ou no terminal.
 - **O revisor ganha duas conferências:** os IDs do ticket contra os do arquivo de aceite, já que um critério acrescentado no Linear depois do plano não chega à CI, e cada teste contra o cenário do ID dele.
-- **Caminhos verificados:** `docs/aceite/` entra na lista do `verify.sh`, porque mudar o aceite muda o resultado da verificação.
-- **Onde ficam as regras:** o fluxo e o formato do arquivo de aceite vão para o `AGENTS.md` da raiz, no lugar da seção "Tabela de aceite no pull request". As conferências ficam neste documento. A `/plan-ticket` aponta para os dois, e as skills copiadas (`to-tickets`, `implement-spec` e `tdd`) recebem só os ajustes mínimos para não contrariá-los.
-- **Ordem:** primeiro o processo (o `AGENTS.md`, a `/plan-ticket` e os ajustes nas skills), usado num ticket piloto, o LUI-145, ainda com a tabela de aceite na CI. Depois do piloto, com o formato estável, as conferências da tabela acima.
-- **A confirmar na implementação:** se as tags do Vitest saem no relatório JSON que o conferidor lê (se não saírem, o ID vai no título do teste, que é como o Playwright já lê as tags), e se a mudança num arquivo de aceite existente é aviso ou bloqueio na guarda.
-- **Limite:** a cobertura por tags prova que existe um teste aprovado para cada ID. Não prova que ele prova o critério. Isso continua com o revisor e com o humano no merge.
+- **Caminhos verificados:** `docs/aceite/` entrou na lista do `verify.sh`, porque mudar o aceite muda o resultado da verificação.
+- **Onde ficam as regras:** o fluxo e o formato do arquivo de aceite vão para o `AGENTS.md` da raiz, no lugar da antiga seção "Tabela de aceite no pull request". As conferências ficam neste documento. A `/plan-ticket` aponta para os dois, e as skills copiadas (`to-tickets`, `implement-spec` e `tdd`) recebem só os ajustes mínimos para não contrariá-los.
+- **Ordem:** o processo (o `AGENTS.md`, a `/plan-ticket` e os ajustes nas skills) vem primeiro, para ser usado num ticket piloto antes de a máquina conferi-lo. A cobertura por ID foi implementada antes de existir um piloto, então o formato do arquivo de aceite ainda não foi exercitado num ticket real.
+- **A confirmar na implementação:** se a mudança num arquivo de aceite existente é aviso ou bloqueio na guarda.
+- **Limite:** a cobertura por ID prova que existe um teste aprovado para cada ID. Não prova que ele prova o critério. Isso continua com o revisor e com o humano no merge.
 - **Limite:** o hook só vê o que o agente faz pelas próprias ferramentas, e a CI não distingue um commit do humano de um commit do agente. Contém o esquecimento, e não a má-fé.
 - **Fora:** arquivos de aceite para os tickets já concluídos.
 

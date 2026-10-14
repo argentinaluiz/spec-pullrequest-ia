@@ -2,10 +2,10 @@
 # auxiliares (`step`, `in_container`, `require_container`, `check_report`, `responds`,
 # `wait_for`, `abort`). O desenho está no docs/harness.md.
 
-# Relatórios que a tabela de aceite pode citar, no formato
-# <pasta do repositório a que os caminhos do relatório são relativos>=<vitest|playwright>:<relatório, na pasta do projeto>
+# Relatórios que o aceite confere, no formato
+# <vitest|playwright>:<relatório, na pasta do projeto>
 web_reports=(
-  apps/web/e2e=playwright:reports/playwright.json
+  playwright:reports/playwright.json
 )
 
 # Onde a API e a web respondem, cada uma dentro do próprio contêiner.

@@ -2,12 +2,12 @@
 # auxiliares (`step`, `in_container`, `require_container`, `check_report`). O desenho está no
 # docs/harness.md.
 
-# Relatórios que a tabela de aceite pode citar, no formato
-# <pasta do repositório a que os caminhos do relatório são relativos>=<vitest|playwright>:<relatório, na pasta do projeto>
+# Relatórios que o aceite confere, no formato
+# <vitest|playwright>:<relatório, na pasta do projeto>
 api_reports=(
-  apps/api=vitest:reports/unit.json
-  apps/api=vitest:reports/int.json
-  apps/api=vitest:reports/e2e.json
+  vitest:reports/unit.json
+  vitest:reports/int.json
+  vitest:reports/e2e.json
 )
 
 api_fast() {
