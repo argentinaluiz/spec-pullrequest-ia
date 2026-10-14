@@ -69,8 +69,8 @@ As convenções de cada artefato estão em `.claude/rules/nest-*.md`, e cada uma
 ### Camadas de cada módulo
 
 - **Controller:** rotas HTTP, DTOs e validação.
-- **Service:** regras de negócio. Ele decide o que acontece e nunca abre uma transação: só os repositories têm o cliente do banco.
-- **Repository:** acesso ao banco e a atomicidade de cada comando. Quando um comando lê, decide e grava, ou quando duas gravações têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service.
+- **Service:** regras de negócio. Ele decide o que acontece. Quando uma operação grava por mais de um repository e as gravações têm de valer juntas, é o service que abre a transação, com o `$transaction` do `PrismaService`, e passa o cliente dela, o `tx`, aos repositories do próprio módulo.
+- **Repository:** acesso ao banco e a atomicidade de cada comando. Quando um comando lê, decide e grava, ou quando duas gravações dele têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service. O método que um service precisa chamar dentro de uma transação aceita, como último parâmetro, o cliente dela (`db: Prisma.TransactionClient = this.prisma`), e o parâmetro entra quando o primeiro service precisa dele. Não o aceitam o método que abre a própria transação nem o que depende de capturar um erro do banco, porque no PostgreSQL esse erro aborta a transação aberta.
 
 Cada módulo é dono das próprias tabelas. Um módulo só chama outro pelo service público dele, nunca pelas tabelas nem pelo repository.
 
@@ -89,6 +89,7 @@ Antes de adicionar um import num arquivo de service, confira em qual dos dois gr
 | O repository do próprio módulo | DTOs do controller, com decorators do class-validator ou do Swagger |
 | O service público de outro módulo | Repository, tabelas ou tipos internos de outro módulo |
 | As interfaces de `src/infra/` (storage, fila, e-mail, gateway) | SDKs de fornecedor (`@google-cloud/*`, cliente SMTP, SDK do gateway) |
+| O `PrismaService` e o tipo `Prisma.TransactionClient`, só para abrir uma transação e passar o `tx` | Consultas e gravações pelo cliente do banco |
 | Utilitários puros, sem entrada e saída | `process.env`, direto. A configuração chega pelo módulo de config, por injeção. |
 
 O que vem da requisição (corpo, parâmetros, usuário autenticado, IP, cabeçalho `Idempotency-Key`) é extraído no controller ou num guard e entra no service como argumento tipado.
