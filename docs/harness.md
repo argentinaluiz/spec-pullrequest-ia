@@ -2,7 +2,7 @@
 
 Este documento é dono do desenho do harness: que controles existem, o que cada um decide, o que ficou de fora e por quê. As regras que o agente segue a cada tarefa ficam no `AGENTS.md` da raiz, que aponta para cá.
 
-O projeto é uma referência didática que precisa funcionar de verdade. Por isso o harness tem poucas peças, cada uma demonstrável e com o motivo escrito. A origem das decisões é a pesquisa "Verificação e harness para agentes de código: pesquisa consolidada", de 12 de outubro de 2026.
+O projeto é uma referência didática que precisa funcionar de verdade. Por isso o harness tem poucas peças, cada uma demonstrável e com o motivo escrito. A origem das decisões é a pesquisa "Verificação e harness para agentes de código: pesquisa consolidada", de 12 de outubro de 2026. As etapas 7 e 8 vêm da pesquisa "Critérios de aceite, testes e contrato antes da implementação", de 14 de outubro de 2026.
 
 ## Estado
 
@@ -14,6 +14,8 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 4 | Tabela de aceite | Implementado |
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
+| 7 | Plano do ticket e aceite congelado | Planejado. Ver "Plano do ticket (planejado)" |
+| 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
 
 ## Princípios
 
@@ -253,6 +255,69 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 - **Limite:** a aprovação fica na máquina. Em outro clone, ou depois de apagar a pasta `.git/harness`, o modo completo precisa rodar de novo.
 - **Limite:** o hook confere o arquivo do corpo do PR que o agente apontou, e não o corpo que ele publica depois. Se os dois divergirem, a CI reprova.
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
+
+## Plano do ticket (planejado)
+
+Nada desta seção está implementado. Ela registra as decisões das etapas 7 e 8 para a spec e os tickets que as implementam. Enquanto isso, valem as etapas 1 a 6 como descritas acima, e o `AGENTS.md` da raiz não muda.
+
+A tabela de aceite liga cada critério a um teste, mas só no pull request, escrita por quem implementou, e não confere se a tabela cobre todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
+
+### Etapa 7: plano do ticket e aceite congelado
+
+**O fluxo**
+
+1. **Ticket.** No Linear, a spec e o ticket continuam sem caminhos nem código. Cada critério ganha um ID e uma marca de conferência.
+2. **Plano.** No início de cada ticket, e não na criação dos tickets, a skill `/plan-ticket` lê o ticket, a spec pai, o LLD e o código atual. Ela acrescenta os IDs aos critérios do ticket que ainda não os têm, escreve o arquivo de aceite, escreve o desenho de contrato e de schema direto no dono dele e põe a lista de arquivos e interfaces na mensagem do commit. Depois, para sem commit.
+3. **Commit de plano.** O humano revisa o diff e aprova, e só então o agente faz o commit. O hash dele é a referência do que foi aprovado.
+4. **Implementação,** numa sessão nova, com a skill `tdd`. Os seams e a lista de testes já vêm do plano, e cada teste da lista é escrito no ciclo, um por vez, com a tag do ID do critério.
+5. **Verificação,** pela CI e pelo revisor, como nas tabelas abaixo.
+
+| Peça | Como é |
+| --- | --- |
+| ID do critério | `CA<n>` no ticket e `<ticket>-CA<n>` fora do Linear, como `LUI-146-CA3`. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago |
+| Marca de conferência | Teste HTTP, teste no Playwright, teste de unidade, revisão humana ou documento. Só as três primeiras entram na cobertura por teste. A definição de pronto do `AGENTS.md` não é critério de ticket |
+| Arquivo de aceite | `docs/aceite/<ticket>.md`, permanente. Por ID: a marca, o cenário (Dado, Quando, Então) e o teste previsto (camada, arquivo e nome). O texto do critério fica só no Linear |
+| O que congela | O ID e o cenário. O nome e o arquivo do teste podem mudar no ciclo da `tdd`, porque a ligação com o critério é a tag |
+| Desenho do ticket | Direto no dono: o contrato e o schema no LLD até a etapa 8, e no snapshot da OpenAPI e no `schema.prisma` depois dela. A lista de arquivos e interfaces, que é o que mais envelhece, fica só na mensagem do commit de plano |
+| Seção `## Aceite` do PR | Substitui a tabela de aceite: o arquivo de aceite do ticket, ou "nenhum" com o motivo |
+
+| Situação | Efeito |
+| --- | --- |
+| ID com marca de teste sem nenhum teste com a tag dele que rodou e passou, em qualquer arquivo de `docs/aceite/` | Bloqueia |
+| Teste com tag de critério que não está em nenhum arquivo de aceite | Bloqueia |
+| Teste com tag de critério que foi pulado | Bloqueia |
+| PR que altera `apps/` sem a seção `## Aceite` | Bloqueia |
+| Arquivo citado na seção `## Aceite` que não existe | Bloqueia |
+| O agente edita um arquivo de aceite já versionado | O hook nega |
+| PR que altera um arquivo de aceite já existente, e não só o cria | Sinalizado pela guarda do harness |
+
+- **Por que no início de cada ticket:** o plano cita arquivos, interfaces, rotas e schema, que mudam a cada ticket que entra. Planejado na criação dos tickets, ele descreveria um código que ainda não existe.
+- **Por que uma skill separada:** a aprovação vira um ponto de parada real, e a implementação começa em contexto novo, a partir do plano.
+- **Por que congelar a lista, e não o código dos testes:** a `tdd` proíbe escrever todos os testes antes, porque testes em lote verificam um comportamento imaginado. Congelar o cenário é mais fraco que congelar o código; o que compensa é o revisor conferir cada teste contra o cenário aprovado.
+- **Por que o plano fica no repositório, e não no Linear:** a CI não lê o Linear sem um segredo, o plano cita caminhos, que o ticket não pode citar, e a aprovação fica presa a um commit.
+- **Por que a cobertura confere todos os arquivos de aceite:** um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado. Os arquivos de aceite formam a matriz de rastreabilidade do projeto.
+- **Descongelar é um ato humano.** Quando um ticket muda um comportamento já entregue, o humano edita o arquivo de aceite antigo, no editor ou no terminal.
+- **O revisor ganha duas conferências:** os IDs do ticket contra os do arquivo de aceite, já que um critério acrescentado no Linear depois do plano não chega à CI, e cada teste contra o cenário do ID dele.
+- **Caminhos verificados:** `docs/aceite/` entra na lista do `verify.sh`, porque mudar o aceite muda o resultado da verificação.
+- **Onde ficam as regras:** o fluxo e o formato do arquivo de aceite vão para o `AGENTS.md` da raiz, no lugar da seção "Tabela de aceite no pull request". As conferências ficam neste documento. A `/plan-ticket` aponta para os dois, e as skills copiadas (`to-tickets`, `implement-spec` e `tdd`) recebem só os ajustes mínimos para não contrariá-los.
+- **Ordem:** primeiro o processo (o `AGENTS.md`, a `/plan-ticket` e os ajustes nas skills), usado num ticket piloto, o LUI-145, ainda com a tabela de aceite na CI. Depois do piloto, com o formato estável, as conferências da tabela acima.
+- **A confirmar na implementação:** se as tags do Vitest saem no relatório JSON que o conferidor lê (se não saírem, o ID vai no título do teste, que é como o Playwright já lê as tags), e se a mudança num arquivo de aceite existente é aviso ou bloqueio na guarda.
+- **Limite:** a cobertura por tags prova que existe um teste aprovado para cada ID. Não prova que ele prova o critério. Isso continua com o revisor e com o humano no merge.
+- **Limite:** o hook só vê o que o agente faz pelas próprias ferramentas, e a CI não distingue um commit do humano de um commit do agente. Contém o esquecimento, e não a má-fé.
+- **Fora:** arquivos de aceite para os tickets já concluídos.
+
+### Etapa 8: contrato e schema conferidos por máquina
+
+Feita num ticket de preparação, planejado com a própria `/plan-ticket`. Até lá, o LLD continua dono do contrato e do schema.
+
+| Peça | Dono depois da etapa | Conferência |
+| --- | --- | --- |
+| Contrato da API | Uma OpenAPI gerada do NestJS pelo `@nestjs/swagger`, cujo plugin lê os DTOs do `class-validator`, com o snapshot versionado na pasta da API. A seção 3 do LLD fica com as convenções e aponta para ele | O snapshot gerado do código tem de ser igual ao commitado (`oasdiff diff --fail-on-diff`, ignorando descrições e exemplos), e a mudança não pode quebrar o contrato da `main` (`oasdiff breaking --fail-on ERR`) |
+| Schema do banco | O `schema.prisma`, nas tabelas implementadas, com as observações de coluna em comentários `///`. A seção 2 do LLD fica com as convenções, o diagrama, as regras que não cabem numa coluna e as tabelas ainda não implementadas | Um `check:schema` reprova `schema.prisma` sem a migração correspondente, pelo `prisma migrate diff` com código de saída |
+
+- **Por que gerada, e não escrita à mão:** um contrato escrito à mão, comparado com um gerado, acusa diferença até em descrição. Com o snapshot gerado como dono, o commit de plano escreve nele o delta planejado, e a comparação entre o snapshot do plano e o final mostra onde o contrato saiu diferente do planejado.
+- **Custo:** o plugin infere a entrada pelos DTOs, mas as respostas, inclusive os erros de cada rota, pedem tipo de retorno ou decorators.
+- **A confirmar na implementação:** como o `oasdiff` ignora descrições e exemplos, e se o `prisma migrate diff` precisa de um banco sombra para comparar com as migrações.
 
 ## O que ficou de fora
 
