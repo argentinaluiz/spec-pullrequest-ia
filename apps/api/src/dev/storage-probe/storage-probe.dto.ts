@@ -1,19 +1,11 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class ProbeObjectQueryDto {
+export class ProbeReadUrlQueryDto {
   @IsString()
   @IsNotEmpty()
   objectName!: string;
-}
 
-export class ProbeReadUrlQueryDto extends ProbeObjectQueryDto {
   @IsString()
   @IsNotEmpty()
   fileName!: string;
-}
-
-export class ProbeSessionBodyDto extends ProbeObjectQueryDto {
-  @IsString()
-  @IsNotEmpty()
-  mimeType!: string;
 }

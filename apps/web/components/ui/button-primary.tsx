@@ -16,14 +16,22 @@ type LinkProps = Omit<ComponentProps<typeof Link>, "className"> & {
 type ButtonPrimaryProps = (ButtonProps | LinkProps) & {
   /** Nos formulários do cartão de autenticação, o botão ocupa a largura toda. */
   fullWidth?: boolean;
+  /** Onde falta largura (abaixo de `lg`), o botão vira um círculo de 44px só com o ícone. */
+  iconOnlyBelow?: "lg";
 };
 
 // Carregando, o botão está `disabled` mas continua com a cara de ativo: só o `aria-busy` o distingue.
 const CLASSES =
   "focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-pill bg-primary-fill px-5.5 text-ui-strong whitespace-nowrap text-on-fill transition-[background-color,scale] duration-150 not-disabled:hover-overlay not-disabled:active:scale-95 motion-reduce:not-disabled:active:scale-100 disabled:not-aria-busy:bg-fill-disabled disabled:not-aria-busy:text-ink-disabled";
 
-export function ButtonPrimary({ fullWidth, ...props }: ButtonPrimaryProps) {
-  const width = fullWidth ? "w-full" : "";
+export function ButtonPrimary({
+  fullWidth,
+  iconOnlyBelow,
+  ...props
+}: ButtonPrimaryProps) {
+  const width = [fullWidth && "w-full", iconOnlyBelow && "max-lg:w-11 max-lg:px-0"]
+    .filter(Boolean)
+    .join(" ");
 
   if (props.href !== undefined) {
     return <Link className={`${CLASSES} ${width}`} {...props} />;

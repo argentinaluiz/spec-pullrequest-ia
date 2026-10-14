@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { v7 as uuidv7 } from 'uuid';
-import { ItemPage } from './entities/item.entity.js';
+import { Prisma } from '../../generated/prisma/client.js';
+import {
+  FileUpload,
+  ItemPage,
+  NewPendingFile,
+} from './entities/item.entity.js';
 import { ItemNotFoundError } from './errors/item-not-found.error.js';
 import { decodeItemCursor, encodeItemCursor } from './item-cursor.js';
 import { ItemsRepository } from './items.repository.js';
@@ -45,5 +51,59 @@ export class ItemsService {
       nextCursor:
         rows.length > page.limit && last ? encodeItemCursor(last) : null,
     };
+  }
+
+  /**
+   * O id da pasta de destino de um envio: a Pasta raiz, pelo atalho `root`, ou
+   * uma pasta ativa do Usuário. Qualquer outro valor, inclusive um texto que
+   * não é UUID, é `not_found`.
+   */
+  async resolveDestinationFolder(
+    ownerId: string,
+    folderId: string,
+  ): Promise<string> {
+    if (folderId === ROOT_ALIAS) {
+      return this.items.ensureRoot(ownerId, uuidv7);
+    }
+    if (
+      !isUUID(folderId) ||
+      !(await this.items.hasActiveFolder(ownerId, folderId))
+    ) {
+      throw new ItemNotFoundError();
+    }
+    return folderId;
+  }
+
+  /** Cria o Item `pending` de um arquivo, dentro da transação de quem chama. */
+  createPendingFile(
+    file: NewPendingFile,
+    db: Prisma.TransactionClient,
+  ): Promise<{ createdAt: Date }> {
+    return this.items.createPendingFile(file, db);
+  }
+
+  /** O arquivo `pending` ou `active` do Usuário, ou `null` (outro dono, inexistente ou id que não é UUID). */
+  findFile(ownerId: string, id: string): Promise<FileUpload | null> {
+    return isUUID(id)
+      ? this.items.findFile(ownerId, id)
+      : Promise.resolve(null);
+  }
+
+  /** Ativa o Item `pending`. Devolve `false` se outra conclusão chegou antes. */
+  activatePending(id: string): Promise<boolean> {
+    return this.items.activatePending(id);
+  }
+
+  /**
+   * Apaga o Item `pending`, dentro da transação de quem chama. Só quem apagou
+   * (`true`) devolve o espaço reservado.
+   */
+  removePending(id: string, db: Prisma.TransactionClient): Promise<boolean> {
+    return this.items.deletePending(id, db);
+  }
+
+  /** Guarda o endereço da sessão de upload no Item `pending`. */
+  setUploadSession(id: string, uploadSessionUri: string): Promise<void> {
+    return this.items.setUploadSession(id, uploadSessionUri);
   }
 }

@@ -13,6 +13,7 @@ export type ErrorCode =
   | 'link_password_required'
   | 'not_found'
   | 'upload_size_mismatch'
+  | 'upload_incomplete'
   | 'link_expired'
   | 'file_too_large'
   | 'quota_exceeded'

@@ -65,3 +65,12 @@ export async function tokenCookies(context: BrowserContext) {
     TOKEN_COOKIES.includes(name),
   );
 }
+
+/** O token de acesso da Sessão, como o navegador o guarda. Serve às chamadas diretas à API. */
+export async function accessTokenOf(context: BrowserContext): Promise<string> {
+  const cookie = (await context.cookies()).find(
+    ({ name }) => name === ACCESS_COOKIE,
+  );
+  if (!cookie) throw new Error("O navegador não tem o cookie do token de acesso.");
+  return cookie.value;
+}

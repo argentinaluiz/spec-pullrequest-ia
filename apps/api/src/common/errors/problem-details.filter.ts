@@ -34,6 +34,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   link_password_required: 403,
   not_found: 404,
   upload_size_mismatch: 409,
+  upload_incomplete: 409,
   link_expired: 410,
   file_too_large: 413,
   quota_exceeded: 413,

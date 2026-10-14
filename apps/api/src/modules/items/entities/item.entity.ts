@@ -26,3 +26,22 @@ export interface ItemPage {
  * nomes iguais. O cursor guarda a do último Item da página.
  */
 export type ItemPosition = Pick<Item, 'type' | 'name' | 'id'>;
+
+/** Um arquivo de um Usuário que ainda está sendo enviado (`pending`) ou já foi concluído (`active`). */
+export interface FileUpload extends Item {
+  status: 'pending' | 'active';
+  /** Chave do objeto no bucket. */
+  objectKey: string;
+  createdAt: Date;
+}
+
+/** O que o início de um envio grava no Item `pending`. */
+export interface NewPendingFile {
+  id: string;
+  ownerId: string;
+  parentId: string;
+  name: string;
+  sizeBytes: number;
+  mimeType: string;
+  objectKey: string;
+}

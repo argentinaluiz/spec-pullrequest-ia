@@ -14,6 +14,10 @@ const MESSAGES: Record<ApiErrorCode, string> = {
     "Seu e-mail ainda não foi verificado. Confira sua caixa de entrada.",
   rate_limited: "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
   not_found: "Não encontramos o que você procura.",
+  quota_exceeded: "Não há espaço na sua cota para este arquivo",
+  file_too_large: "O arquivo passa do limite de 5 GB",
+  upload_size_mismatch: "O arquivo chegou com um tamanho diferente do original",
+  upload_incomplete: "O arquivo ainda não chegou inteiro. Tente de novo.",
   internal_error: "Algo deu errado. Tente de novo em instantes.",
 };
 

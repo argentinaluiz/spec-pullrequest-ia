@@ -10,13 +10,16 @@ function createTestDatabaseClient(): PrismaClient {
   });
 }
 
-/** Esvazia todas as tabelas do banco de testes, menos o histórico de migrações. */
+/** Tabelas que a limpeza preserva: o histórico de migrações e `plans`, dado de referência que a migração insere. */
+const PRESERVED_TABLES = ['_prisma_migrations', 'plans'];
+
+/** Esvazia todas as tabelas do banco de testes, menos as de `PRESERVED_TABLES`. */
 export async function cleanDatabase(): Promise<void> {
   const client = createTestDatabaseClient();
   try {
     const tables = await client.$queryRaw<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables
-      WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'
+      WHERE schemaname = 'public' AND tablename <> ALL (${PRESERVED_TABLES})
     `;
     if (tables.length > 0) {
       const names = tables.map(({ tablename }) => `"${tablename}"`).join(', ');

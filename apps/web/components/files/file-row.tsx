@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import type { FileKind, FileRowData } from "@/components/files/format";
 
-const ICONS: Record<FileKind, LucideIcon> = {
+/** O ícone de cada tipo, que é como os tipos se distinguem. */
+export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
   folder: Folder,
   pdf: FileText,
   image: ImageIcon,
@@ -25,7 +26,7 @@ const ICONS: Record<FileKind, LucideIcon> = {
  * segunda linha, sob o nome. Seleção e o menu de ações entram com as funcionalidades donas.
  */
 export function FileRow({ row }: { row: FileRowData }) {
-  const Icon = ICONS[row.kind];
+  const Icon = FILE_KIND_ICONS[row.kind];
 
   return (
     <div

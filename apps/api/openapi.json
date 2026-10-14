@@ -822,13 +822,13 @@
             }
           }
         },
-        "tags": [
-          "uploads"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "uploads"
         ]
       }
     },
@@ -924,13 +924,13 @@
             }
           }
         },
-        "tags": [
-          "uploads"
-        ],
         "security": [
           {
             "bearer": []
           }
+        ],
+        "tags": [
+          "uploads"
         ]
       }
     }
@@ -1147,11 +1147,11 @@
             "type": "string"
           },
           "type": {
-            "type": "string",
             "enum": [
               "file",
               "folder"
-            ]
+            ],
+            "type": "string"
           },
           "name": {
             "type": "string"

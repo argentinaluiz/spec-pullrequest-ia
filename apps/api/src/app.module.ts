@@ -9,6 +9,8 @@ import { DatabaseModule } from './infra/database/database.module.js';
 import { MailModule } from './infra/mail/mail.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ItemsModule } from './modules/items/items.module.js';
+import { QuotaModule } from './modules/quota/quota.module.js';
+import { UploadsModule } from './modules/uploads/uploads.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -19,6 +21,8 @@ import { UsersModule } from './modules/users/users.module.js';
     UsersModule,
     AuthModule,
     ItemsModule,
+    QuotaModule,
+    UploadsModule,
     // Rotas de apoio dos testes no navegador: só existem com o emulador de storage e nunca em produção.
     ConditionalModule.registerWhen(
       StorageProbeModule,

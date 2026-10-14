@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
+  FileUpload,
   Item,
   ItemPosition,
   ItemType,
+  NewPendingFile,
   ROOT_FOLDER_NAME,
 } from './entities/item.entity.js';
 
@@ -78,5 +80,92 @@ export class ItemsRepository {
       type: row.type as ItemType,
       sizeBytes: Number(row.sizeBytes),
     }));
+  }
+
+  /** Se o Usuário tem uma pasta ativa com esse id. */
+  async hasActiveFolder(ownerId: string, id: string): Promise<boolean> {
+    const folder = await this.prisma.item.findFirst({
+      where: { id, ownerId, type: 'folder', status: 'active' },
+      select: { id: true },
+    });
+    return folder !== null;
+  }
+
+  /** Cria o Item `pending` de um arquivo, invisível nas listagens. */
+  async createPendingFile(
+    file: NewPendingFile,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<{ createdAt: Date }> {
+    const created = await db.item.create({
+      data: {
+        id: file.id,
+        ownerId: file.ownerId,
+        parentId: file.parentId,
+        type: 'file',
+        name: file.name,
+        status: 'pending',
+        sizeBytes: BigInt(file.sizeBytes),
+        mimeType: file.mimeType,
+        objectKey: file.objectKey,
+      },
+      select: { createdAt: true },
+    });
+    return created;
+  }
+
+  /** O arquivo do Usuário, `pending` ou `active`. Outro dono, outro tipo ou na lixeira não aparecem. */
+  async findFile(ownerId: string, id: string): Promise<FileUpload | null> {
+    const row = await this.prisma.item.findFirst({
+      where: {
+        id,
+        ownerId,
+        type: 'file',
+        status: { in: ['pending', 'active'] },
+      },
+      select: {
+        ...ITEM_FIELDS,
+        status: true,
+        objectKey: true,
+        createdAt: true,
+      },
+    });
+    if (!row || !row.objectKey) {
+      return null;
+    }
+    return {
+      ...row,
+      type: 'file',
+      status: row.status as FileUpload['status'],
+      objectKey: row.objectKey,
+      sizeBytes: Number(row.sizeBytes),
+    };
+  }
+
+  /** Ativa o Item `pending`. Devolve `false` se ele já não estava `pending`. */
+  async activatePending(id: string): Promise<boolean> {
+    const { count } = await this.prisma.item.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'active', uploadSessionUri: null },
+    });
+    return count > 0;
+  }
+
+  /** Apaga o Item `pending`. Devolve `false` se ele já não existia ou já não estava `pending`. */
+  async deletePending(
+    id: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<boolean> {
+    const { count } = await db.item.deleteMany({
+      where: { id, status: 'pending' },
+    });
+    return count > 0;
+  }
+
+  /** Guarda o endereço da sessão de upload no Item `pending`. */
+  async setUploadSession(id: string, uploadSessionUri: string): Promise<void> {
+    await this.prisma.item.updateMany({
+      where: { id, status: 'pending' },
+      data: { uploadSessionUri },
+    });
   }
 }

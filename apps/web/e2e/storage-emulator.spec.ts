@@ -1,31 +1,29 @@
 import { expect, test } from "@playwright/test";
-import {
-  createUploadSession,
-  deleteObject,
-  objectSize,
-  signReadUrl,
-  uniqueObjectName,
-} from "./support/storage";
+import { signIn } from "./support/account";
+import { uniqueEmail } from "./support/mailpit";
+import { accessTokenOf } from "./support/session";
+import { completeUpload, createUpload, signReadUrl } from "./support/storage";
 
 const CHUNK = 256 * 1024;
 
 test.describe("Emulador de storage", () => {
-  let objectName: string;
+  let email: string;
 
   test.beforeEach(async ({ page }) => {
-    objectName = uniqueObjectName();
-    // O PUT parte de uma página da web, que é a origem de onde o upload vai sair.
-    await page.goto("/entrar");
-  });
-
-  test.afterEach(async () => {
-    await deleteObject(objectName);
+    email = uniqueEmail();
+    // O PUT parte de uma página da web, que é a origem de onde o upload vai sair. A Sessão
+    // serve para criar o envio pela API, como a tela faz.
+    await signIn(page, email);
   });
 
   test("envia o arquivo em 2 chunks, com 308 no primeiro e 200 no segundo @LUI-165-CA5", async ({
     page,
+    context,
   }) => {
-    const sessionUrl = await createUploadSession(objectName);
+    const accessToken = await accessTokenOf(context);
+    const { itemId, uploadUrl } = await createUpload(accessToken, {
+      sizeBytes: 2 * CHUNK,
+    });
 
     const statuses = await page.evaluate(
       async ({ url, chunk }) => {
@@ -42,36 +40,52 @@ test.describe("Emulador de storage", () => {
         };
         return [await put(0), await put(chunk)];
       },
-      { url: sessionUrl, chunk: CHUNK },
+      { url: uploadUrl, chunk: CHUNK },
     );
 
     expect(statuses).toEqual([308, 200]);
-    expect(await objectSize(objectName)).toBe(2 * CHUNK);
+    const completed = await completeUpload(accessToken, itemId);
+    expect(completed.status).toBe(200);
+    expect(completed.item.sizeBytes).toBe(2 * CHUNK);
   });
 
-  test("envia um arquivo vazio num único PUT @LUI-165-CA6", async ({ page }) => {
-    const sessionUrl = await createUploadSession(objectName);
+  test("envia um arquivo vazio num único PUT @LUI-165-CA6", async ({
+    page,
+    context,
+  }) => {
+    const accessToken = await accessTokenOf(context);
+    const { itemId, uploadUrl } = await createUpload(accessToken, {
+      sizeBytes: 0,
+    });
 
     const status = await page.evaluate(
       async (url) => (await fetch(url, { method: "PUT" })).status,
-      sessionUrl,
+      uploadUrl,
     );
 
     expect(status).toBe(200);
-    expect(await objectSize(objectName)).toBe(0);
+    const completed = await completeUpload(accessToken, itemId);
+    expect(completed.status).toBe(200);
+    expect(completed.item.sizeBytes).toBe(0);
   });
 
   test("entrega ao navegador URLs de sessão e de download que ele alcança @LUI-165-CA7", async ({
     page,
+    context,
   }) => {
-    const sessionUrl = await createUploadSession(objectName, "application/pdf");
+    const content = "conteudo do relatorio";
+    const accessToken = await accessTokenOf(context);
+    const { itemId, uploadUrl } = await createUpload(accessToken, {
+      sizeBytes: content.length,
+      mimeType: "application/pdf",
+    });
     const status = await page.evaluate(
-      async (url) =>
-        (await fetch(url, { method: "PUT", body: "conteudo do relatorio" }))
-          .status,
-      sessionUrl,
+      async ({ url, body }) =>
+        (await fetch(url, { method: "PUT", body })).status,
+      { url: uploadUrl, body: content },
     );
-    const readUrl = await signReadUrl(objectName, "relatório.pdf");
+    await completeUpload(accessToken, itemId);
+    const readUrl = await signReadUrl(itemId, "relatório.pdf");
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
@@ -84,10 +98,10 @@ test.describe("Emulador de storage", () => {
       chunks.push(chunk as Buffer);
     }
 
-    expect(new URL(sessionUrl).host).toBe("localhost:4443");
+    expect(new URL(uploadUrl).host).toBe("localhost:4443");
     expect(new URL(readUrl).host).toBe("localhost:4443");
     expect(status).toBe(200);
     expect(download.suggestedFilename()).toBe("relatório.pdf");
-    expect(Buffer.concat(chunks).toString()).toBe("conteudo do relatorio");
+    expect(Buffer.concat(chunks).toString()).toBe(content);
   });
 });

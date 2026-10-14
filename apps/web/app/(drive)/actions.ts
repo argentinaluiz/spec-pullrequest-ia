@@ -6,7 +6,12 @@ import { toFileRow } from "@/components/files/format";
 import type { LoadMoreResult } from "@/components/files/load-more";
 import * as authApi from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/error-messages";
+import type {
+  CompleteUploadResult,
+  StartUploadResult,
+} from "@/components/uploads/types";
 import { getRootItems } from "@/lib/dal/items";
+import { finishUpload, startRootUpload } from "@/lib/dal/uploads";
 import { LOGIN_PATH } from "@/lib/session/paths";
 import { clearSession, refreshToken } from "@/lib/session/tokens";
 
@@ -50,4 +55,47 @@ export async function loadMoreRootItems(cursor: string): Promise<LoadMoreResult>
     rows: result.data.items.map(toFileRow),
     nextCursor: result.data.nextCursor,
   };
+}
+
+/** A Server Action é um endpoint público: o que vem do navegador é conferido antes de ir à API. */
+const startUploadSchema = z.object({
+  name: z.string().min(1).max(255),
+  sizeBytes: z.number().int().min(0),
+  mimeType: z.string().max(255),
+});
+
+/**
+ * Começa o envio de um arquivo para a Pasta raiz: a API reserva o espaço e devolve o endereço
+ * para onde o navegador manda os bytes. A Sessão é conferida pela própria chamada à API.
+ */
+export async function startUpload(input: {
+  name: string;
+  sizeBytes: number;
+  mimeType: string;
+}): Promise<StartUploadResult> {
+  const parsed = startUploadSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await startRootUpload(parsed.data);
+  if (!result.ok) {
+    return { ok: false, message: errorMessage(result.error.code) };
+  }
+  const { itemId, uploadUrl } = result.data;
+  return { ok: true, itemId, uploadUrl };
+}
+
+/** Conclui o envio, depois de os bytes chegarem ao storage. */
+export async function completeUpload(
+  itemId: string,
+): Promise<CompleteUploadResult> {
+  const parsed = z.string().min(1).max(64).safeParse(itemId);
+  if (!parsed.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await finishUpload(parsed.data);
+  if (!result.ok) {
+    return { ok: false, message: errorMessage(result.error.code) };
+  }
+  return { ok: true };
 }
