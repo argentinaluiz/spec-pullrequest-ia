@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   createVerifiedUser,
+  expectSignedInAs,
   fillLogin,
   openMailLink,
   PASSWORD,
@@ -72,7 +73,7 @@ test("o Usuário pede o link, define a senha nova, vê o aviso na tela de entrar
     "E-mail ou senha incorretos.",
   );
   await fillLogin(page, email, NEW_PASSWORD);
-  await expect(page.getByText(email)).toBeVisible();
+  await expectSignedInAs(page, email);
 });
 
 test("o pedido mostra a mesma confirmação para um e-mail sem Usuário", async ({
@@ -187,7 +188,7 @@ test("o Usuário que nunca verificou o e-mail redefine a senha e entra", async (
   await expect(page).toHaveURL(/\/entrar/);
 
   await fillLogin(page, email, NEW_PASSWORD);
-  await expect(page.getByText(email)).toBeVisible();
+  await expectSignedInAs(page, email);
 });
 
 test("redefinir a senha com uma Sessão aberta no navegador encerra a Sessão e leva à tela de entrar", async ({

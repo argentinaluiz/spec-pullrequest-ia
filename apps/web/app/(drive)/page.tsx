@@ -1,33 +1,14 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { ButtonPrimary } from "@/components/ui/button-primary";
-import { getCurrentUser } from "@/lib/dal/user";
-import { logout } from "./actions";
 
-export const metadata: Metadata = { title: "Início" };
+export const metadata: Metadata = { title: "Meus arquivos" };
 
-async function SignedInAs() {
-  const user = await getCurrentUser();
+/** "Meus arquivos": a lista da Pasta raiz (docs/lld.md, seção 7.1). */
+export default function MyFilesPage() {
   return (
-    <p className="text-body text-ink-muted">
-      Você entrou como <span className="text-ink">{user.email}</span>.
-    </p>
-  );
-}
-
-// Página provisória: dá lugar à listagem de arquivos quando ela existir.
-export default function HomePage() {
-  return (
-    <main className="flex flex-1 flex-col items-center gap-6 bg-surface px-4 py-16">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-display text-ink">Gerenciador de arquivos</h1>
-        <Suspense>
-          <SignedInAs />
-        </Suspense>
+    <main className="flex min-w-0 flex-1 flex-col px-4 pb-4 lg:px-6 lg:pb-6">
+      <div className="flex h-12 shrink-0 items-center">
+        <h1 className="px-2 text-ui-strong text-ink">Meus arquivos</h1>
       </div>
-      <form action={logout}>
-        <ButtonPrimary type="submit">Sair</ButtonPrimary>
-      </form>
     </main>
   );
 }
