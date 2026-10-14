@@ -204,6 +204,8 @@ describe('Início do envio de um arquivo', () => {
       ['name', { name: '' }],
       ['name', { name: 'a/b.txt' }],
       ['name', { name: 'a\nb.txt' }],
+      ['name', { name: '   ' }],
+      ['name', { name: '..' }],
       ['name', { name: 'a'.repeat(256) }],
       ['sizeBytes', { sizeBytes: -1 }],
       ['sizeBytes', { sizeBytes: 1.5 }],

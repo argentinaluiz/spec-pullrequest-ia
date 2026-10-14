@@ -11,5 +11,7 @@ export function IsFileName(): PropertyDecorator {
     Matches(/^[^/\p{Cc}]*$/u, {
       message: 'name não pode ter "/" nem caracteres de controle',
     }),
+    Matches(/\S/, { message: 'name não pode ser só espaços' }),
+    Matches(/^(?!\.{1,2}$)/, { message: 'name não pode ser "." nem ".."' }),
   );
 }

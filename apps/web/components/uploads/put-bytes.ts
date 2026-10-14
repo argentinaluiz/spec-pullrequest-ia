@@ -19,7 +19,7 @@ export function putBytes(
         onProgress(Math.round((event.loaded / event.total) * 100));
       }
     };
-    request.onload = () => resolve({ ok: request.status < 300 });
+    request.onload = () => resolve({ ok: request.status >= 200 && request.status < 300 });
     request.onerror = () => resolve({ ok: false });
     request.onabort = () => resolve({ ok: false });
     request.send(file);

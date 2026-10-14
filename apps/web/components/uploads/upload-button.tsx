@@ -29,7 +29,7 @@ export function UploadButton() {
       />
       <ButtonPrimary
         aria-label="Enviar"
-        iconOnlyBelow="lg"
+        iconOnlyBelowLg
         onClick={() => input.current?.click()}
       >
         <Upload className="size-5 lg:hidden" />

@@ -17,7 +17,7 @@ type ButtonPrimaryProps = (ButtonProps | LinkProps) & {
   /** Nos formulários do cartão de autenticação, o botão ocupa a largura toda. */
   fullWidth?: boolean;
   /** Onde falta largura (abaixo de `lg`), o botão vira um círculo de 44px só com o ícone. */
-  iconOnlyBelow?: "lg";
+  iconOnlyBelowLg?: boolean;
 };
 
 // Carregando, o botão está `disabled` mas continua com a cara de ativo: só o `aria-busy` o distingue.
@@ -26,10 +26,10 @@ const CLASSES =
 
 export function ButtonPrimary({
   fullWidth,
-  iconOnlyBelow,
+  iconOnlyBelowLg,
   ...props
 }: ButtonPrimaryProps) {
-  const width = [fullWidth && "w-full", iconOnlyBelow && "max-lg:w-11 max-lg:px-0"]
+  const width = [fullWidth && "w-full", iconOnlyBelowLg && "max-lg:w-11 max-lg:px-0"]
     .filter(Boolean)
     .join(" ");
 
