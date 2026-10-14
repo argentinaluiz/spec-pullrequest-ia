@@ -23,20 +23,33 @@ export async function withDatabase<T>(
   }
 }
 
+/** Quanto esperar a Pasta raiz nascer depois de entrar, em milissegundos. */
+const ROOT_WAIT_MS = 5_000;
+
 /**
  * Grava arquivos ativos direto na Pasta raiz do Usuário do e-mail, como preparação: até o
  * upload existir, nenhuma tela cria um Item. A raiz nasce quando a lista é aberta pela primeira
- * vez, então o Usuário já tem de ter entrado. Para ver os arquivos, recarregue a página.
+ * vez, então o Usuário já tem de ter entrado. Como a lista carrega em paralelo com a casca, a
+ * raiz pode ainda não existir logo depois de entrar, e a busca por ela é repetida por alguns
+ * segundos. Para ver os arquivos, recarregue a página.
  */
 export async function seedRootFiles(email: string, files: SeedFile[]) {
   await withDatabase(async (client) => {
-    const { rows } = await client.query<{ id: string; owner_id: string }>(
-      `SELECT items.id, items.owner_id
-         FROM items JOIN users ON users.id = items.owner_id
-        WHERE users.email = $1 AND items.parent_id IS NULL`,
-      [email],
-    );
-    const root = rows[0];
+    const findRoot = async () => {
+      const { rows } = await client.query<{ id: string; owner_id: string }>(
+        `SELECT items.id, items.owner_id
+           FROM items JOIN users ON users.id = items.owner_id
+          WHERE users.email = $1 AND items.parent_id IS NULL`,
+        [email],
+      );
+      return rows[0];
+    };
+    const deadline = Date.now() + ROOT_WAIT_MS;
+    let root = await findRoot();
+    while (!root && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      root = await findRoot();
+    }
     if (!root) {
       throw new Error(
         `O Usuário ${email} ainda não tem a Pasta raiz: entre com ele antes de gravar os arquivos.`,
