@@ -1,6 +1,7 @@
 ---
 paths:
   - "apps/api/src/**/*.service.ts"
+  - "apps/api/src/**/*.repository.ts"
   - "apps/api/src/**/*.guard.ts"
   - "apps/api/src/**/*.error.ts"
   - "apps/api/src/common/errors/**"
@@ -18,6 +19,7 @@ Todo retorno de erro sai do exception filter global. Nenhum outro lugar monta re
 - **Validação de entrada:** os DTOs são validados por um pipe global, com os decorators do class-validator. O erro dele passa pelo mesmo filter e sai como `validation_error`. Os campos que o DTO não declara são descartados.
 - **Erro inesperado:** o filter registra em log e responde 500, sem expor mensagem interna nem stack trace. Isso vale também para o erro de uma biblioteca que traz um `statusCode` próprio: o filter só aceita o status de uma `HttpException` e dos erros do leitor do corpo do Express.
 - **Erro de fornecedor:** a implementação de `src/infra/` que recebe um erro com significado para a regra de negócio (objeto inexistente, limite atingido) o converte em erro de domínio. Ela não deixa o erro do SDK subir contando com o status dele.
+- **Registro não encontrado do Prisma:** o `P2025` de uma leitura `*OrThrow` que escapa do repository é um erro inesperado, tratado como acima. Para dar significado de negócio à ausência, converta o `P2025` em erro de domínio, como no erro de fornecedor, ou leia com `null` e deixe o service lançar o erro de domínio.
 
 ## Onde diverge da skill `nestjs-best-practices`
 

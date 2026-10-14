@@ -44,5 +44,6 @@ O arquivo de teste leva o nome do arquivo testado, com o sufixo do nível: `item
 
 ## Funções e métodos
 
-- **Repository:** verbo do que o método faz no dado: `findByEmail`, `findOrCreate`, `markEmailVerified`, `deleteAllOfUser`. Um `find` devolve `null` quando não acha, sem lançar erro.
+- **Repository:** verbo do que o método faz no dado: `findByEmail`, `findOrCreate`, `markEmailVerified`, `deleteAllOfUser`.
+- **Leitura de um registro:** a ausência que é resultado de negócio devolve `null` (`findUnique`, `findFirst`). O registro que tem de existir, principalmente dentro de uma transação, usa a variante que lança (`findUniqueOrThrow`, `findFirstOrThrow`). Se outro processo pode apagá-lo, como um Usuário removido depois de emitido o token, a ausência é resultado de negócio, e a leitura devolve `null`.
 - **Service:** verbo da ação de negócio, do jeito que o caso de uso é chamado: `register`, `verifyEmail`, `login`, `requestReset`.
