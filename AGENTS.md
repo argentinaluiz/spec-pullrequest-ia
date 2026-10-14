@@ -249,13 +249,13 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 **Critérios do ticket**
 
 - **ID:** `CA<n>` no ticket, e `<ticket>-CA<n>` fora do Linear, como `LUI-146-CA3`. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago.
-- **Marca de conferência:** teste HTTP, teste no Playwright, teste de unidade, revisão humana ou documento. Só as três primeiras são provadas por teste. A definição de pronto não é critério de ticket.
+- **Marca de conferência:** teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento. Só as quatro primeiras são provadas por teste. A definição de pronto não é critério de ticket.
 - **Formato:** `- [ ] **CA3** · Texto do critério (teste HTTP).`
 
 **Arquivo de aceite**
 
 - **Onde:** `docs/aceite/<ticket>.md`, um por ticket, permanente. O texto do critério fica só no Linear.
-- **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das cinco), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
+- **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das seis), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces fica só na mensagem do commit de plano.
 - **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
 - **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite é imposto por um hook que nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").

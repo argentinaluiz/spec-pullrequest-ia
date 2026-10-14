@@ -16,11 +16,12 @@ const CRITERION_HEADING = /^#{1,6}\s*([A-Z][A-Z0-9]*-\d+-CA\d+)\b/;
 const TEST_TOKEN = /@([A-Z][A-Z0-9]*-\d+-CA\d+)/g;
 const ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]]+\.md)/;
 
-// As marcas de conferência. Só as três primeiras exigem teste.
+// As marcas de conferência. Só as quatro primeiras exigem teste.
 const CHECKS = new Map([
   ['teste http', true],
   ['teste no playwright', true],
   ['teste de unidade', true],
+  ['teste de integração', true],
   ['revisão humana', false],
   ['documento', false],
 ]);
@@ -102,7 +103,7 @@ function parseAcceptanceFile(name, text) {
     if (!CHECKS.has(criterion.check)) {
       error(
         `${criterion.id} em docs/aceite/${name}: marca "${criterion.check ?? 'ausente'}" desconhecida. ` +
-          'Use uma destas, na linha "**Marca:**": teste HTTP, teste no Playwright, teste de unidade, revisão humana ou documento.',
+          'Use uma destas, na linha "**Marca:**": teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento.',
       );
     }
   }

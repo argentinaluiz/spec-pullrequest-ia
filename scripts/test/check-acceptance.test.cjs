@@ -200,3 +200,41 @@ test('reprova o relatório ausente em vez de aprovar sem conferir', () => {
   });
   assert.equal(result.status, 1);
 });
+
+test('confere o relatório da suíte de unidade da web: aceita o teste que passou e recusa o que falhou @LUI-164-CA1', () => {
+  // O relatório da web chega ao conferidor como `vitest:`, como o da API: o ID no título é a ligação.
+  const unit = (status) => [['o login volta para a página pedida @LUI-1-CA1', status]];
+  const passed = check({ files: TICKET, vitest: unit('passed') });
+  assert.equal(passed.code, 0, passed.out);
+  assert.match(passed.out, /LUI-1-CA1: coberto por 1 teste\(s\)/);
+
+  const failed = check({ files: TICKET, vitest: unit('failed') });
+  assert.equal(failed.code, 1);
+  assert.match(failed.out, /LUI-1-CA1: um teste com o ID dele falhou/);
+});
+
+test('aceita a marca teste de integração e exige o teste com o ID que rodou e passou @LUI-164-CA2', () => {
+  const files = { 'LUI-1.md': acceptanceFile([['LUI-1-CA1', 'teste de integração']]) };
+
+  const none = check({ files });
+  assert.equal(none.code, 1);
+  assert.match(none.out, /LUI-1-CA1 \(docs\/aceite\/LUI-1\.md\) não tem nenhum teste/);
+
+  const failed = check({ files, vitest: [['@LUI-1-CA1 grava', 'failed']] });
+  assert.equal(failed.code, 1);
+  assert.match(failed.out, /falhou/);
+
+  const skipped = check({ files, vitest: [['@LUI-1-CA1 grava', 'pending']] });
+  assert.equal(skipped.code, 1);
+  assert.match(skipped.out, /foi pulado/);
+
+  const passed = check({ files, vitest: [['@LUI-1-CA1 grava', 'passed']] });
+  assert.equal(passed.code, 0, passed.out);
+  assert.match(passed.out, /1 critério\(s\) com teste/);
+
+  // A marca "teste manual" continua recusada, e a mensagem lista as seis marcas.
+  const manual = check({ files: { 'LUI-1.md': acceptanceFile([['LUI-1-CA1', 'teste manual']]) } });
+  assert.equal(manual.code, 1);
+  assert.match(manual.out, /marca "teste manual" desconhecida/);
+  assert.match(manual.out, /teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento/);
+});

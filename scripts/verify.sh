@@ -117,8 +117,11 @@ wait_for() {
 # congelamento na máquina. O conferidor e os testes dele chegam ao contêiner pela entrada padrão,
 # como o resto, porque o contêiner só enxerga a pasta da própria app.
 harness_tests() {
+  # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
+  # lerem; o repórter `spec` segue na saída, para quem lê o log.
   tar -c scripts/check-acceptance.cjs scripts/test |
-    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test scripts/test/*.test.cjs' &&
+    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination=node-tests.json scripts/test/*.test.cjs' &&
+    check_report api vitest reports/harness/node-tests.json &&
     # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
     scripts/test/freeze-acceptance.test.sh
 }
@@ -141,6 +144,8 @@ acceptance() {
     <"${body:-/dev/null}" || return 1
   tar -c -C docs aceite |
     in_container api sh -c 'rm -rf reports/acceptance/aceite && tar -x -C reports/acceptance' || return 1
+  # O relatório dos testes do harness fica no contêiner `api`, onde o conferidor também roda.
+  specs+=(vitest:reports/harness/node-tests.json)
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
     for spec in "${!ref}"; do

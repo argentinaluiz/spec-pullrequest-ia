@@ -5,6 +5,7 @@
 # Relatórios que o aceite confere, no formato
 # <vitest|playwright>:<relatório, na pasta do projeto>
 web_reports=(
+  vitest:reports/unit.json
   playwright:reports/playwright.json
 )
 
@@ -32,6 +33,12 @@ web_full() {
   web_fast
   # Relatório antigo não vale como evidência desta execução.
   in_container web rm -rf reports
+  step "Web: suíte de unidade" \
+    "rode \`$EXEC web pnpm test\`, leia a falha e corrija o código ou o teste." \
+    in_container web pnpm test --reporter=default --reporter=json "--outputFile.json=reports/unit.json"
+  step "Web: relatório da suíte de unidade" \
+    "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.todo\`." \
+    check_report web vitest reports/unit.json
   step "Web: build" \
     "rode \`$EXEC web pnpm build\` e corrija o erro de pré-renderização ou de compilação." \
     in_container web pnpm build

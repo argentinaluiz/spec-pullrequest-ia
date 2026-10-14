@@ -24,7 +24,7 @@ docker compose -f compose.dev.yaml exec web <comando>
 | `pnpm exec next typegen` | Gera os tipos globais das rotas (`PageProps`, `LayoutProps`). O `pnpm dev` e o `pnpm build` já os geram; num clone novo, rode antes do `tsc`. |
 | `pnpm build` | Build de produção, em modo `standalone` |
 
-Os comandos dos testes no navegador estão em [Testes no navegador](#testes-no-navegador).
+Os comandos dos testes de unidade estão em [Testes de unidade](#testes-de-unidade), e os dos testes no navegador, em [Testes no navegador](#testes-no-navegador).
 
 ## Particularidades da stack
 
@@ -106,6 +106,25 @@ O overlay de desenvolvimento e o build acusam quando um componente lê dado sem 
 - **Não resolva com `"use cache"`.** Colocar cache para calar o erro cria um cache que ninguém decidiu ter.
 - **Valores não determinísticos:** `Date.now()`, `Math.random()` e `crypto.randomUUID()` durante a renderização também são barrados. Chame `await connection()` antes, dentro de `<Suspense>`.
 
+## Testes de unidade
+
+A web tem dois níveis de teste: os de unidade, abaixo, e os no navegador, na seção seguinte. Os de unidade provam funções puras de `lib/` (caminhos, validação, montagem de URL), em Node, sem a aplicação no ar e sem navegador. O que depende do navegador, de cookies reais ou da API fica no Playwright.
+
+Rodam no contêiner `web`, a partir da raiz do repositório (Vitest, configurado em `vitest.config.mts`):
+
+```bash
+docker compose -f compose.dev.yaml exec web <comando>
+```
+
+| Comando | O que faz |
+| --- | --- |
+| `pnpm test` | Todos os testes de unidade |
+| `pnpm test lib/session/login-path.spec.ts` | Um arquivo de teste só |
+| `pnpm test -t "nome do teste"` | Um teste pelo nome |
+
+- **Onde ficam:** ao lado do código, em `lib/`, com o sufixo `.spec.ts`. O alias `@/` vale como no resto da web.
+- **Relatório:** o `scripts/verify.sh full` grava `reports/unit.json`, fora do Git, e o confere como o das outras suítes.
+
 ## Testes no navegador
 
 Rodam no contêiner `playwright`, e não no `web`, a partir da raiz do repositório:
@@ -127,7 +146,7 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 **Como escrever**
 
 - **O que entra:** o que só existe na web, pela porta que o Usuário usa. As regras do contrato são provadas pelos testes de ponta a ponta da API, e não aqui.
-- **Sem outro nível de teste:** a web não tem executor de testes de unidade. Enquanto for assim, o cliente de `lib/api` é provado pela rota `/vitrine/api`, e os auxiliares de `e2e/support/`, por um teste próprio na mesma suíte.
+- **Sem outro nível de teste aqui:** o que é função pura vai para a suíte de unidade. O cliente de `lib/api`, que fala com a API, é provado pela rota `/vitrine/api`, e os auxiliares de `e2e/support/`, por um teste próprio na mesma suíte.
 - **Onde ficam:** em `e2e/`, com o sufixo `.spec.ts`. Os auxiliares ficam em `e2e/support/`.
 - **Usuários de teste:** `e2e/support/account.ts` cadastra, verifica e entra pela própria interface (`createVerifiedUser()`, `signIn()`), e sai pelo menu da conta (`signOut()`). Quem está na casca do Drive é conferido pelo botão do menu da conta, que leva o e-mail no nome (`expectSignedInAs()`). Os cookies de token da Sessão são lidos e plantados com `e2e/support/session.ts`.
 - **Itens na Pasta raiz:** até o upload existir, nenhuma tela cria um Item. `seedRootFiles()`, de `e2e/support/items.ts`, grava arquivos ativos direto no banco da API, pela `DATABASE_URL` do serviço `playwright`. O Usuário já tem de ter entrado, porque a raiz nasce na primeira listagem; depois de gravar, recarregue a página.

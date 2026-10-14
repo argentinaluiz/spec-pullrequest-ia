@@ -30,7 +30,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Achado | Efeito | Etapa |
 | --- | --- | --- |
 | Erro de tipos ou de lint | Bloqueia | 1 |
-| Teste que falhou | Bloqueia | 1 |
+| Teste que falhou (inclusive na suíte de unidade da web) | Bloqueia | 1 |
 | Suíte sem nenhum teste executado | Bloqueia | 1 |
 | Teste pulado (`.skip`, `.only`, `.todo`, `.fixme`) | Bloqueia | 1 |
 | Relatório de suíte ausente ou ilegível | Bloqueia | 1 |
@@ -42,7 +42,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Critério de aceite com marca de teste sem teste que rodou e passou | Bloqueia | 4 |
 | Teste que cita um ID que não está em nenhum arquivo de aceite, ou que foi pulado | Bloqueia | 4 |
 | PR que altera código em `apps/` sem a seção `## Aceite` | Bloqueia | 4 |
-| Teste do harness que falhou | Bloqueia | 4 |
+| Teste do harness que falhou, ou relatório dele sem teste ou com teste pulado | Bloqueia | 4 |
 | O agente edita um arquivo de aceite já versionado | Nega a edição | 7 |
 | PR que altera, renomeia ou apaga um arquivo de aceite que já existe na `main` | Aviso no PR | 7 |
 | Achado do revisor | Comentário no PR | 5 |
@@ -62,6 +62,7 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 | `apps` | A lista das apps registradas | O hook de fim de turno |
 
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
+- **Suítes da web:** o grupo completo roda a suíte de unidade (Vitest, `reports/unit.json`) antes do build e depois a suíte no navegador (Playwright, `reports/playwright.json`). Cada relatório passa pelo `check_report`, que reprova relatório ausente, suíte vazia e teste pulado.
 - **Relatórios:** cada suíte grava um JSON em `reports/`, na pasta do projeto, e o `scripts/check-report.cjs` o confere. O grupo completo de cada app apaga os relatórios antigos dela no começo, para que só valha a evidência da execução atual.
 - **O `full` com apps não aprova nada.** Ele existe para o agente conferir uma app inteira sem pagar a outra, mas a suíte no navegador da web fala com a API real, e uma mudança só na API pode quebrá-la. Por isso o push e a CI continuam exigindo o `full` sem apps, e o `full` com apps termina avisando isso.
 - **Web e API no ar:** a suíte no navegador depende das duas em modo de desenvolvimento. Na máquina, o script exige que elas já estejam respondendo. Com `--start-apps`, usado pela CI, ele mesmo as sobe.
@@ -197,7 +198,8 @@ O formato da seção do PR e do arquivo de aceite está no `AGENTS.md` da raiz, 
 
 - **Sem corpo de PR:** a cobertura dos critérios roda sempre, também numa branch sem `ACCEPTANCE_BODY_FILE` e num push na `main`. O que depende do corpo é só a seção `## Aceite`.
 - **Onde é conferido:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os arquivos de `docs/aceite/`, o corpo do PR e os relatórios JSON das suítes da própria execução. Faz parte do `Veredito`. Os contêineres só montam a pasta da própria app, então o `verify.sh` entrega ao conferidor, pela entrada padrão, o corpo do PR e os arquivos de aceite, como já fazia com os relatórios.
-- **Testes do harness:** o conferidor tem testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
+- **Marcas:** são seis, e quatro exigem teste: teste HTTP, teste no Playwright, teste de unidade e teste de integração. A marca é uma promessa sobre o nível do teste, que o revisor lê. O conferidor não a confere, nem a camada do teste: ele lê os relatórios no formato do Vitest e no do Playwright e liga o teste ao critério só pelo ID no título.
+- **Testes do harness:** o conferidor tem testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. Um repórter próprio do `node:test` (`scripts/test/node-test-report.cjs`) grava o relatório deles em `reports/harness/node-tests.json`, no formato do Vitest: o passo o confere com o mesmo `check_report` das suítes (ao menos um teste, nenhum pulado), e o `verify.sh` o entrega ao conferidor ao lado dos relatórios das apps. Assim o conferidor continua com dois formatos. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
 - **ID no título, e não nas `tags` do Vitest:** com `strictTags`, cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`. No Playwright, o conferidor lê o ID no título e nas tags. O formato é o token `@<ticket>-CA<n>` no título.
 - **Todos os tickets:** a cobertura confere todos os arquivos de aceite, e não só o do PR. Um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado.
 - **Quando a seção é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um documento dentro de `apps/`, como o `AGENTS.md` de um projeto, conta como mudança na aplicação.
@@ -306,7 +308,7 @@ A tabela de aceite que existia antes ligava cada critério a um teste, mas só n
 | Peça | Como é |
 | --- | --- |
 | ID do critério | `CA<n>` no ticket e `<ticket>-CA<n>` fora do Linear, como `LUI-146-CA3`. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago |
-| Marca de conferência | Teste HTTP, teste no Playwright, teste de unidade, revisão humana ou documento. Só as três primeiras entram na cobertura por teste. A definição de pronto do `AGENTS.md` não é critério de ticket |
+| Marca de conferência | Teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento. Só as quatro primeiras entram na cobertura por teste. A definição de pronto do `AGENTS.md` não é critério de ticket |
 | Arquivo de aceite | `docs/aceite/<ticket>.md`, permanente. Por ID: a marca, o cenário (Dado, Quando, Então) e o teste previsto (camada, arquivo e nome). O texto do critério fica só no Linear |
 | O que congela | O ID e o cenário. O nome e o arquivo do teste podem mudar no ciclo da `tdd`, porque a ligação com o critério é a tag |
 | Desenho do ticket | Direto no dono: o contrato e o schema no LLD até a etapa 8, e no snapshot da OpenAPI e no `schema.prisma` depois dela. A lista de arquivos e interfaces, que é o que mais envelhece, fica só na mensagem do commit de plano |
