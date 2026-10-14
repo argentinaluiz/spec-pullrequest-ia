@@ -165,7 +165,7 @@ O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `S
 
 - **Quais apps:** as do registro `APPS`, que o hook lê com `scripts/verify.sh apps`. Uma app nova entra no hook sem mexer nele.
 - **O que conta como alterado:** a diferença entre a base da branch (o ponto em que ela saiu da `origin/main`) e a pasta de trabalho, mais os arquivos novos. Assim, o código que o agente commitou no mesmo turno também é verificado.
-- **Por que guardar o estado aprovado:** numa branch com código alterado, um turno que só mexe em documento não precisa pagar a verificação de novo. O hook guarda um resumo do estado de cada projeto na pasta `.git`, fora do versionamento.
+- **Por que guardar o estado aprovado:** numa branch com código alterado, um turno que só mexe em documento fora das apps não precisa pagar a verificação de novo. Um documento dentro da pasta de uma app, como o `AGENTS.md` dela, conta como mudança na app. O hook guarda um resumo do estado de cada projeto na pasta `.git`, fora do versionamento.
 - **Falha fechada:** com código alterado e os contêineres fora do ar, o hook bloqueia, em vez de passar calado.
 - **Limite de três bloqueios:** um erro que o agente não consegue corrigir viraria um laço sem fim. Depois do terceiro bloqueio seguido, o turno encerra e o usuário vê um aviso de que a verificação continua falhando. É o único ponto em que o hook deixa passar uma falha, e ela continua sendo pega pela CI.
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
@@ -189,7 +189,7 @@ O formato da tabela e a regra de quando escrevê-la estão no `AGENTS.md` da rai
 | O PR não altera nada em `apps/` e não tem a tabela | Passa |
 
 - **Onde é conferida:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os relatórios JSON das quatro suítes da própria execução. Faz parte do `Veredito`.
-- **Quando é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um PR só de documento ou de harness não precisa da tabela; se a trouxer, ela é conferida.
+- **Quando é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um PR só de documento fora de `apps/` ou de harness não precisa da tabela; se a trouxer, ela é conferida. Um documento dentro de `apps/`, como o `AGENTS.md` de um projeto, conta como mudança na aplicação.
 - **Corpo editado, CI de novo:** a tabela mora no corpo do PR, então a CI roda outra vez quando ele é editado.
 - **O que o humano confere no merge:** que as linhas da tabela são os critérios do ticket. A CI não lê o Linear, porque isso pediria um segredo de API no repositório.
 - **Limite:** a tabela prova que o teste citado existe, rodou e passou. Não prova que ele verifica o critério: uma asserção fraca continua passando, e nada impede citar um teste que não tem relação com o critério. O que cobre isso é a leitura no merge e, como evolução, o mutation testing.
@@ -241,7 +241,8 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 
 - **O bloqueio é no push porque é ele que gasta rodada de CI.** Toda execução da CI num pull request nasce de um push, na abertura e nas correções.
 - **O que a aprovação cobre:** o conteúdo de `apps/`, do `compose.dev.yaml` e de `scripts/`, que é o que a verificação lê. O modo completo resume esse conteúdo no começo da execução e, se terminar aprovado, grava o resumo na pasta `.git`, fora do versionamento. O hook compara com o resumo do último commit.
-- **Documento não invalida a aprovação.** Tipos, lint, testes e build não mudam de resultado por causa de um documento, e exigir cinco minutos de verificação para um ajuste de texto levaria a contornar o bloqueio.
+- **Documento fora dos caminhos verificados não invalida a aprovação.** Tipos, lint, testes e build não mudam de resultado por causa de um documento, e exigir cinco minutos de verificação para um ajuste de texto levaria a contornar o bloqueio.
+- **Documento dentro de `apps/` invalida.** A aprovação cobre a pasta inteira, sem distinguir código de texto, então mudar o `AGENTS.md` de um projeto pede o modo completo de novo.
 - **A varredura de segredos roda em todo push,** inclusive no de documento. É a única verificação em que a CI chega tarde: quando ela reprova, o segredo já está no repositório remoto.
 - **A tabela de aceite entra na aprovação.** Na máquina, o modo completo só confere a tabela quando recebe o corpo do PR num arquivo. Sem essa exigência, o mesmo comando aprovaria na máquina e reprovaria na CI.
 - **Mudança sem commit conta para a tabela.** O modo completo costuma rodar antes do commit, então ele considera a pasta de trabalho, e não só os commits, para decidir se a tabela é exigida.

@@ -140,7 +140,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml` ou em `scripts/`. Mudança só em documento não invalida, e uma branch que só altera documento não precisa de aprovação.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml` ou em `scripts/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Tabela de aceite no pull request**
@@ -256,3 +256,5 @@ Quando precisar consultar a documentação de uma biblioteca, use o context7 par
 
 
 Quando estiver trabalhando em uma tarefa, primeiro decomponha a solicitação em suas subtarefas e preocupações subjacentes, depois identifique quais skills disponíveis correspondem a alguma delas e ative essas skills.
+
+Quando uma skill diverge deste arquivo, do `AGENTS.md` do projeto ou dos documentos de `docs/`, valem estes.

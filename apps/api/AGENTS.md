@@ -1,7 +1,3 @@
-## Estado atual
-
-A fundação está pronta: módulo de config (`src/config/`), banco com Prisma (`prisma/` e `src/infra/database/`), envio de e-mail (`src/infra/mail/`), filtro de erros e validação de entrada (`src/common/`) e a base de testes (`test/support/`). Dos módulos de domínio (`src/modules/`), existem o `users`, com a rota do Usuário autenticado, e o `auth`, com o cadastro, a verificação de e-mail, o reenvio, o login, a renovação da Sessão, o logout e a recuperação de senha. O token de acesso e o guard que o exige ficam em `src/common/auth/`. O limite de tentativas fica em `src/common/rate-limit/`, e o IP de quem chama, em `src/common/client-ip/`. A estrutura-alvo está na seção 1 do `docs/lld.md`, e o código novo deve nascer nela.
-
 ## Comandos
 
 Todos rodam no contêiner `api`, a partir da raiz do repositório:
@@ -36,31 +32,20 @@ O `pnpm lint` só aponta os problemas, sem corrigir. A formatação é conferida
 ## Particularidades da stack
 
 - **Módulos ES:** o projeto é `"type": "module"` com `moduleResolution: nodenext`. Todo import relativo leva a extensão `.js`, mesmo apontando para um arquivo `.ts` (`import { AppService } from './app.service.js'`). Sem a extensão, o `tsc` e o Node falham.
-- **Vitest:** `describe`, `it`, `expect` e `vi` são globais, sem import. Os mocks usam `vi.fn()` e `vi.mock()`.
-- **oxlint:** as regras ficam no `.oxlintrc.json`. `no-floating-promises` é erro, então toda promise precisa de `await`, `return` ou `void`.
-- **TypeScript:** `strict` ligado, com `strictPropertyInitialization` desligado para os DTOs e as classes com decorators.
 - **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco fica no `prisma.config.ts`, e não no schema. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
-- **`PrismaService`:** é o cliente do banco, global, em `src/infra/database/`. Só os repositories o injetam.
 - **pnpm:** os pacotes que rodam script na instalação precisam estar liberados no `pnpm-workspace.yaml` (`allowBuilds`). Sem isso, a instalação falha.
 
 ## Nomes de arquivos
 
-Os arquivos seguem a convenção do Nest: nome em `kebab-case`, seguido de um sufixo que diz o papel do arquivo. A classe leva o mesmo nome em `PascalCase`, com o papel no fim (`items.service.ts` exporta `ItemsService`). Na dúvida, gere o arquivo com o Nest CLI (`pnpm exec nest g <tipo> <nome>`), que já aplica o padrão.
+Os arquivos seguem a convenção do Nest: nome em `kebab-case`, seguido de um sufixo que diz o papel do arquivo. A classe leva o mesmo nome em `PascalCase`, com o papel no fim (`items.service.ts` exporta `ItemsService`). Na dúvida, gere o arquivo com o Nest CLI (`pnpm exec nest g <tipo> <nome>`), que já aplica o padrão. Os papéis que o CLI não gera seguem estes nomes:
 
 | Artefato | Arquivo |
 | --- | --- |
-| Módulo | `items.module.ts` |
-| Controller | `items.controller.ts` |
-| Service | `items.service.ts` |
 | Repository | `items.repository.ts` |
-| DTO | `dto/create-item.dto.ts` |
 | Entidade | `entities/item.entity.ts` |
-| Guard | `auth.guard.ts` |
-| Exception filter | `problem-details.filter.ts` |
 | Erro de domínio | `quota-exceeded.error.ts` |
 | Interface de `src/infra/` e a implementação dela | `mail-sender.ts` e `smtp-mail-sender.ts` |
 | Configuração de um assunto | `mail.config.ts` |
-| Pipe, interceptor e decorator | `*.pipe.ts`, `*.interceptor.ts` e `*.decorator.ts` |
 
 **Testes**
 
@@ -93,28 +78,13 @@ As suítes de integração e de ponta a ponta usam a base de `test/support/`. N�
 
 - **Prefixo:** o `/v1` é aplicado a todas as rotas por `configureApp()`, em `src/app.setup.ts`, que o `main.ts` e a base de testes chamam. Os controllers declaram a rota sem o prefixo.
 - **Configuração global:** o que vale para todas as rotas e não depende de injeção entra em `configureApp()`. O filtro de erros e a validação de entrada são registrados no `AppModule` (`APP_FILTER` e `APP_PIPE`), e não no `main.ts`, para valerem também nos testes.
-
 - **Rota protegida:** o controller leva `@UseGuards(AuthGuard)` e lê o id do Usuário com `@CurrentUserId()`, os dois de `src/common/auth/`. O módulo dele importa o `AccessTokensModule`. O guard só confere a assinatura do token, sem consultar o banco.
 - **IP de quem chama:** o controller leva `@UseGuards(ClientIpGuard)` e lê o IP com `@ClientIp()`, os dois de `src/common/client-ip/`. Ninguém lê o IP da requisição por conta própria: é o guard que decide entre o IP repassado pela web e o da conexão.
 - **Limite de tentativas:** o service do módulo dono da regra monta as chaves e chama o `RateLimitService`, de `src/common/rate-limit/`, antes de qualquer outra coisa. O módulo dele importa o `RateLimitModule`.
 
-## Onde está cada assunto
-
-Este arquivo é dono de como o código da API é escrito. O que o sistema faz está nos documentos de `docs/`, e nada de lá é repetido aqui. Antes de implementar, leia a seção do assunto:
-
-| Assunto | Onde ler |
-| --- | --- |
-| Visão geral, fluxos principais e ambientes | `docs/hld.md` |
-| Estrutura de pastas e bibliotecas escolhidas | `docs/lld.md`, seção 1 |
-| Esquema e convenções do banco | `docs/lld.md`, seção 2 |
-| Convenções do contrato, códigos de erro e endpoints | `docs/lld.md`, seção 3 |
-| Estados e regras de negócio | `docs/lld.md`, seção 4 |
-| Tarefas do worker | `docs/lld.md`, seção 5 |
-| Limites, prazos e variáveis de ambiente | `docs/lld.md`, seção 6 |
-
-Antes de criar uma rota ou uma tabela, leia as convenções das seções 3.1 e 2 do LLD.
-
 ## Práticas de código
+
+A estrutura de pastas, o esquema do banco, o contrato da API, os estados e as regras de negócio, as tarefas do worker e os limites, prazos e variáveis de ambiente estão no `docs/lld.md`, nas seções 1 a 6. Leia a do assunto antes de implementar, e as convenções das seções 2 e 3.1 antes de criar uma tabela ou uma rota.
 
 O código segue Clean Architecture e SOLID. A regra central é a direção das dependências: o controller conhece o service, e o service não conhece nem o HTTP nem o fornecedor de nenhuma integração.
 
@@ -126,7 +96,7 @@ O código segue Clean Architecture e SOLID. A regra central é a direção das d
 
 Cada módulo é dono das próprias tabelas. Um módulo só chama outro pelo service público dele, nunca pelas tabelas nem pelo repository.
 
-As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. Guards, filtros de erro e rate limit ficam em `src/common/`.
+As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. A implementação concreta é ligada no módulo por um token de injeção, e nos testes de unidade a interface é trocada por um dublê, sem `vi.mock()` de SDK. Guards, filtros de erro e rate limit ficam em `src/common/`.
 
 ### A camada de serviços não conhece o mundo externo
 
@@ -157,13 +127,6 @@ A mesma regra vale para o repository: ele não importa nada de HTTP.
 - **Erro inesperado:** o filter registra em log e responde 500, sem expor mensagem interna nem stack trace. Isso vale também para o erro de uma biblioteca que traz um `statusCode` próprio: o filter só aceita o status de uma `HttpException` e dos erros do leitor do corpo do Express.
 - **Erro de fornecedor:** a implementação de `src/infra/` que recebe um erro com significado para a regra de negócio (objeto inexistente, limite atingido) o converte em erro de domínio. Ela não deixa o erro do SDK subir contando com o status dele.
 
-### SOLID no dia a dia
-
-- **Responsabilidade única:** o controller adapta o HTTP, o service decide e o repository persiste. Um service que cresce para atender dois motivos de mudança é dividido.
-- **Inversão de dependência:** o service depende da interface de `src/infra/`, e a implementação concreta é ligada no módulo por um token de injeção. Nos testes unitários, a interface é trocada por um dublê, sem `vi.mock()` de SDK.
-- **Segregação de interface:** as interfaces de `src/infra/` são pequenas e escritas a partir do que o service precisa, e não do que o SDK oferece.
-- **Aberto para extensão:** um fornecedor novo é uma implementação nova da interface, sem mudança no service.
-
 ## Configuração
 
 Toda configuração entra no projeto por um módulo de config próprio, em `src/config/`, feito com `@nestjs/config` e validado com Joi.
@@ -177,5 +140,3 @@ Toda configuração entra no projeto por um módulo de config próprio, em `src/
 - **Padrões:** os valores padrão do schema são os de produção. O ambiente local os reduz pelo `.env`.
 - **Testes:** os testes de unidade não carregam o `ConfigModule`. Eles injetam um objeto de configuração montado no próprio teste. Nas suítes de integração e de ponta a ponta, a base de testes carrega o `.env` e troca `DATABASE_URL` pelo banco de testes; ela e o `prisma.config.ts` são as únicas exceções à regra de não ler `process.env` fora de `src/config/`. A CLI do Prisma roda fora do Nest, então lê o `.env` e a `DATABASE_URL` por conta própria.
 - **Arquivo `.env`:** a aplicação lê o `.env` da pasta do projeto, se ele existir, e as variáveis já definidas no ambiente prevalecem sobre as do arquivo. Em produção não há arquivo.
-- **Lista das variáveis:** está na seção 6 do LLD, e não aqui. O `.env` fica fora do Git, e o `.env.example` é versionado.
-- **Imagens:** o `Dockerfile.dev` é o do desenvolvimento, com o código montado por volume. O `Dockerfile` é o de produção, para o Cloud Run.
