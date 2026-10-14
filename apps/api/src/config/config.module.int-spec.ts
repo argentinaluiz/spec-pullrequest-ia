@@ -6,6 +6,7 @@ import { AppConfigModule } from './config.module.js';
 import { databaseConfig } from './database.config.js';
 import { mailConfig } from './mail.config.js';
 import { rateLimitConfig } from './rate-limit.config.js';
+import { storageConfig } from './storage.config.js';
 
 const REQUIRED_VARIABLES = [
   'DATABASE_URL',
@@ -14,6 +15,7 @@ const REQUIRED_VARIABLES = [
   'SMTP_URL',
   'MAIL_FROM',
   'WEB_ORIGIN',
+  'GCS_BUCKET',
   'INTERNAL_API_SECRET',
 ];
 
@@ -40,6 +42,10 @@ describe('Variáveis de ambiente na subida', () => {
     vi.stubEnv('WEB_ORIGIN', 'https://app.example.com');
     vi.stubEnv('EMAIL_VERIFICATION_TTL_SECONDS', '600');
     vi.stubEnv('INTERNAL_API_SECRET', 'um-segredo-com-mais-de-32-caracteres');
+    vi.stubEnv('GCS_BUCKET', 'meu-bucket');
+    vi.stubEnv('STORAGE_EMULATOR_HOST', 'http://storage:4443');
+    vi.stubEnv('STORAGE_PUBLIC_URL', 'http://localhost:4443');
+    vi.stubEnv('STORAGE_SIGNER_EMAIL', 'signer@storage.local');
     vi.stubEnv('LOGIN_RATE_LIMIT_PER_EMAIL', '7');
     vi.stubEnv('LOGIN_RATE_LIMIT_PER_IP', '70');
     vi.stubEnv('LOGIN_RATE_LIMIT_WINDOW_SECONDS', '60');
@@ -68,6 +74,11 @@ describe('Variáveis de ambiente na subida', () => {
       timeoutMs: 10_000,
       idleTimeoutMs: 60_000,
     });
+    const storage = moduleRef.get(storageConfig.KEY);
+    expect(storage.bucket).toBe('meu-bucket');
+    expect(storage.emulatorHost).toBe('http://storage:4443');
+    expect(storage.publicUrl).toBe('http://localhost:4443');
+    expect(storage.signer?.email).toBe('signer@storage.local');
     const auth = moduleRef.get(authConfig.KEY);
     expect(auth.jwtPrivateKey).toContain('-----BEGIN PRIVATE KEY-----');
     expect(auth.jwtPublicKey).toContain('-----BEGIN PUBLIC KEY-----');
@@ -103,6 +114,38 @@ describe('Variáveis de ambiente na subida', () => {
       emailRequest: { perEmail: 3, perIp: 10, windowSeconds: 60 * 60 },
     });
   });
+
+  it('sobe sem as variáveis do emulador de storage, como em produção', async () => {
+    for (const variable of [
+      'STORAGE_EMULATOR_HOST',
+      'STORAGE_PUBLIC_URL',
+      'STORAGE_SIGNER_EMAIL',
+      'STORAGE_SIGNER_PRIVATE_KEY',
+    ]) {
+      vi.stubEnv(variable, undefined);
+    }
+
+    const moduleRef = await boot();
+
+    const storage = moduleRef.get(storageConfig.KEY);
+    expect(storage.emulatorHost).toBeUndefined();
+    expect(storage.publicUrl).toBeUndefined();
+    expect(storage.signer).toBeUndefined();
+  });
+
+  it.each([
+    'STORAGE_PUBLIC_URL',
+    'STORAGE_SIGNER_EMAIL',
+    'STORAGE_SIGNER_PRIVATE_KEY',
+  ])(
+    'não sobe com o emulador de storage sem %s, e o erro diz qual variável falta',
+    async (variable) => {
+      vi.stubEnv('STORAGE_EMULATOR_HOST', 'http://storage:4443');
+      vi.stubEnv(variable, undefined);
+
+      await expect(boot()).rejects.toThrow(`"${variable}" is required`);
+    },
+  );
 
   it('usa a porta 3000 quando PORT não é definida', async () => {
     vi.stubEnv('PORT', undefined);

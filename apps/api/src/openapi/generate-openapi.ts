@@ -15,7 +15,10 @@ if (!output) {
 const app = await NestFactory.create(AppModule, { logger: false });
 configureApp(app);
 try {
-  writeFileSync(output, `${JSON.stringify(buildOpenApiDocument(app), null, 2)}\n`);
+  writeFileSync(
+    output,
+    `${JSON.stringify(buildOpenApiDocument(app), null, 2)}\n`,
+  );
 } finally {
   await app.close();
 }

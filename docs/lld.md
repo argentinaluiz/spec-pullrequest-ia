@@ -478,14 +478,15 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **URL assinada:** a implementação passa a origem de `STORAGE_PUBLIC_URL` como `host` da assinatura, e a URL já sai com o endereço que o navegador alcança. O emulador só serve a URL assinada (`/<bucket>/<objeto>`) quando o `Host` da requisição é igual ao `-public-host` dele, que o Compose define com o mesmo host e porta do `STORAGE_PUBLIC_URL`.
 - **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam em `http://web:3000`.
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
-- **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente. A implementação passa o endereço por configuração (`apiEndpoint`) e não depende dessa leitura.
+- **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
+- **Rota de apoio:** `/v1/dev/storage/*` (sessão, URL de leitura, tamanho e remoção) expõe a interface de storage aos testes no navegador. Só existe quando `STORAGE_EMULATOR_HOST` está definida, fica fora do OpenAPI e sai quando o `POST /uploads` existir (LUI-167).
 
-**Pontos de implementação a validar**
+**Resultado da validação contra o emulador (`fake-gcs-server` 1.56.1)**
 
-- **Origem na criação da sessão:** a API precisa informar a origem do frontend ao criar a sessão retomável, para que o navegador possa usá-la.
-- **CORS do bucket:** a configuração precisa expor o cabeçalho `Range` na resposta, para o navegador conseguir lê-lo.
-
-Esses dois pontos vêm do meu conhecimento da API do Cloud Storage e não foram testados neste projeto. Vale confirmá-los na documentação atual antes de implementar.
+- **Origem na criação da sessão:** a origem do frontend entra na criação da sessão (`origin`) e vale para a sessão inteira. O emulador a aceita, mas não a usa: o CORS dele é fixo.
+- **CORS do bucket:** não é configurável no emulador. Ele aceita qualquer origem e expõe só o cabeçalho `Location`, então o `Range` da resposta 308 fica ilegível para o navegador. A leitura do `Range` é coberta no staging.
+- **O que o emulador reproduz:** a sessão retomável com chunks (308 até o último, 200 no fim, objeto criado só então), o envio de um arquivo vazio num único `PUT`, a leitura por URL assinada com o nome do arquivo no download (`response-content-disposition` respeitado) e a remoção idempotente.
+- **O que o emulador não reproduz:** o endereço da sessão sai com o host da requisição, e não com o `-external-url`; a consulta de progresso (`Content-Range: bytes */<total>`, sem corpo) é tratada como o fim do envio; o cancelamento da sessão só responde 499 e a sessão continua aceitando bytes; a URL assinada é servida sem conferir assinatura nem validade; o tamanho do chunk não precisa ser múltiplo de 256 KiB. Esses pontos são cobertos no staging (HLD, seção 6.1).
 
 ### 4.7 Cadastro, verificação e senha
 

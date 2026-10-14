@@ -36,13 +36,14 @@ O `.claude/settings.json` nega a leitura e a escrita nesses caminhos.
 
 Tudo roda dentro dos contêineres do Docker Compose: instalação de dependências, servidor de desenvolvimento, testes, lint, compilação do TypeScript e qualquer outro comando do projeto. **Nunca rode `pnpm`, `node` ou `npx` direto na máquina.**
 
-O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com cinco serviços:
+O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis serviços:
 
 | Serviço | O que é | Endereço na máquina | Endereço entre contêineres |
 | --- | --- | --- | --- |
 | `web` | Frontend em Next.js | `http://localhost:3000` | `http://web:3000` |
 | `api` | API em NestJS, com as rotas sob `/v1` | `http://localhost:3001` | `http://api:3000` |
 | `postgres` | Banco PostgreSQL (usuário, senha e banco `app`) | Não é publicado | `postgres:5432` |
+| `storage` | Emulador do Cloud Storage (`fake-gcs-server`), com o bucket `app-files` | `http://localhost:4443` | `http://storage:4443` |
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
 
@@ -56,7 +57,7 @@ docker compose -f compose.dev.yaml exec web pnpm dev --hostname 0.0.0.0
 docker compose -f compose.dev.yaml exec api pnpm start:dev
 ```
 
-O `--wait` segura o primeiro comando até os cinco serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Os outros dois ficam presos ao terminal, então rode cada um em segundo plano. O `--hostname 0.0.0.0` é necessário para que a web aceite conexões de fora do contêiner.
+O `--wait` segura o primeiro comando até os seis serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Os outros dois ficam presos ao terminal, então rode cada um em segundo plano. O `--hostname 0.0.0.0` é necessário para que a web aceite conexões de fora do contêiner.
 
 **Derrubar**
 

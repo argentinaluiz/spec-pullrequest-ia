@@ -42,6 +42,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_started
+      storage:
+        condition: service_healthy
     healthcheck:
       # O arquivo é criado no fim da preparação (dependências, .env, chaves e migrações).
       test: ["CMD", "test", "-f", "/tmp/api-ready"]
@@ -70,6 +72,8 @@ services:
       # O banco da API que a web usa, para os testes gravarem Itens como preparação até o
       # upload existir (apps/web/AGENTS.md, "Testes no navegador").
       DATABASE_URL: postgresql://app:app@postgres:5432/app
+      # A API, para os testes alcançarem a rota de apoio do storage (/v1/dev/storage).
+      API_URL: http://api:3000
     depends_on:
       # Usa a `node_modules` que o contêiner `web` instala.
       web:
@@ -104,6 +108,29 @@ services:
     ports:
       # Tela e API HTTP dos e-mails capturados. O SMTP (1025) só é usado entre contêineres.
       - "8025:8025"
+
+  storage:
+    # Emulador do Cloud Storage. A versão é fixa: o comportamento do emulador está medido
+    # contra ela (docs/lld.md, seção 4.6).
+    image: fsouza/fake-gcs-server:1.56.1
+    init: true
+    ports:
+      # É a porta que o navegador de quem desenvolve alcança (STORAGE_PUBLIC_URL).
+      - "4443:4443"
+    # O emulador monta o endereço da sessão e serve a URL assinada pelo `Host` da requisição,
+    # e só atende a URL assinada quando ele é o `-public-host`. O bucket nasce da pasta
+    # /data/app-files, que o entrypoint cria antes de iniciar o emulador.
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /data/app-files && exec /bin/fake-gcs-server -data /data -scheme http -backend memory -port 4443 -public-host localhost:4443
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4443/storage/v1/b/app-files"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
 
 volumes:
   postgres-data:

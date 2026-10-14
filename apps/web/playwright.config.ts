@@ -21,5 +21,18 @@ export default defineConfig({
     baseURL: requiredEnv("WEB_URL"),
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          // O endereço público do emulador de storage é `localhost:4443`, e as URLs que a API
+          // entrega valem para o navegador de quem desenvolve. Neste contêiner, `localhost` não é
+          // o storage: o Chromium o resolve para o serviço `storage` (docs/lld.md, seção 4.6).
+          args: ["--host-resolver-rules=MAP localhost storage"],
+        },
+      },
+    },
+  ],
 });

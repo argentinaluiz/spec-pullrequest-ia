@@ -13,6 +13,11 @@ export interface Env {
   SMTP_TIMEOUT_MS: number;
   SMTP_IDLE_TIMEOUT_MS: number;
   WEB_ORIGIN: string;
+  GCS_BUCKET: string;
+  STORAGE_EMULATOR_HOST?: string;
+  STORAGE_PUBLIC_URL?: string;
+  STORAGE_SIGNER_EMAIL?: string;
+  STORAGE_SIGNER_PRIVATE_KEY?: string;
   EMAIL_VERIFICATION_TTL_SECONDS: number;
   PASSWORD_RESET_TTL_SECONDS: number;
   ACCESS_TOKEN_TTL_SECONDS: number;
@@ -100,6 +105,23 @@ function matchingJwtKeys(env: Env, helpers: Joi.CustomHelpers<Env>) {
   return env;
 }
 
+/** Com o emulador de storage, o navegador e a assinatura das URLs precisam das outras três variáveis. */
+function emulatorStorageVariables(env: Env, helpers: Joi.CustomHelpers<Env>) {
+  if (!env.STORAGE_EMULATOR_HOST) {
+    return env;
+  }
+  for (const variable of [
+    'STORAGE_PUBLIC_URL',
+    'STORAGE_SIGNER_EMAIL',
+    'STORAGE_SIGNER_PRIVATE_KEY',
+  ] as const) {
+    if (!env[variable]) {
+      return helpers.error('storageEmulator.missing', { variable });
+    }
+  }
+  return env;
+}
+
 /**
  * Todas as variáveis de ambiente da API, com tipo, obrigatoriedade e valor
  * padrão. Os padrões são os de produção. A lista comentada está na seção 6 do
@@ -124,6 +146,14 @@ export const envSchema = Joi.object<Env>({
   SMTP_IDLE_TIMEOUT_MS: Joi.number().integer().min(1).default(60_000),
 
   WEB_ORIGIN: webOrigin.required(),
+
+  GCS_BUCKET: Joi.string().required(),
+  // As quatro variáveis abaixo só existem no desenvolvimento: com o emulador, o navegador e a
+  // assinatura precisam delas. Em produção, a API usa o Cloud Storage e a identidade do serviço.
+  STORAGE_EMULATOR_HOST: Joi.string().uri({ scheme: ['http', 'https'] }),
+  STORAGE_PUBLIC_URL: webOrigin,
+  STORAGE_SIGNER_EMAIL: Joi.string(),
+  STORAGE_SIGNER_PRIVATE_KEY: rsaKey('private'),
 
   EMAIL_VERIFICATION_TTL_SECONDS: Joi.number()
     .integer()
@@ -163,7 +193,10 @@ export const envSchema = Joi.object<Env>({
     .default(60 * 60),
 })
   .custom(matchingJwtKeys)
+  .custom(emulatorStorageVariables)
   .messages({
+    'storageEmulator.missing':
+      '"{{#variable}}" is required when "STORAGE_EMULATOR_HOST" is set',
     'jwtKeys.mismatch':
       '"JWT_PUBLIC_KEY" must be the public key of "JWT_PRIVATE_KEY"',
   });
