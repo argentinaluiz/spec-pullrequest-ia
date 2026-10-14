@@ -48,7 +48,7 @@ O arquivo de teste leva o nome do arquivo testado, como descrito em `.claude/rul
 
 **Onde cada regra é provada:** as regras de negócio são provadas pelos testes de ponta a ponta, pelas rotas, com banco e e-mail reais. O teste de unidade de um service é opcional, e vale quando a regra tem muitos casos que seriam lentos ou repetitivos pelas rotas. Funções puras têm teste de unidade. A spec da funcionalidade pode restringir isso, e ela prevalece.
 
-Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/rules/nest-tests.md`.
+Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/rules/nest-testing.md`.
 
 ## Aplicação HTTP
 
@@ -66,15 +66,18 @@ O código segue Clean Architecture e SOLID. A regra central é a direção das d
 
 As convenções de cada artefato estão em `.claude/rules/nest-*.md`, e cada uma vale para os arquivos listados no `paths` dela. O Claude Code as carrega sozinho quando mexe num desses arquivos. Outro agente lê a do artefato antes de mexer nele.
 
-### Camadas de cada módulo
+### Componentes e como se comunicam
 
-- **Controller:** rotas HTTP, DTOs e validação.
-- **Service:** regras de negócio. Ele decide o que acontece. Quando uma operação grava por mais de um repository e as gravações têm de valer juntas, é o service que abre a transação, com o `$transaction` do `PrismaService`, e passa o cliente dela, o `tx`, aos repositories do próprio módulo.
-- **Repository:** acesso ao banco e a atomicidade de cada comando. Quando um comando lê, decide e grava, ou quando duas gravações dele têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service. O método que um service precisa chamar dentro de uma transação aceita, como último parâmetro, o cliente dela (`db: Prisma.TransactionClient = this.prisma`), e o parâmetro entra quando o primeiro service precisa dele. Não o aceitam o método que abre a própria transação nem o que depende de capturar um erro do banco, porque no PostgreSQL esse erro aborta a transação aberta.
+Os tipos de peça, o que cada um pode chamar e a direção das dependências estão no `docs/lld.md`, seção 1.1. Leia-a antes de criar uma peça nova ou de injetar uma dependência. A tabela "Pode importar" mais abaixo é a conferência de cada import num arquivo de service.
 
-Cada módulo é dono das próprias tabelas. Um módulo só chama outro pelo service público dele, nunca pelas tabelas nem pelo repository.
+**Onde diverge da skill `nestjs-best-practices`:** a `arch-use-events` troca a chamada direta entre services por eventos (`@nestjs/event-emitter`). Aqui, o service chama o outro de forma direta: os fluxos são síncronos, a resposta e a transação dependem do resultado, e a sequência faz parte da regra de negócio. A `arch-single-responsibility` mostra o controller orquestrando vários services, o que também não vale aqui (`.claude/rules/nest-controller.md`).
 
-As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. A implementação concreta é ligada no módulo por um token de injeção. Guards, filtros de erro e rate limit ficam em `src/common/`.
+### Transação e atomicidade
+
+O que cada peça é está no LLD (seção 1.1). Aqui, como o service e o repository dividem a transação:
+
+- **Service:** quando uma operação grava por mais de um repository e as gravações têm de valer juntas, é o service que abre a transação, com o `$transaction` do `PrismaService`, e passa o cliente dela, o `tx`, aos repositories do próprio módulo.
+- **Repository:** quando um comando lê, decide e grava, ou quando duas gravações dele têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service. O método que um service precisa chamar dentro de uma transação aceita, como último parâmetro, o cliente dela (`db: Prisma.TransactionClient = this.prisma`), e o parâmetro entra quando o primeiro service precisa dele. Não o aceitam o método que abre a própria transação nem o que depende de capturar um erro do banco, porque no PostgreSQL esse erro aborta a transação aberta.
 
 ### A camada de serviços não conhece o mundo externo
 
@@ -86,9 +89,9 @@ Antes de adicionar um import num arquivo de service, confira em qual dos dois gr
 | --- | --- |
 | `Injectable`, `Inject` e `Logger` do `@nestjs/common` | `HttpException` e as filhas (`NotFoundException`, `BadRequestException` etc.) e `HttpStatus` |
 | Entidades, tipos e erros de domínio do próprio módulo | `Request` e `Response` do Express, e os decorators de rota (`@Req`, `@Body`, `@Headers`) |
-| O repository do próprio módulo | DTOs do controller, com decorators do class-validator ou do Swagger |
-| O service público de outro módulo | Repository, tabelas ou tipos internos de outro módulo |
-| As interfaces de `src/infra/` (storage, fila, e-mail, gateway) | SDKs de fornecedor (`@google-cloud/*`, cliente SMTP, SDK do gateway) |
+| O repository e os outros services do próprio módulo | DTOs do controller, com decorators do class-validator ou do Swagger |
+| O service público de outro módulo, e os services de `src/common/` | Repository, tabelas ou tipos internos de outro módulo |
+| As interfaces de `src/infra/` (storage, fila, e-mail, gateway), pelo token | A implementação delas e os SDKs de fornecedor (`@google-cloud/*`, cliente SMTP, SDK do gateway) |
 | O `PrismaService` e o tipo `Prisma.TransactionClient`, só para abrir uma transação e passar o `tx` | Consultas e gravações pelo cliente do banco |
 | Utilitários puros, sem entrada e saída | `process.env`, direto. A configuração chega pelo módulo de config, por injeção. |
 

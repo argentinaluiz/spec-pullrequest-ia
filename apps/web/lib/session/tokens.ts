@@ -13,7 +13,7 @@ import {
 
 /*
  * A guarda dos tokens da Sessão: dois cookies `HttpOnly`, fora do alcance do JavaScript da
- * página (docs/lld.md, seção 4.5).
+ * página (docs/lld.md, seção 7.2).
  */
 
 /** Só funciona numa Server Action ou num Route Handler, onde os cookies podem ser gravados. */

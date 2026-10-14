@@ -39,6 +39,92 @@ As suítes de integração e de ponta a ponta usam a base de `test/support/`. N�
 - **Configuração no teste:** um teste que precisa de um valor de configuração o pega da configuração injetada (`app.get(mailConfig.KEY)`), e não de `process.env`.
 - **Rota só de teste:** para provar um comportamento da fundação que nenhuma rota de negócio exercita, o teste declara um controller próprio e o passa em `createTestApp({ controllers })`. Ele não entra na aplicação real.
 
+## Preparar e desfazer com hooks
+
+Os hooks do Vitest (`beforeAll`, `beforeEach`, `afterEach`, `afterAll`) preparam o que os testes precisam antes do Act e desfazem o que essa preparação deixou. A regra de fundo: **quem cria, destrói, no hook de encerramento do mesmo escopo.** O que nasce num `beforeEach` morre num `afterEach`, e o que nasce num `beforeAll` morre num `afterAll`.
+
+**Qual hook usar**
+
+- **`beforeAll` e `afterAll`:** recurso caro que os testes só usam, sem alterar: a aplicação de `createTestApp()`, o `moduleRef` e o `PrismaService` tirado dele. É o formato dos arquivos de hoje.
+- **`beforeEach` e `afterEach`:** o que o teste altera ou consome, ou que precisa estar igual no começo de cada caso: um Usuário, uma linha de uma tabela, um dublê, um relógio falso, uma segunda aplicação criada com outra variável de ambiente.
+- **Não existe estado que um teste deixa para o próximo.** Se o caso 2 só passa depois do caso 1, a preparação do caso 1 é do `beforeEach`.
+
+**O que vai no hook e o que fica no teste**
+
+- **Preparação de um teste só fica no Arrange dele,** e não num hook: o hook esconde do leitor o que o caso depende. O hook é para a preparação que **vários** casos do mesmo `describe` repetem.
+- **O hook guarda o que criou em variáveis do `describe`** (`let user: ...`), atribuídas no `beforeEach`, para o teste e o `afterEach` as lerem. Dado com valor único (e-mail, id) continua saindo de `uniqueEmail()` e `uuidv7()`, e não de uma constante.
+- **Sem asserção no hook.** Como no Arrange, a preparação que pode falhar usa um atalho que falha sozinho, e o hook de encerramento não prova nada.
+- **Todo hook é `async` e espera o que dispara,** com `await`. Um hook que devolve a promessa solta deixa a limpeza rodar depois do teste seguinte.
+
+**Preparar dados no banco**
+
+- **Na ponta a ponta,** o dado nasce pelas rotas, com os atalhos de `authRoutes` (`registeredUser()` e afins), porque assim o teste usa o caminho real. Gravar direto no banco só vale quando nenhuma rota produz o estado, como um token expirado ou uma linha em estado que a regra impede.
+- **Na integração de um repository ou service,** o dado nasce pelo `PrismaService` ou pelo repository do `moduleRef`, com o `id` de `uuidv7()` e o e-mail de `uniqueEmail()`.
+- **Apague pelo que você criou:** `deleteMany({ where: { id } })` ou `where: { email }`, nunca uma tabela inteira. A ordem respeita as chaves estrangeiras: o que depende de outra linha sai antes dela, ao contrário da ordem em que foi criado. Quando o schema tem `onDelete: Cascade` (os tokens de e-mail e de renovação saem com o Usuário), apagar a linha de que os outros dependem basta.
+- **`cleanDatabase()` não é o desfazer de um hook.** Ela esvazia todas as tabelas, e fica para o teste que precisa de tabela vazia, como o do limite de tentativas. O esvaziamento de cada arquivo já é feito sozinho pela base de testes.
+- **O Mailpit nunca é apagado,** nem num hook, como descrito acima.
+
+**Desfazer o que não é banco**
+
+- **Aplicação e módulo criados no hook ou no teste** são fechados no hook de encerramento (`app.close()`, `moduleRef.close()`), mesmo quando o teste falha. Uma aplicação criada dentro do teste, e não no `beforeEach`, é declarada `T | undefined` e fechada com `?.`, para o `afterEach` não cair em cima do erro de quem falhou antes de criá-la.
+- **Dublês e relógio falso** voltam no `afterEach`, com `vi.restoreAllMocks()` e `vi.useRealTimers()`. As variáveis trocadas por `vi.stubEnv` voltam sozinhas, como descrito acima.
+- **Um hook que cria mais de uma coisa as desfaz na ordem inversa,** e uma falha ao desfazer a primeira não pode impedir as demais: cada passo do encerramento é independente.
+
+```typescript
+describe('EmailTokensRepository', () => {
+  let moduleRef: TestingModule;
+  let prisma: PrismaService;
+  let repository: EmailTokensRepository;
+  let userId: string;
+
+  beforeAll(async () => {
+    moduleRef = await Test.createTestingModule({
+      imports: [AppConfigModule.forRoot(), AuthModule],
+    }).compile();
+    prisma = moduleRef.get(PrismaService);
+    repository = moduleRef.get(EmailTokensRepository);
+  });
+
+  afterAll(async () => {
+    await moduleRef.close();
+  });
+
+  beforeEach(async () => {
+    userId = uuidv7();
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email: uniqueEmail(),
+        passwordHash: 'hash',
+        termsAcceptedAt: new Date(),
+      },
+    });
+  });
+
+  afterEach(async () => {
+    // Os tokens saem junto, pelo `onDelete: Cascade` do schema.
+    await prisma.user.deleteMany({ where: { id: userId } });
+  });
+
+  it('devolve o id do Usuário e consome o token uma única vez', async () => {
+    const tokenHash = uuidv7();
+    await repository.replace({
+      id: uuidv7(),
+      userId,
+      type: 'verify_email',
+      tokenHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const first = await repository.use(tokenHash, 'verify_email', new Date());
+    const second = await repository.use(tokenHash, 'verify_email', new Date());
+
+    expect(first).toBe(userId);
+    expect(second).toBeNull();
+  });
+});
+```
+
 ## Onde diverge da skill `nestjs-best-practices`
 
 Nos pontos abaixo, vale esta regra, e não a skill.
@@ -47,3 +133,4 @@ Nos pontos abaixo, vale esta regra, e não a skill.
 - **`test-mock-external-services`** troca o banco e os serviços externos por dublês. Aqui, a integração e a ponta a ponta usam PostgreSQL e Mailpit reais, e a unidade só troca interfaces de `src/infra/`.
 - **`test-e2e-supertest`** monta a aplicação no teste e repete a configuração dela. Aqui, a ponta a ponta usa `createTestApp()`, que aplica a configuração do `main.ts`.
 - Os exemplos da skill usam Jest (`jest.fn`) e nomes em inglês com "should". Aqui, o executor é o Vitest (`vi.fn`), e os nomes seguem a forma descrita acima.
+- **`test-e2e-supertest`** recria o banco inteiro (`synchronize(true)`) no `beforeEach` e cria a aplicação no `beforeEach`. Aqui, a aplicação nasce uma vez por arquivo, no `beforeAll`, e cada teste cria os próprios dados e desfaz só o que criou; o banco é esvaziado por arquivo.

@@ -51,7 +51,7 @@ A exceção conhecida é o upload: o navegador envia os chunks direto ao Cloud S
 
 ## Acesso a dados
 
-A estrutura de pastas, o contrato da API, os cookies de token e a Sessão, o upload em chunks e as variáveis de ambiente estão no `docs/lld.md`, nas seções 1, 3, 4.5, 4.6 e 6. Leia a do assunto antes de implementar.
+A estrutura de pastas, o contrato da API e as variáveis de ambiente estão no `docs/lld.md`, nas seções 1, 3 e 6. O mapa de rotas e telas, os cookies de token e a Sessão, o upload no navegador, a entrega de arquivos e a reação aos erros da API estão na seção 7. Leia a do assunto antes de implementar.
 
 - **A API é chamada só no servidor.** Server Components, Server Actions e Route Handlers usam o cliente de `lib/api`. Não existe `fetch` para a API em componente de cliente nem variável `NEXT_PUBLIC_` com o endereço dela.
 - **O cliente de `lib/api` repassa o IP do navegador.** Toda chamada leva o IP e o segredo `INTERNAL_API_SECRET`, que a API exige para aceitá-lo (seção 1 do `docs/lld.md`). Por ler os cabeçalhos da requisição, o cliente só roda onde há uma requisição em curso, e nunca na pré-renderização.

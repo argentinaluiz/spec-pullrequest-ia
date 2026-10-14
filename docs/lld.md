@@ -2,7 +2,7 @@
 
 2026-10-08 · Luiz Carlos · Documentos de origem: [product-brief.md](./product-brief.md) e [hld.md](./hld.md)
 
-Este documento detalha o MVP web no nível necessário para começar a codificar: estrutura do código, esquema do banco, contrato da API, estados e regras, tarefas do worker e configuração. A arquitetura e os motivos das decisões estruturais estão no HLD.
+Este documento detalha o MVP web no nível necessário para começar a codificar: estrutura do código, esquema do banco, contrato da API, estados e regras, tarefas do worker, configuração e o comportamento da web (rotas e telas, Sessão no navegador, envio e entrega de arquivos, erros). A arquitetura e os motivos das decisões estruturais estão no HLD.
 
 ## 1. Estrutura do código
 
@@ -57,9 +57,11 @@ O código fica num monorepo com pnpm workspaces, com dois projetos de deploy ind
 | Testes | Vitest nas três suítes da API (unidade, integração e ponta a ponta) e Playwright nos testes no navegador da web |
 | Lint e formatação | oxlint e Prettier na API, ESLint na web |
 
-**Práticas de código da API:** as camadas de cada módulo, a direção das dependências, o tratamento de erros, os nomes de arquivos, os níveis de teste e o módulo de config estão no `AGENTS.md` do projeto `api`, e não neste documento.
+**Componentes da API:** os tipos de peça e como elas se comunicam estão na seção 1.1.
 
-**Práticas de código da web:** a preferência por Server Components, as regras de cache, o acesso a dados e os formulários estão no `AGENTS.md` do projeto `web`, e não neste documento.
+**Práticas de código da API:** a transação entre service e repository, o tratamento de erros, os nomes de arquivos, os níveis de teste e o módulo de config estão no `AGENTS.md` do projeto `api`, e não neste documento.
+
+**Práticas de código da web:** a preferência por Server Components, as regras de cache, o acesso a dados e os formulários estão no `AGENTS.md` do projeto `web`, e não neste documento. O que a web faz (rotas e telas, Sessão, upload, entrega de arquivos, erros) está na seção 7.
 
 **Chamadas do frontend:** o Next.js chama a API sempre no servidor (Server Components, Server Actions e Route Handlers). O navegador só fala direto com o Cloud Storage, para upload e download.
 
@@ -68,6 +70,47 @@ O código fica num monorepo com pnpm workspaces, com dois projetos de deploy ind
 O IP que a web repassa é o último endereço do `X-Forwarded-For` da requisição do navegador, que é o que o Cloud Run acrescenta. Os endereços anteriores vêm do próprio navegador e não são confiáveis. Se um balanceador entrar na frente da web, o endereço certo deixa de ser o último, e esta regra muda junto.
 
 **Pacote compartilhado:** o `packages/shared` e o workspace na raiz ainda não existem. Enquanto o contrato for pequeno, cada projeto mantém os próprios tipos. A migração para o workspace exige mudar os volumes e os Dockerfiles do Compose.
+
+### 1.1 Componentes da API e como se comunicam
+
+**Termo:** nesta documentação, **adapter** é só o adapter do lado que chama o sistema (o lado *driving*, ou de entrada): o que recebe uma chamada de fora e a traduz para o service. É o controller com os guards, os pipes e os decorators do HTTP, e os endpoints do worker. O service não conhece nenhum adapter: não importa controller, DTO, `Request` nem `Response`. As integrações que o service chama (e-mail, storage, fila e gateway) não são chamadas de adapter nem de port: são uma **interface de `src/infra/`** e a **implementação** dela.
+
+Fora o adapter, o service chama qualquer outra peça. Cada peça é de um destes tipos, e o tipo decide quem ela pode chamar. As setas do diagrama são as únicas dependências permitidas: o que não tem seta não se injeta.
+
+```mermaid
+flowchart TB
+    Req[Requisição HTTP] --> Controller[Controller<br/>adapter de entrada]
+    Req --> Guard[Guard, pipe e decorator<br/>src/common]
+    Guard --> CommonService[Service de src/common]
+    Controller -->|um método por rota| Service
+    Service -->|outros services| Service
+    Service --> Repository
+    Service --> CommonService
+    Service -->|service público| OtherService[Service de outro módulo]
+    Repository --> Prisma[PrismaService]
+    Prisma --> DB[(PostgreSQL)]
+    Service -->|interface e token| Iface[Interface de src/infra]
+    Impl[Implementação em src/infra<br/>SMTP, storage, fila, gateway] -.implementa.-> Iface
+    Impl --> Vendor[Fornecedor externo]
+```
+
+| Tipo | O que é | Pode injetar | Não pode injetar |
+| --- | --- | --- | --- |
+| **Adapter de entrada** (controller, e guard, pipe e decorator do HTTP) | Recebe a chamada de fora, valida a entrada e a traduz para o service | Services. O controller chama um método de service por rota, e o guard, services de `src/common/`. | Repository, `PrismaService` e a interface de `src/infra/` |
+| **Service** | Regra de negócio: decide o que acontece e orquestra os outros | O repository e os outros services do próprio módulo, o service público de outro módulo, os services de `src/common/`, a interface de `src/infra/` pelo token, a configuração e, só para abrir uma transação, o `PrismaService` | Qualquer adapter de entrada, a implementação de uma interface de `src/infra/`, o repository ou as tabelas de outro módulo |
+| **Repository** | Acesso ao banco e a atomicidade de cada comando | `PrismaService` | Service, outro repository e a interface de `src/infra/` |
+| **Interface de `src/infra/`** | O contrato de uma integração externa, com o vocabulário da regra de negócio, e o token de injeção dela | Nada: só tipos | — |
+| **Implementação de `src/infra/`** | A classe que implementa a interface e fala com o fornecedor | A configuração e o SDK do fornecedor | Service, repository e qualquer coisa de `src/modules/` |
+
+- **O service é o ponto de composição.** É nele que as peças se encontram: o service chama outros services, o repository dele e as interfaces de `src/infra/`. O repository e a implementação de `src/infra/` são folhas e nunca chamam um service.
+- **Service chama service,** do próprio módulo ou de outro, pela classe.
+- **A direção é de fora para dentro.** O adapter de entrada chama o service, e o service nunca chama de volta. Um service que precisa do usuário autenticado, do IP ou de um cabeçalho os recebe como argumento tipado, extraídos pelo controller ou por um guard.
+- **A implementação de `src/infra/` só aparece na ligação.** O módulo dela é o único que importa a classe, e exporta só o token da interface (`{ provide: MAIL_SENDER, useClass: SmtpMailSender }`). Quem precisa da integração importa o módulo e injeta o token, e o teste de um service troca a interface por um dublê.
+- **Entre módulos, só o service público.** O módulo que oferece um service o exporta, e quem o usa importa o módulo. Repository, tabela e tipo interno de outro módulo não saem dele.
+- **Sem ciclos.** Nem entre services nem entre módulos. Quando dois lados precisam um do outro, a parte comum vai para um terceiro lugar (um service próprio, ou `src/common/`). O `forwardRef` não é a solução.
+- **Exemplo, o cadastro:** `AuthController` chama `RegistrationService`, que chama o `UsersService` (outro módulo), o `PasswordService`, o `EmailTokensService` (que usa o `EmailTokensRepository`), o `AuthAttemptsService` (que usa o `RateLimitService`, de `src/common/`) e o `AuthMailerService`. Este recebe o `MailSender`, a interface de `src/infra/mail/`, pelo token `MAIL_SENDER`, e o `MailModule` liga esse token ao `SmtpMailSender`, que nenhum service importa.
+
+As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para a troca de fornecedor ficar restrita a um arquivo. Guards, filtros de erro e rate limit ficam em `src/common/`. Cada módulo é dono das próprias tabelas.
 
 ## 2. Esquema do banco
 
@@ -419,7 +462,7 @@ stateDiagram-v2
     expired --> [*]
 ```
 
-- **Ativação:** só o webhook de pagamento aprovado muda `users.plan_id`. O retorno do navegador após o checkout não altera nada.
+- **Ativação:** só o webhook de pagamento aprovado muda `users.plan_id`. O retorno do navegador após o checkout não altera nada, e a tela de retorno espera a confirmação (seção 7.7).
 - **Cancelamento:** o plano continua até `current_period_end`, sem reembolso proporcional.
 - **Expiração:** `users.plan_id` volta ao plano gratuito. Nenhum arquivo é apagado, e a conta fica somente leitura se estiver acima da cota.
 - **Webhook:** a API grava o evento em `payment_events` antes de processar. Se `gateway_event_id` já existir, o evento é ignorado e a resposta é 200.
@@ -440,52 +483,15 @@ stateDiagram-v2
 - **Token de renovação inexistente ou expirado:** a renovação responde `unauthenticated`, sem encerrar nenhuma Sessão.
 - **Renovações simultâneas:** dentro dos 10 segundos, cada chamada com o token antigo recebe um par novo e válido, na mesma Sessão. A cadeia bifurca, o último cookie gravado vence e os tokens que sobram expiram sozinhos.
 - **Trocas e encerramentos em fila:** a renovação, o logout e o encerramento de todas as Sessões de um mesmo usuário rodam um por vez no banco. Assim, uma renovação que corre junto com o logout não deixa um token novo numa Sessão que acabou de ser apagada.
-- **Cookies no Next.js:** os dois tokens ficam em cookies `HttpOnly`, `Secure` e `SameSite=Lax`. O `Secure` é desligado por `COOKIE_SECURE=false` no ambiente local, que usa HTTP. O cookie do token de acesso dura o mesmo que o token, e o do token de renovação, 30 dias, a validade padrão dele.
-- **Renovação no `proxy.ts`:** antes de cada rota, o Proxy lê o `exp` do token de acesso, sem conferir a assinatura. Se ele expirou, o Proxy chama `/auth/refresh` e regrava os cookies. O token conta como expirado 5 segundos antes do `exp`, para não vencer no caminho até a API. Os tokens novos seguem também na requisição, para a rota já renderizar com eles. O Proxy espera a renovação por 5 segundos, menos que a janela de tolerância: se a API troca o token e a resposta se perde, a tentativa seguinte ainda é aceita. Se a API recusa o token de renovação, ele apaga os cookies e redireciona para o login, com o aviso "Sua sessão expirou" (`/entrar?aviso=sessao-expirada`). Se a API falha, a Sessão não é encerrada: os cookies ficam, a pessoa vai para o login sem o aviso, e a rota seguinte tenta renovar de novo. O Proxy também manda para o login quem não tem Sessão e tira das telas `(auth)` quem tem.
-- **Server Actions no Proxy:** uma Server Action não é redirecionada pelo Proxy, porque o navegador repetiria o envio na tela de entrar e mostraria um erro. Com ou sem Sessão, ela segue, e é a própria ação que confere a Sessão. É o que deixa o "Sair" funcionar com a Sessão já expirada.
-- **Verificação na web:** a web não tem a chave pública nem valida o JWT. Toda página e Server Action protegida passa pela camada de acesso a dados (`lib/dal`), que chama `GET /me`. Um `401` ali derruba a Sessão: como a renderização de uma página não pode apagar cookies, a camada leva à rota `/sessao-encerrada`, que confere a Sessão de novo na API e tenta renová-la. Se a renovação passa, a pessoa volta ao produto com o par novo. Se a API recusa o token de renovação, a rota apaga os cookies e leva ao login, com o mesmo aviso. O Proxy é só um filtro otimista, nunca a única barreira.
-- **Volta ao destino:** quem é barrado numa rota protegida volta para ela depois de entrar. O Proxy leva a página pedida no parâmetro `destino` da tela de entrar. O destino só aceita caminhos internos, e qualquer outro valor leva à página inicial.
-- **Rotas protegidas por padrão:** o Proxy tem a lista das telas de autenticação e a das rotas públicas. Toda rota fora das duas exige Sessão.
+- **Lado da web:** os cookies dos tokens, a renovação no Proxy, a verificação da Sessão e a volta ao destino estão na seção 7.2.
 
 ### 4.6 Upload em chunks
 
-O navegador envia cada arquivo em chunks sequenciais para a sessão de upload retomável do Cloud Storage. A API só participa no início e na conclusão.
+O navegador envia cada arquivo em chunks sequenciais para a sessão de upload retomável do Cloud Storage. A API só participa no início e na conclusão, e o protocolo do navegador (chunks, retomada, erros) está na seção 7.4.
 
-| Parâmetro | Valor |
-| --- | --- |
-| Tamanho do chunk | 8 MiB (o Cloud Storage exige múltiplos de 256 KiB, exceto no último chunk) |
-| Arquivos menores que 8 MiB | Enviados num único `PUT` |
-| Chunks de um mesmo arquivo | Em sequência, um por vez |
-| Arquivos simultâneos | Até 3 |
-| Tentativas por chunk | 5, com espera crescente de 1 a 30 segundos |
-
-**Envio**
-
-1. O navegador chama `POST /uploads` e recebe `itemId` e `uploadUrl`.
-2. Para cada chunk, o navegador faz um `PUT` em `uploadUrl` com o cabeçalho `Content-Range: bytes <início>-<fim>/<total>`.
-3. O storage responde `308` enquanto faltam bytes, com o cabeçalho `Range` indicando o que já foi recebido. O navegador calcula o próximo chunk a partir desse valor, e não do que ele acha que enviou.
-4. No último chunk, o storage responde `200` ou `201`. O navegador chama `POST /uploads/{itemId}/complete`.
-
-**Retomada**
-
-1. Depois de uma falha de rede, o navegador faz um `PUT` vazio com `Content-Range: bytes */<total>`.
-2. O storage responde `308` com o cabeçalho `Range`. Sem esse cabeçalho, nenhum byte foi recebido.
-3. O navegador continua a partir do byte seguinte.
-
-**Depois de fechar a aba**
-
-- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação). A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão.
-- Ao voltar, a interface lista os uploads incompletos e pede que o usuário selecione o arquivo de novo, já que o navegador não mantém acesso ao arquivo local.
-- Se a impressão bater, o navegador chama `GET /uploads/{itemId}` para obter a `uploadUrl` e retoma pelo passo de retomada.
-
-**Erros**
-
-| Situação | Tratamento |
-| --- | --- |
-| `5xx` ou falha de rede | Consultar o progresso e repetir o chunk, até 5 vezes |
-| `404` ou `410` na sessão | A sessão expirou. O navegador chama `DELETE /uploads/{itemId}` e recomeça do zero. |
-| `upload_size_mismatch` na conclusão | A API apaga o objeto e devolve o espaço. O navegador mostra o erro. |
-| Usuário cancela | O navegador chama `DELETE /uploads/{itemId}` |
+- **Início:** `POST /uploads` reserva a cota (seção 4.2), cria o item `pending` e a sessão retomável no Cloud Storage, e devolve `itemId` e `uploadUrl`.
+- **Conclusão:** `POST /uploads/{itemId}/complete` confere o tamanho real do objeto. Se for diferente do declarado, responde `upload_size_mismatch`, apaga o objeto e devolve o espaço.
+- **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
 
 **Pontos de implementação a validar**
 
@@ -508,16 +514,15 @@ O cadastro nunca revela se um e-mail já tem usuário. A resposta é sempre 201,
 
 - **O último cadastro vence:** sem isso, quem cadastrasse primeiro o e-mail de outra pessoa ficaria com a senha de um usuário que ela mesma verificaria depois.
 - **Risco residual aceito:** se um estranho se cadastrar depois do dono e o dono clicar no link do estranho, o usuário fica verificado com a senha do estranho. O usuário ainda está vazio, o dono não consegue entrar e usa "esqueci a senha", que troca a senha e encerra todas as Sessões.
-- **Aceite dos termos:** a tela mostra a frase de aceite com os links, sem checkbox, e o cadastro grava `terms_accepted_at`.
+- **Aceite dos termos:** o cadastro grava `terms_accepted_at`. A frase de aceite e os links ficam na tela de cadastro, descritos na seção 7.3.
 
 **Verificação de e-mail**
 
 - Usuário não verificado não entra: o login responde `email_not_verified`. Não há Sessão limitada.
 - Verificar não abre Sessão. O usuário é levado ao login, com um aviso de sucesso.
 - O reenvio emite um novo token e invalida o anterior.
-- Depois do cadastro ou do pedido de outro link, a web guarda o e-mail num cookie `HttpOnly` de uma hora, restrito à tela "confira seu e-mail", para mostrá-lo e reenviar a verificação. O endereço não vai para a URL.
 - Se a verificação falha depois de o token ser gasto, a API devolve o token, e o mesmo link volta a valer.
-- O link do e-mail aponta para a web, que gasta o token na API e leva a pessoa ao login. Um link inválido, expirado ou já usado leva à tela de link inválido, de onde ela pede outro.
+- O link do e-mail aponta para a web, e as telas de verificação estão na seção 7.3.
 
 **Redefinição de senha**
 
@@ -527,11 +532,8 @@ O cadastro nunca revela se um e-mail já tem usuário. A resposta é sempre 201,
 - Concluir a redefinição marca o e-mail como verificado, porque a pessoa provou que controla a caixa.
 - Encerra todas as Sessões, não abre uma nova e envia o e-mail "sua senha foi alterada". As Sessões são encerradas antes de a senha mudar: se a troca falha, a pessoa só precisa entrar de novo, e nunca fica com a senha nova e as Sessões antigas abertas. O token de acesso já emitido continua valendo até expirar, porque a API o valida só pela assinatura.
 - Uma senha nova fora da regra é recusada antes de o token ser gasto, e o mesmo link continua valendo.
-- A tela do pedido (`/esqueci-minha-senha`) abre com ou sem Sessão, porque a tela de link inválido e o e-mail "sua senha foi alterada" levam a ela.
 - Se a redefinição falha depois de o token ser gasto, a API devolve o token, como na verificação de e-mail.
-- O link do e-mail aponta para a tela de nova senha da web (`/redefinir-senha`), que abre com ou sem Sessão. Só a API sabe se o token vale, então um link inválido, expirado ou já usado só é descoberto no envio da senha nova, e leva à tela de link inválido, de onde a pessoa pede outro.
-- Depois do pedido, a web guarda o e-mail num cookie `HttpOnly` de uma hora, restrito à tela de confirmação de envio, para mostrá-lo. A tela diz o mesmo exista ou não o usuário.
-- Concluída a redefinição, a web apaga os cookies de token do navegador e leva à tela de entrar, com o aviso "senha redefinida" (`/entrar?aviso=senha-redefinida`).
+- O link do e-mail aponta para a tela de nova senha da web, descrita na seção 7.3.
 
 **Limite de tentativas**
 
@@ -632,6 +634,170 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 **Banco de testes:** os testes da API usam um banco separado no mesmo PostgreSQL, com o nome do banco de `DATABASE_URL` mais o sufixo `_test`. Ele não tem variável própria.
 
 Os valores marcados como segredo vêm do Secret Manager e não ficam em arquivos versionados.
+
+
+## 7. Web
+
+Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sessão no navegador, o envio de arquivos, a entrega de arquivos ao navegador e a reação aos erros da API. O contrato que ela consome está nas seções 3 e 4, e as práticas de código dela (Server Components, `lib/dal`, formulários, cache e testes no navegador) estão no `AGENTS.md` do projeto `web`. A linguagem visual está no `docs/design-system.md`.
+
+### 7.1 Mapa de rotas e telas
+
+**Acesso:** "só sem Sessão" manda para o produto quem tem Sessão. "Pública" abre com ou sem Sessão. "Protegida" exige Sessão, e é o padrão de toda rota nova (seção 7.2). A coluna **Situação** diz se a tela existe ou se é um caminho proposto, a detalhar na spec dela.
+
+| Rota | Acesso | Lê da API | Ações (Server Action ou rota) | Situação |
+| --- | --- | --- | --- | --- |
+| `/criar-conta` | Só sem Sessão | | `POST /auth/register` | Existe |
+| `/confira-seu-email` | Só sem Sessão | | `POST /auth/resend-verification` | Existe |
+| `/verificar-email` | Pública, rota que só redireciona | | `POST /auth/verify-email`, e leva ao login | Existe |
+| `/verificar-email/link-invalido` | Pública | | Pede outro link de verificação | Existe |
+| `/entrar` | Só sem Sessão | | `POST /auth/login` | Existe |
+| `/esqueci-minha-senha` | Pública | | `POST /auth/forgot-password` | Existe |
+| `/esqueci-minha-senha/enviado` | Pública | | | Existe |
+| `/redefinir-senha` | Pública | | `POST /auth/reset-password` | Existe |
+| `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
+| `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
+| `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
+| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`) | Provisória: mostra o e-mail e o "Sair" |
+| `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
+| `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
+| `/busca?q=` | Protegida | `GET /search` | | A detalhar |
+| `/planos` | Protegida | `GET /plans`, `GET /billing/subscription` | `POST /billing/checkout`, `POST /billing/subscription/cancel` | A detalhar |
+| `/planos/retorno` | Protegida | `GET /billing/subscription` | | A detalhar (seção 7.7) |
+| `/arquivos/[id]/miniatura`, `/visualizar`, `/baixar` | Protegida, rotas que só redirecionam | `GET /items/{id}/thumbnail-url`, `GET /items/{id}/download-url` | | A detalhar (seção 7.5) |
+| `/s/[token]` | Pública | `POST /public/links/{token}/access`, `GET /public/links/{token}/children` | Informar a senha do link | A detalhar (seção 7.6) |
+| `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
+
+- **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
+- **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`), a página da lista (`cursor`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL. O diálogo de compartilhar e o menu de cada item são estado de cliente.
+- **Pré-visualização:** abre sobre a lista, a partir de `?ver=<id>`, e usa a rota `/arquivos/[id]/visualizar` como origem da imagem, do vídeo, do áudio, do PDF e do texto.
+- **Estrutura de pastas:** a árvore da seção 1 mostra a organização do código. As rotas desta tabela entram nos grupos `(auth)`, `(drive)` e `s/[token]` dela.
+
+### 7.2 Sessão, cookies e Proxy
+
+A API (seção 4.5) emite e troca os tokens. A web os guarda e os renova.
+
+- **Cookies no Next.js:** os dois tokens ficam em cookies `HttpOnly`, `Secure` e `SameSite=Lax`. O `Secure` é desligado por `COOKIE_SECURE=false` no ambiente local, que usa HTTP. O cookie do token de acesso dura o mesmo que o token, e o do token de renovação, 30 dias, a validade padrão dele.
+- **Renovação no `proxy.ts`:** antes de cada rota, o Proxy lê o `exp` do token de acesso, sem conferir a assinatura. Se ele expirou, o Proxy chama `/auth/refresh` e regrava os cookies. O token conta como expirado 5 segundos antes do `exp`, para não vencer no caminho até a API. Os tokens novos seguem também na requisição, para a rota já renderizar com eles. O Proxy espera a renovação por 5 segundos, menos que a janela de tolerância: se a API troca o token e a resposta se perde, a tentativa seguinte ainda é aceita. Se a API recusa o token de renovação, ele apaga os cookies e redireciona para o login, com o aviso "Sua sessão expirou" (`/entrar?aviso=sessao-expirada`). Se a API falha, a Sessão não é encerrada: os cookies ficam, a pessoa vai para o login sem o aviso, e a rota seguinte tenta renovar de novo. O Proxy também manda para o login quem não tem Sessão e tira das telas `(auth)` quem tem.
+- **Server Actions no Proxy:** uma Server Action não é redirecionada pelo Proxy, porque o navegador repetiria o envio na tela de entrar e mostraria um erro. Com ou sem Sessão, ela segue, e é a própria ação que confere a Sessão. É o que deixa o "Sair" funcionar com a Sessão já expirada.
+- **Verificação na web:** a web não tem a chave pública nem valida o JWT. Toda página e Server Action protegida passa pela camada de acesso a dados (`lib/dal`), que chama `GET /me`. Um `401` ali derruba a Sessão: como a renderização de uma página não pode apagar cookies, a camada leva à rota `/sessao-encerrada`, que confere a Sessão de novo na API e tenta renová-la. Se a renovação passa, a pessoa volta ao produto com o par novo. Se a API recusa o token de renovação, a rota apaga os cookies e leva ao login, com o mesmo aviso. O Proxy é só um filtro otimista, nunca a única barreira.
+- **Volta ao destino:** quem é barrado numa rota protegida volta para ela depois de entrar. O Proxy leva a página pedida no parâmetro `destino` da tela de entrar. O destino só aceita caminhos internos, e qualquer outro valor leva à página inicial.
+- **Rotas protegidas por padrão:** o Proxy tem a lista das telas de autenticação e a das rotas públicas. Toda rota fora das duas exige Sessão.
+
+### 7.3 Telas de e-mail e senha
+
+O que a API faz nesses fluxos está na seção 4.7. Este é o comportamento da web.
+
+**Cadastro**
+
+- **Aceite dos termos:** a tela mostra a frase de aceite com os links para `/termos` e `/privacidade`, sem checkbox.
+
+**Verificação de e-mail**
+
+- Depois do cadastro ou do pedido de outro link, a web guarda o e-mail num cookie `HttpOnly` de uma hora, restrito à tela "confira seu e-mail", para mostrá-lo e reenviar a verificação. O endereço não vai para a URL.
+- O link do e-mail aponta para a web, que gasta o token na API e leva a pessoa ao login. Um link inválido, expirado ou já usado leva à tela de link inválido, de onde ela pede outro.
+
+**Redefinição de senha**
+
+- A tela do pedido (`/esqueci-minha-senha`) abre com ou sem Sessão, porque a tela de link inválido e o e-mail "sua senha foi alterada" levam a ela.
+- O link do e-mail aponta para a tela de nova senha da web (`/redefinir-senha`), que abre com ou sem Sessão. Só a API sabe se o token vale, então um link inválido, expirado ou já usado só é descoberto no envio da senha nova, e leva à tela de link inválido, de onde a pessoa pede outro.
+- Depois do pedido, a web guarda o e-mail num cookie `HttpOnly` de uma hora, restrito à tela de confirmação de envio, para mostrá-lo. A tela diz o mesmo exista ou não o usuário.
+- Concluída a redefinição, a web apaga os cookies de token do navegador e leva à tela de entrar, com o aviso "senha redefinida" (`/entrar?aviso=senha-redefinida`).
+
+### 7.4 Upload no navegador
+
+O navegador envia direto ao Cloud Storage, e a API participa só no início e na conclusão (seção 4.6). Como a web chama a API só no servidor, as chamadas à API que os passos abaixo atribuem ao navegador saem por Server Action. Do navegador saem só os `PUT` ao Cloud Storage.
+
+| Parâmetro | Valor |
+| --- | --- |
+| Tamanho do chunk | 8 MiB (o Cloud Storage exige múltiplos de 256 KiB, exceto no último chunk) |
+| Arquivos menores que 8 MiB | Enviados num único `PUT` |
+| Chunks de um mesmo arquivo | Em sequência, um por vez |
+| Arquivos simultâneos | Até 3 |
+| Tentativas por chunk | 5, com espera crescente de 1 a 30 segundos |
+
+**Envio**
+
+1. O navegador chama `POST /uploads` e recebe `itemId` e `uploadUrl`.
+2. Para cada chunk, o navegador faz um `PUT` em `uploadUrl` com o cabeçalho `Content-Range: bytes <início>-<fim>/<total>`.
+3. O storage responde `308` enquanto faltam bytes, com o cabeçalho `Range` indicando o que já foi recebido. O navegador calcula o próximo chunk a partir desse valor, e não do que ele acha que enviou.
+4. No último chunk, o storage responde `200` ou `201`. O navegador chama `POST /uploads/{itemId}/complete`.
+
+**Retomada**
+
+1. Depois de uma falha de rede, o navegador faz um `PUT` vazio com `Content-Range: bytes */<total>`.
+2. O storage responde `308` com o cabeçalho `Range`. Sem esse cabeçalho, nenhum byte foi recebido.
+3. O navegador continua a partir do byte seguinte.
+
+**Depois de fechar a aba**
+
+- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação). A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão.
+- Ao voltar, a interface lista os uploads incompletos e pede que o usuário selecione o arquivo de novo, já que o navegador não mantém acesso ao arquivo local.
+- Se a impressão bater, o navegador chama `GET /uploads/{itemId}` para obter a `uploadUrl` e retoma pelo passo de retomada.
+
+**Erros**
+
+| Situação | Tratamento |
+| --- | --- |
+| `5xx` ou falha de rede | Consultar o progresso e repetir o chunk, até 5 vezes |
+| `404` ou `410` na sessão | A sessão expirou. O navegador chama `DELETE /uploads/{itemId}` e recomeça do zero. |
+| `upload_size_mismatch` na conclusão | A API apaga o objeto e devolve o espaço. O navegador mostra o erro. |
+| Usuário cancela | O navegador chama `DELETE /uploads/{itemId}` |
+
+**A fila de envios**
+
+- **Onde mora:** num provider de cliente no layout do `(drive)`, com um painel fixo que mostra, por arquivo, o nome, o progresso, e os botões de pausar, retomar e cancelar. A fila sobrevive à navegação entre pastas, lixeira, busca e planos. Os envios só param quando a aba fecha ou a pessoa sai do `(drive)`, e a retomada de "depois de fechar a aba" cobre esse caso.
+- **Início e conclusão:** são Server Actions (`POST /uploads` e `POST /uploads/{itemId}/complete`). O provider dispara a ação e envia os chunks por conta própria.
+- **Depois de cada conclusão:** a lista da pasta atual é revalidada (`router.refresh()`), e o indicador de cota se atualiza junto.
+- **Arrastar e soltar, e vários arquivos:** a zona de soltar é a lista da pasta atual, e os arquivos soltos entram na fila com essa pasta como destino. Até 3 enviam ao mesmo tempo, e os demais esperam.
+- **Conta somente leitura:** o envio fica desligado (seção 7.1), e `quota_exceeded` na criação do upload é tratado como na seção 7.8.
+
+### 7.5 Miniatura, pré-visualização e download
+
+A API devolve uma URL assinada e com prazo por item (seção 3.4). Buscá-la na renderização de uma lista custaria uma chamada por item, e a URL poderia vencer antes de a pessoa rolar até ela. Por isso a web entrega os arquivos por rotas que redirecionam.
+
+- **Rotas:** `/arquivos/[id]/miniatura`, `/arquivos/[id]/visualizar` (`disposition=inline`) e `/arquivos/[id]/baixar` (`disposition=attachment`). A interface as usa como `src` e `href` (`<img>`, `<video>`, `<a>`).
+- **O que cada uma faz:** confere a Sessão por `lib/dal`, pede a URL à API com os cookies e responde `302` para o Cloud Storage, com `Cache-Control: private, no-store`. Os bytes vão direto do Storage ao navegador, sem passar pela web.
+- **Miniatura:** a imagem da lista usa `loading="lazy"`, e a miniatura só é pedida quando entra na tela. Um item sem miniatura (404 da API) mostra o ícone do tipo de arquivo.
+- **A URL assinada nunca entra no HTML.** Só o caminho da web entra, e por isso não vence.
+
+### 7.6 Página pública do link
+
+- **Sem senha:** a página abre direto. A web chama `POST /public/links/{token}/access` sem corpo e lê a pasta ou o arquivo do link. Nada é gravado no navegador.
+- **Com senha:** a página mostra o formulário de senha (`link_password_required`). Com a senha certa, a API devolve um `linkAccessToken` de 15 minutos, que a web grava num cookie `HttpOnly`, `Secure` e `SameSite=Lax`, com `Path=/s/<token>` e duração de 15 minutos. O cookie vale só para aquele link, e o JavaScript da página não o enxerga.
+- **Sem renovação:** a API não renova o `linkAccessToken`. Quando o cookie vence, a página e o download voltam ao formulário de senha.
+- **Navegação e download:** o Server Component e a rota de download leem o cookie e o repassam à API no cabeçalho `Authorization`. O download é a rota `/s/[token]/baixar/[id]`, que responde `302` como na seção 7.5.
+- **Link inválido:** `link_expired` leva a uma tela de "link indisponível", sem distinguir expirado de revogado. A API trata o link de um item na lixeira do mesmo jeito (seção 4.4).
+- **Rota pública:** o Proxy trata `/s` como rota pública (seção 7.2), e a página nunca chama `lib/dal`. Quem decide o acesso é só a API.
+
+### 7.7 Retorno do checkout
+
+A API ativa a assinatura só pelo webhook de pagamento (seção 4.3). O retorno do navegador não altera nada.
+
+- **Tela `/planos/retorno`:** abre com "Estamos confirmando seu pagamento" e consulta `GET /billing/subscription` a cada 3 segundos, por até 2 minutos, num componente de cliente.
+- **Assinatura `active`:** a tela mostra o sucesso, revalida o indicador de cota e leva ao produto.
+- **Passou do prazo sem confirmação:** a tela diz "Ainda estamos confirmando. Você receberá um e-mail" e libera a pessoa para o produto. É o caso comum do Pix, que pode levar mais tempo. A cota se atualiza sozinha quando o webhook chegar.
+- **Os valores:** o intervalo de 3 segundos e o teto de 2 minutos são ajustáveis na spec da cobrança.
+
+### 7.8 Reação aos erros da API
+
+O contrato dos erros está na seção 3.1. Um erro esperado chega ao código como valor (`{ ok: false, error }`), e a tabela abaixo diz onde ele aparece. Os textos ficam só em `lib/api/error-messages.ts`, e nenhum componente mostra o `title` nem o `detail` da API.
+
+| `code` | Onde aparece |
+| --- | --- |
+| `validation_error` | Junto ao campo, pelo caminho de `errors`. Sem `errors`, num banner no formulário. |
+| `invalid_token` | Na tela de link inválido da verificação de e-mail ou da redefinição de senha |
+| `invalid_credentials` | Banner no formulário de entrar |
+| `email_not_verified` | Banner no formulário de entrar, com o caminho para pedir outro link de verificação |
+| `rate_limited` | Banner no formulário. O limite de tentativas vale para a autenticação (seção 4.7). |
+| `unauthenticated` | Redireciona para `/sessao-encerrada`, que renova a Sessão ou leva ao login com o aviso "Sua sessão expirou" |
+| `not_found` | Numa página, a tela de "não encontrado" (`not-found.tsx`). Numa ação, um aviso no contexto dela. |
+| `invalid_move`, `max_depth_exceeded` | Aviso no contexto da ação, sem trocar de tela |
+| `file_too_large`, `quota_exceeded`, `upload_size_mismatch` | No painel de envios, como erro daquele arquivo. O `quota_exceeded` leva também o caminho para `/planos`. |
+| `link_password_required` | Formulário de senha em `/s/[token]` |
+| `link_expired` | Tela de "link indisponível" em `/s/[token]` |
+| `internal_error`, qualquer 5xx e falha de rede | Numa página, a tela de erro da rota (`error.tsx`). Numa ação, um aviso de "tente de novo". A Sessão não é encerrada. |
+| Outro `code` que a tabela da seção 3.1 não traz | Tratado como `internal_error` |
+
 
 ## Questões em aberto
 

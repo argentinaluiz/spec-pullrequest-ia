@@ -19,7 +19,7 @@ import {
 
 /*
  * Roda antes de cada rota e faz um filtro otimista, só com o que o cookie diz (docs/lld.md,
- * seção 4.5): manda para a tela de entrar quem não tem Sessão e tira das telas de autenticação
+ * seção 7.2): manda para a tela de entrar quem não tem Sessão e tira das telas de autenticação
  * quem tem. Quando o token de acesso expirou, renova a Sessão na API e regrava os cookies. Ele
  * não confere a assinatura do token. Quem protege os dados é a camada de acesso a dados
  * (`lib/dal`), em cada página e Server Action.
