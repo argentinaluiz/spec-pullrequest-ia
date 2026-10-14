@@ -258,7 +258,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 - **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das cinco), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
 - **Desenho:** o contrato e o schema vão direto para o LLD, que é o dono deles. A lista de arquivos e interfaces fica só na mensagem do commit de plano.
 - **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
-- **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite ainda é só regra, sem verificação automática: o bloqueio da edição vem num ticket próprio (ver `docs/harness.md`).
+- **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite é imposto por um hook que nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
 
 **Teste de aceite**
 

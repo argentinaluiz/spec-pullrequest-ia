@@ -113,11 +113,14 @@ wait_for() {
   return 1
 }
 
-# Roda os testes do harness no contêiner `api`, que tem o Node. O conferidor e os testes dele
-# chegam pela entrada padrão, como o resto, porque o contêiner só enxerga a pasta da própria app.
+# Roda os testes do harness: os do conferidor no contêiner `api`, que tem o Node, e os do hook de
+# congelamento na máquina. O conferidor e os testes dele chegam ao contêiner pela entrada padrão,
+# como o resto, porque o contêiner só enxerga a pasta da própria app.
 harness_tests() {
   tar -c scripts/check-acceptance.cjs scripts/test |
-    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test scripts/test/*.test.cjs'
+    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test scripts/test/*.test.cjs' &&
+    # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
+    scripts/test/freeze-acceptance.test.sh
 }
 
 # Confere o aceite contra os relatórios que as apps declaram em <app>_reports: a seção "Aceite" do

@@ -14,7 +14,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 4 | Aceite: seção do PR e cobertura dos critérios por ID | Implementado. Substitui a tabela de aceite |
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
-| 7 | Plano do ticket e aceite congelado | Em andamento. O processo, a cobertura por ID e as conferências do revisor estão implementados; o congelamento do aceite está planejado. Ver "Plano do ticket (planejado)" |
+| 7 | Plano do ticket e aceite congelado | Em andamento. O processo, a cobertura por ID, as conferências do revisor e o congelamento do aceite (hook e guarda) estão implementados. Ver "Plano do ticket (planejado)" |
 | 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
 
 ## Princípios
@@ -43,6 +43,8 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Teste que cita um ID que não está em nenhum arquivo de aceite, ou que foi pulado | Bloqueia | 4 |
 | PR que altera código em `apps/` sem a seção `## Aceite` | Bloqueia | 4 |
 | Teste do harness que falhou | Bloqueia | 4 |
+| O agente edita um arquivo de aceite já versionado | Nega a edição | 7 |
+| PR que altera, renomeia ou apaga um arquivo de aceite que já existe na `main` | Aviso no PR | 7 |
 | Achado do revisor | Comentário no PR | 5 |
 | Push do agente com segredo nos commits da branch | Nega o push | 6 |
 | Push do agente sem o modo completo aprovado para o último commit | Nega o push | 6 |
@@ -265,9 +267,28 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 - **Limite:** o hook confere o arquivo do corpo do PR que o agente apontou, e não o corpo que ele publica depois. Se os dois divergirem, a CI reprova.
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
 
+## Congelamento do aceite
+
+Depois do commit de plano, o arquivo de aceite de um ticket não muda pelas mãos do agente. Duas peças impõem isso, uma na máquina e outra no PR.
+
+| Peça | O que faz |
+| --- | --- |
+| Hook `.claude/hooks/freeze-acceptance.sh` | No evento `PreToolUse` das ferramentas de edição de arquivo (`Edit`, `Write`, `MultiEdit` e `NotebookEdit`), nega a edição de um arquivo de `docs/aceite/` que já está em commit. Libera a criação de um arquivo novo, que é o que a `/plan-ticket` faz, e a edição de qualquer outro arquivo |
+| Guarda do harness | Avisa no PR quando um arquivo de aceite que já existe na `main` é alterado, renomeado ou apagado. Um PR que só cria arquivos de aceite não é sinalizado |
+
+- **Descongelar é do humano,** no editor ou no terminal. A mensagem de negação diz isso ao agente e pede que ele não contorne o bloqueio.
+- **Aviso, e não bloqueio, na guarda:** descongelar é legítimo quando um ticket muda um comportamento já entregue, e o humano que faz o merge já lê os avisos da guarda. Bloquear obrigaria a um override do admin a cada descongelamento, o que o tornaria rotina.
+- **O que está congelado:** o ID e o cenário. O teste previsto é só uma previsão e não se corrige quando o teste muda de nome ou de lugar.
+- **O caminho é normalizado** antes da comparação, então `apps/../docs/aceite/<ticket>.md` também é negado. O congelamento vale a partir do commit: o arquivo ainda sem commit, do plano em andamento, é liberado.
+- **Entrada ilegível:** se o `jq` não consegue ler a entrada, qualquer menção à pasta de aceite conta como edição de aceite versionado, como no hook do push.
+- **Testes:** `scripts/test/freeze-acceptance.test.sh` testa o hook pela entrada que o Claude Code entrega e pela decisão que ele devolve. Roda na máquina, e não no contêiner `api`, porque o hook usa o `git` e o `jq`, que o contêiner não tem. Faz parte do passo "Testes do harness" do `verify.sh full`.
+- **Limite:** o hook só vê as ferramentas de edição. Um redirecionamento ou um script por comando de shell que grave num arquivo de aceite não passa por ele, como já acontece com a regra `ask` do `.claude/settings.json`. A garantia nesse caso é o aviso da guarda e a leitura no merge.
+- **Limite:** a CI não distingue um commit do humano de um do agente, então a guarda só chama a atenção para o arquivo alterado.
+- **Só o Claude Code:** outro agente não dispara este hook.
+
 ## Plano do ticket (planejado)
 
-Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`), a cobertura dos critérios por ID, descrita em "Aceite", e as conferências do aceite pelo revisor. Seguem planejados o congelamento do arquivo de aceite (o hook e a sinalização na guarda) e a etapa 8.
+Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`), a cobertura dos critérios por ID, descrita em "Aceite", e as conferências do aceite pelo revisor e o congelamento do arquivo de aceite (o hook e a sinalização na guarda), descritos em "Congelamento do aceite". Segue planejada a etapa 8.
 
 A tabela de aceite que existia antes ligava cada critério a um teste, mas só no pull request, escrita por quem implementou, e não conferia se a tabela cobria todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
 
@@ -294,7 +315,7 @@ A tabela de aceite que existia antes ligava cada critério a um teste, mas só n
 | --- | --- |
 | Conferências do aceite (cobertura por ID, ID órfão, teste pulado, seção `## Aceite`) | Implementadas, descritas em "Aceite" |
 | O agente edita um arquivo de aceite já versionado | O hook nega |
-| PR que altera um arquivo de aceite já existente, e não só o cria | Sinalizado pela guarda do harness |
+| PR que altera um arquivo de aceite já existente, e não só o cria | Aviso da guarda do harness |
 
 - **Por que no início de cada ticket:** o plano cita arquivos, interfaces, rotas e schema, que mudam a cada ticket que entra. Planejado na criação dos tickets, ele descreveria um código que ainda não existe.
 - **Por que uma skill separada:** a aprovação vira um ponto de parada real, e a implementação começa em contexto novo, a partir do plano.
@@ -303,10 +324,10 @@ A tabela de aceite que existia antes ligava cada critério a um teste, mas só n
 - **Por que a cobertura confere todos os arquivos de aceite:** um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado. Os arquivos de aceite formam a matriz de rastreabilidade do projeto.
 - **Descongelar é um ato humano.** Quando um ticket muda um comportamento já entregue, o humano edita o arquivo de aceite antigo, no editor ou no terminal.
 - **O revisor ganhou duas conferências,** descritas em "Revisor em contexto novo": os IDs do ticket contra os do arquivo de aceite e cada teste contra o cenário do ID dele.
+- **Congelamento:** implementado, descrito em "Congelamento do aceite".
 - **Caminhos verificados:** `docs/aceite/` entrou na lista do `verify.sh`, porque mudar o aceite muda o resultado da verificação.
 - **Onde ficam as regras:** o fluxo e o formato do arquivo de aceite vão para o `AGENTS.md` da raiz, no lugar da antiga seção "Tabela de aceite no pull request". As conferências ficam neste documento. A `/plan-ticket` aponta para os dois, e as skills copiadas (`to-tickets`, `implement-spec` e `tdd`) recebem só os ajustes mínimos para não contrariá-los.
 - **Ordem:** o processo (o `AGENTS.md`, a `/plan-ticket` e os ajustes nas skills) vem primeiro, para ser usado num ticket piloto antes de a máquina conferi-lo. A cobertura por ID foi implementada antes de existir um piloto, então o formato do arquivo de aceite ainda não foi exercitado num ticket real.
-- **A confirmar na implementação:** se a mudança num arquivo de aceite existente é aviso ou bloqueio na guarda.
 - **Limite:** a cobertura por ID prova que existe um teste aprovado para cada ID. Não prova que ele prova o critério. Isso continua com o revisor e com o humano no merge.
 - **Limite:** o hook só vê o que o agente faz pelas próprias ferramentas, e a CI não distingue um commit do humano de um commit do agente. Contém o esquecimento, e não a má-fé.
 - **Fora:** arquivos de aceite para os tickets já concluídos.
