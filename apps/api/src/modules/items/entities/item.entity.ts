@@ -1,0 +1,28 @@
+export type ItemType = 'file' | 'folder';
+
+/** Nome da Pasta raiz, que nasce sob demanda e nunca aparece numa listagem. */
+export const ROOT_FOLDER_NAME = 'Meus arquivos';
+
+/** Um Item ativo, como a listagem de uma pasta o devolve. */
+export interface Item {
+  id: string;
+  type: ItemType;
+  name: string;
+  /** 0 para pastas. Cabe num `number`: o maior arquivo aceito tem 5 GB. */
+  sizeBytes: number;
+  /** Nulo para pastas. */
+  mimeType: string | null;
+  updatedAt: Date;
+}
+
+/** Uma página da listagem de uma pasta. `nextCursor` é nulo na última. */
+export interface ItemPage {
+  items: Item[];
+  nextCursor: string | null;
+}
+
+/**
+ * Onde um Item fica na ordem da listagem: o tipo, o nome e o id, que desempata
+ * nomes iguais. O cursor guarda a do último Item da página.
+ */
+export type ItemPosition = Pick<Item, 'type' | 'name' | 'id'>;

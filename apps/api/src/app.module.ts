@@ -6,6 +6,7 @@ import { AppConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { MailModule } from './infra/mail/mail.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { ItemsModule } from './modules/items/items.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -15,6 +16,7 @@ import { UsersModule } from './modules/users/users.module.js';
     MailModule,
     UsersModule,
     AuthModule,
+    ItemsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
