@@ -244,7 +244,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
 2. **Aprovar:** o usuário revisa o diff do plano. Só depois da aprovação você faz o commit de plano, com a lista de arquivos e interfaces na mensagem.
-3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano.
+3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
 **Critérios do ticket**
 
