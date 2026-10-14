@@ -1,15 +1,10 @@
 import { CloudUpload } from "lucide-react";
 import type { ReactNode } from "react";
 import { EmptyState } from "@/components/files/empty-state";
-import { FileList } from "@/components/files/file-list";
-import { FileRow } from "@/components/files/file-row";
+import { FileTable } from "@/components/files/file-table";
 import { toFileRow } from "@/components/files/format";
-import {
-  LoadedRows,
-  LoadMoreButton,
-  LoadMoreProvider,
-  type LoadMoreResult,
-} from "@/components/files/load-more";
+import { ROOT_FOLDER_LABEL } from "@/lib/drive";
+import type { LoadMoreResult } from "@/components/files/load-more";
 import { AccountMenu } from "@/components/navigation/account-menu";
 import { AppBar } from "@/components/navigation/app-bar";
 import { Sidebar } from "@/components/navigation/sidebar";
@@ -88,17 +83,12 @@ export default function VitrineDrivePage() {
 
       <Section title="file-list e file-row">
         <div className="px-4 lg:px-6">
-          <LoadMoreProvider initialCursor="vitrine" load={loadMore}>
-            <FileList label="Meus arquivos">
-              <div role="rowgroup">
-                {ITEMS.map((item) => (
-                  <FileRow key={item.id} row={toFileRow(item)} />
-                ))}
-              </div>
-              <LoadedRows />
-            </FileList>
-            <LoadMoreButton />
-          </LoadMoreProvider>
+          <FileTable
+            label={ROOT_FOLDER_LABEL}
+            items={ITEMS}
+            nextCursor="vitrine"
+            load={loadMore}
+          />
         </div>
       </Section>
 

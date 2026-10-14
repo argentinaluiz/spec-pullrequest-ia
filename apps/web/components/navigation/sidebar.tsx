@@ -1,4 +1,5 @@
 import { HardDrive } from "lucide-react";
+import { ROOT_FOLDER_LABEL } from "@/lib/drive";
 import { NavItem } from "@/components/navigation/nav-item";
 
 /**
@@ -11,7 +12,7 @@ export function Sidebar() {
       <NavItem
         href="/"
         icon={<HardDrive className="size-5 shrink-0" />}
-        label="Meus arquivos"
+        label={ROOT_FOLDER_LABEL}
       />
     </nav>
   );

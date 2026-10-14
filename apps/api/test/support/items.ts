@@ -55,6 +55,7 @@ export function itemRoutes(app: INestApplication<App>) {
   ): Promise<string[]> => {
     const rows = items.map((item) => {
       const type = item.type ?? 'file';
+      const isFile = type === 'file';
       return {
         id: uuidv7(),
         ownerId,
@@ -62,14 +63,14 @@ export function itemRoutes(app: INestApplication<App>) {
         type,
         name: item.name,
         status: item.status ?? 'active',
-        sizeBytes: BigInt(item.sizeBytes ?? (type === 'file' ? 1024 : 0)),
+        sizeBytes: BigInt(item.sizeBytes ?? (isFile ? 1024 : 0)),
         mimeType:
           item.mimeType === undefined
-            ? type === 'file'
+            ? isFile
               ? 'text/plain'
               : null
             : item.mimeType,
-        objectKey: type === 'file' ? uuidv7() : null,
+        objectKey: isFile ? uuidv7() : null,
         updatedAt: item.updatedAt ?? new Date(),
       };
     });

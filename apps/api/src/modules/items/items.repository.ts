@@ -22,11 +22,20 @@ export class ItemsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * O id da Pasta raiz do Usuário, que nasce aqui na primeira vez. Quem decide
-   * é o índice único da raiz: com chamadas simultâneas no primeiro uso, uma
-   * insere e as outras não fazem nada, e todas leem a mesma raiz depois.
+   * O id da Pasta raiz do Usuário, que nasce aqui na primeira vez. Depois da
+   * primeira, a leitura basta. Quem garante uma raiz só é o índice único: com
+   * chamadas simultâneas no primeiro uso, todas perdem a leitura, uma insere e
+   * as outras não fazem nada, e todas leem a mesma raiz depois.
    */
-  async ensureRoot(ownerId: string, id: string): Promise<string> {
+  async ensureRoot(ownerId: string, newId: () => string): Promise<string> {
+    const existing = await this.prisma.item.findFirst({
+      where: { ownerId, parentId: null },
+      select: { id: true },
+    });
+    if (existing) {
+      return existing.id;
+    }
+    const id = newId();
     await this.prisma.$executeRaw`
       INSERT INTO items (id, owner_id, parent_id, type, name, status, updated_at)
       VALUES (${id}::uuid, ${ownerId}::uuid, NULL, 'folder', ${ROOT_FOLDER_NAME}, 'active', now())

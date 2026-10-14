@@ -1,7 +1,6 @@
+import { isUUID } from 'class-validator';
 import { InputValidationError } from '../../common/errors/input-validation.error.js';
 import { ItemPosition } from './entities/item.entity.js';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * O cursor opaco da listagem: a posição do último Item da página, em JSON e
@@ -39,7 +38,7 @@ function parse(cursor: string): ItemPosition | null {
     (type !== 'file' && type !== 'folder') ||
     typeof name !== 'string' ||
     typeof id !== 'string' ||
-    !UUID.test(id)
+    !isUUID(id)
   ) {
     return null;
   }

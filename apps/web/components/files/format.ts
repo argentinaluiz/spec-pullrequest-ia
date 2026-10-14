@@ -49,6 +49,8 @@ export function fileKind(item: Pick<Item, "type" | "mimeType">): FileKind {
 }
 
 const SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"];
+const BYTES_FORMAT = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const SIZE_FORMAT = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 
 /** Em base 1024, com até uma casa decimal: "4 KB", "2,4 MB", "1,2 GB". */
 export function formatSize(bytes: number): string {
@@ -59,9 +61,7 @@ export function formatSize(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
-  const number = new Intl.NumberFormat("pt-BR", {
-    maximumFractionDigits: unit === 0 ? 0 : 1,
-  }).format(value);
+  const number = (unit === 0 ? BYTES_FORMAT : SIZE_FORMAT).format(value);
   return `${number} ${SIZE_UNITS[unit]}`;
 }
 

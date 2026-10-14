@@ -17,7 +17,7 @@ export async function getRootItems(
   const token = await accessToken();
   if (!token) redirect(LOGIN_PATH);
 
-  const result = await listRootChildren(token, { cursor });
+  const result = await listRootChildren(token, cursor);
   if (!result.ok && result.error.code === "unauthenticated") {
     redirect(SESSION_ENDED_PATH);
   }
