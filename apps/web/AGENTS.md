@@ -44,8 +44,6 @@ docker compose -f compose.dev.yaml exec playwright npx playwright test
 - **O relatório** fica em `apps/web/playwright-report/`, e o trace de um teste que falhou, em `apps/web/test-results/`. Os dois ficam fora do Git.
 - **A versão do Playwright é fixa.** A do `@playwright/test`, no `package.json`, e a da imagem do serviço `playwright`, no `compose.dev.yaml`, têm de ser a mesma. Atualize as duas juntas.
 
-A definição de pronto da web é a suíte no navegador, o lint, a checagem de tipos, o `pnpm build` e, em mudanças de interface, a validação visual.
-
 **Rode o `pnpm build` antes de concluir.** Com Cache Components, os erros de pré-renderização (dado lido fora de `<Suspense>` e sem cache, `Date.now()` durante a renderização) só aparecem no overlay de desenvolvimento e no build. O lint e o `tsc` não os pegam.
 
 ## Particularidades da stack

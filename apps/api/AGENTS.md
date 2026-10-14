@@ -27,7 +27,7 @@ docker compose -f compose.dev.yaml exec api <comando>
 | `pnpm exec prisma generate` | Gera de novo o cliente do Prisma, depois de mudar o schema |
 | `pnpm setup:dev` | Prepara o ambiente: `.env`, chaves do JWT, cliente do Prisma e migrações. Já roda sozinho quando o contêiner sobe. |
 
-**Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para cumprir a definição de pronto, rode as três: `pnpm test`, `pnpm test:int` e `pnpm test:e2e`.
+**Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para rodar as três, use `pnpm test`, `pnpm test:int` e `pnpm test:e2e`. O `scripts/verify.sh full api` roda as três de uma vez.
 
 Uma suíte que não roda nenhum teste falha. As de integração e de ponta a ponta precisam do `postgres` e do `mailpit` no ar, o que o Compose já garante.
 

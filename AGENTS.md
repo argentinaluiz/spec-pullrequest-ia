@@ -114,24 +114,19 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 ## Definição de pronto
 
-Uma mudança no código só está concluída quando **todos** os itens abaixo passam:
+Uma mudança no código está pronta quando:
 
-1. Durante o desenvolvimento, rode só os testes ligados ao código alterado. Para conferir uma app inteira, há o `scripts/verify.sh full <app>`, que não libera o push.
-2. Antes de terminar, rode todas as suítes de teste do projeto. Elas estão listadas no `AGENTS.md` do projeto.
-3. O TypeScript compila sem erros: `pnpm exec tsc --noEmit` termina com código 0. Erros de compilação nunca ficam como dívida para tarefas futuras.
-4. O lint passa: `pnpm lint`.
-5. Em mudanças de interface, a validação visual descrita em `docs/design-system.md` foi feita.
+1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, a tabela de aceite e os segredos. O que cada passo confere está no `docs/harness.md`, seção "Script de verificação".
+2. Em mudança de interface, a validação visual descrita em `docs/design-system.md` foi feita. É a única exigência que o script não confere.
 
-Se algum item falhar, a tarefa não está pronta. Corrija a causa antes de declarar a conclusão.
-
-**Verificação completa**
-
-O `scripts/verify.sh full` roda os itens 2 a 4 de uma vez, mais o build da web e a varredura de segredos. Rode-o da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
+Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
 
 ```bash
 scripts/verify.sh full
 ```
 
+- **Durante o desenvolvimento, feedback curto.** Rode os testes ligados ao código alterado, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto, ou o `scripts/verify.sh full <app>` para uma app inteira. Nenhum dos dois libera o push.
+- **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura.
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
@@ -140,7 +135,7 @@ scripts/verify.sh full
 
 Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. Para o push passar:
 
-1. Faça o commit de tudo. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
+1. Faça o commit de tudo que alterou. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
 2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a tabela de aceite.
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
@@ -259,4 +254,5 @@ Quando precisar consultar a documentação de uma biblioteca, use o context7 par
 
 ## Agent Skill Usage
 
-When working on any task (planning, implementing, debugging, refactoring, reviewing, etc.), decompose the request into its underlying subtasks and concerns, then identify which available skills match any of them and activate those skills.
+
+Quando estiver trabalhando em uma tarefa, primeiro decomponha a solicitação em suas subtarefas e preocupações subjacentes, depois identifique quais skills disponíveis correspondem a alguma delas e ative essas skills.
