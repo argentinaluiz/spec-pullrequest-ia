@@ -32,7 +32,8 @@ O `pnpm lint` só aponta os problemas, sem corrigir. A formatação é conferida
 ## Particularidades da stack
 
 - **Módulos ES:** o projeto é `"type": "module"` com `moduleResolution: nodenext`. Todo import relativo leva a extensão `.js`, mesmo apontando para um arquivo `.ts` (`import { AppService } from './app.service.js'`). Sem a extensão, o `tsc` e o Node falham.
-- **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco fica no `prisma.config.ts`, e não no schema. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
+- **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco não fica no schema: a CLI a lê no `prisma.config.ts`, com o `env('DATABASE_URL')` do Prisma e o `.env` carregado pelo `dotenv`. Sem a variável, qualquer comando da CLI falha apontando-a, até o `prisma generate`, e por isso o `Dockerfile` passa uma URL de reserva só a esse comando. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
+- **Cliente do banco:** o `PrismaService` recebe a URL pela configuração injetada, que a valida na subida, e não lê `process.env.DATABASE_URL` direto, como no exemplo da skill `prisma-client-api`. A divergência é de propósito.
 - **pnpm:** os pacotes que rodam script na instalação precisam estar liberados no `pnpm-workspace.yaml` (`allowBuilds`). Sem isso, a instalação falha.
 
 ## Testes
@@ -42,7 +43,7 @@ O arquivo de teste leva o nome do arquivo testado, como descrito em `.claude/rul
 | Nível | Sufixo | Onde fica | O que exercita |
 | --- | --- | --- | --- |
 | Unidade | `.spec.ts` | Ao lado do código, em `src/` | Uma classe isolada, criada com `new`, com as dependências trocadas por dublês |
-| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, montada com `Test.createTestingModule`, como um repository contra o PostgreSQL |
+| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, como um repository contra o PostgreSQL. Um artefato de um módulo do Nest é montado com `Test.createTestingModule` |
 | Ponta a ponta | `.e2e-spec.ts` | Em `test/` | A aplicação inteira por HTTP, com `createTestApp()` e `supertest` |
 
 **Onde cada regra é provada:** as regras de negócio são provadas pelos testes de ponta a ponta, pelas rotas, com banco e e-mail reais. O teste de unidade de um service é opcional, e vale quando a regra tem muitos casos que seriam lentos ou repetitivos pelas rotas. Funções puras têm teste de unidade. A spec da funcionalidade pode restringir isso, e ela prevalece.

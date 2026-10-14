@@ -22,7 +22,8 @@ Os níveis de teste e onde cada regra é provada estão no `apps/api/AGENTS.md`,
 
 - **Unidade:** a classe é criada com `new`, recebendo os dublês e o objeto de configuração montado no próprio teste. O teste não carrega o `ConfigModule` nem o TestingModule.
 - **Dublê só de interface de `src/infra/` ou do `Logger`.** Nada de `vi.mock()` de módulo do projeto nem de SDK de fornecedor.
-- **Integração:** sempre com `Test.createTestingModule`, importando o módulo real da peça com a configuração (`imports: [AppConfigModule.forRoot(), MailModule]`), sem `overrideProvider`. O módulo é fechado no fim, com `moduleRef.close()`.
+- **Integração de um artefato do Nest** (service, repository, guard ou provider de um módulo): sempre com `Test.createTestingModule`, importando o módulo real da peça com a configuração (`imports: [AppConfigModule.forRoot(), MailModule]`), sem `overrideProvider`. O módulo é fechado no fim, com `moduleRef.close()`.
+- **Integração que não exercita um artefato do Nest,** como a que roda a CLI do Prisma, não usa o `Test.createTestingModule`: ela só usa a dependência real, sem montar módulo nenhum.
 - **Ponta a ponta:** sempre com `createTestApp()`, nunca com `NestFactory` nem com o `AppModule` montado à mão. O teste fala com a aplicação só por HTTP, com `supertest`, e a fecha no fim com `app.close()`.
 
 ## Base de testes
