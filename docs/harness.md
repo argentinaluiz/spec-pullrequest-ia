@@ -45,18 +45,37 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 
 ## Script de verificação
 
-O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose.dev.yaml` e tem três modos:
+O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose.dev.yaml` e tem estes modos:
 
 | Modo | O que roda | Quem chama |
 | --- | --- | --- |
-| `fast [api] [web]` | Tipos e lint dos projetos citados | O hook de fim de turno |
-| `full [--start-apps]` | O modo rápido, as três suítes da API, o build da web, a suíte no navegador e a varredura de segredos | A CI, e o agente antes do push |
+| `fast [app...]` | Tipos e lint das apps citadas, ou de todas | O hook de fim de turno |
+| `full [--start-apps]` | O grupo completo de todas as apps, a tabela de aceite e a varredura de segredos. É o veredito, e grava a aprovação que o push exige | A CI, e o agente antes do push |
+| `full <app>... [--start-apps]` | Só o grupo completo das apps citadas. Não confere a tabela nem os segredos e não grava aprovação | O agente, durante o desenvolvimento, se quiser |
 | `prepush` | A varredura de segredos e a conferência de que o modo completo aprovou o último commit | O hook de antes do push |
+| `apps` | A lista das apps registradas | O hook de fim de turno |
 
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
-- **Relatórios:** cada suíte grava um JSON em `reports/`, na pasta do projeto, e o `scripts/check-report.cjs` o confere. Os relatórios antigos são apagados no começo, para que só valha a evidência da execução atual.
+- **Relatórios:** cada suíte grava um JSON em `reports/`, na pasta do projeto, e o `scripts/check-report.cjs` o confere. O grupo completo de cada app apaga os relatórios antigos dela no começo, para que só valha a evidência da execução atual.
+- **O `full` com apps não aprova nada.** Ele existe para o agente conferir uma app inteira sem pagar a outra, mas a suíte no navegador da web fala com a API real, e uma mudança só na API pode quebrá-la. Por isso o push e a CI continuam exigindo o `full` sem apps, e o `full` com apps termina avisando isso.
 - **Web e API no ar:** a suíte no navegador depende das duas em modo de desenvolvimento. Na máquina, o script exige que elas já estejam respondendo. Com `--start-apps`, usado pela CI, ele mesmo as sobe.
 - **Segredos:** o gitleaks, em versão fixa, olha os commits que a branch tem a mais do que a `origin/main`. A variável `HARNESS_BASE_REF` troca essa base. Num push na `main`, a CI a aponta para o commit anterior ao push, porque ali a `origin/main` já é o próprio commit enviado.
+
+### Grupos por app
+
+O `verify.sh` é o motor: os auxiliares, o despacho dos modos e o que atravessa as apps (tabela de aceite, segredos e aprovação). O que cada app verifica fica num arquivo dela, em `scripts/verify/<app>.sh`, que define três coisas:
+
+| Nome | O que é |
+| --- | --- |
+| `<app>_fast` | Os passos rápidos da app, como tipos e lint |
+| `<app>_full` | O grupo completo: chama o `<app>_fast` e acrescenta as suítes, o build e o que mais a app tiver |
+| `<app>_reports` | Os relatórios das suítes que a tabela de aceite pode citar |
+
+O registro `APPS`, no topo do motor, lista as apps. O nome de cada uma é o da pasta em `apps/` e o do serviço no Compose. O `full` sem apps, o `fast` sem apps e o hook de fim de turno percorrem esse registro.
+
+- **Comando novo numa app:** um `step` a mais no `<app>_fast` ou no `<app>_full`, com o nome e o "como corrigir". Se ele for uma suíte com relatório, o relatório entra também no `<app>_reports`.
+- **App nova:** um arquivo em `scripts/verify/` e o nome dela no `APPS`.
+- **Tudo continua em `scripts/`,** protegido pelo guarda do harness e pela confirmação local.
 
 ## CI
 
@@ -134,15 +153,17 @@ O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `S
 
 | Situação ao encerrar o turno | O que o hook faz |
 | --- | --- |
-| Nenhum código alterado em `apps/api` nem em `apps/web` | Nada |
+| Nenhum código alterado nas apps registradas | Nada |
 | Código alterado, igual ao da última verificação aprovada | Nada |
-| Código alterado e ainda não verificado | Roda `scripts/verify.sh fast` nos projetos alterados |
+| Código alterado e ainda não verificado | Roda `scripts/verify.sh fast` nas apps alteradas |
 | A verificação passa | Deixa o turno encerrar e guarda o estado aprovado |
 | A verificação falha | Bloqueia o encerramento e devolve a saída ao agente, que continua |
 | Os contêineres estão fora do ar | Bloqueia, com a instrução de subir o ambiente |
 | A base da branch não é encontrada (falta a `origin/main` no clone) | Bloqueia, com a instrução de buscar a referência |
+| A lista de apps não pode ser lida do script | Bloqueia |
 | Três bloqueios seguidos na mesma sessão | Deixa o turno encerrar e mostra um aviso ao usuário |
 
+- **Quais apps:** as do registro `APPS`, que o hook lê com `scripts/verify.sh apps`. Uma app nova entra no hook sem mexer nele.
 - **O que conta como alterado:** a diferença entre a base da branch (o ponto em que ela saiu da `origin/main`) e a pasta de trabalho, mais os arquivos novos. Assim, o código que o agente commitou no mesmo turno também é verificado.
 - **Por que guardar o estado aprovado:** numa branch com código alterado, um turno que só mexe em documento não precisa pagar a verificação de novo. O hook guarda um resumo do estado de cada projeto na pasta `.git`, fora do versionamento.
 - **Falha fechada:** com código alterado e os contêineres fora do ar, o hook bloqueia, em vez de passar calado.

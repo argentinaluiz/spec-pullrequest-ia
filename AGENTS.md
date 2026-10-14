@@ -93,12 +93,7 @@ Depois do conserto, suba o ambiente de novo.
 
 ### Rede entre serviços
 
-Ao configurar a conexão entre serviços (banco, storage, e-mail, worker), **use sempre o nome do serviço do Compose como host**, nunca `localhost` nem `127.0.0.1`. Dentro de um contêiner, `localhost` é o próprio contêiner, e não a máquina nem os outros serviços.
-
-- **Certo:** `DATABASE_URL=postgresql://user:pass@postgres:5432/app`
-- **Errado:** `DATABASE_URL=postgresql://user:pass@localhost:5432/app`
-
-A regra vale para variáveis de ambiente, arquivos de configuração e código que referencie o host de um serviço.
+Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável de ambiente, arquivo de configuração ou código, **o host é sempre o nome do serviço do Compose**, como na coluna "Endereço entre contêineres" da tabela, e nunca `localhost` nem `127.0.0.1`: dentro de um contêiner, `localhost` é o próprio contêiner.
 
 **Exceção:** quando o processo fala com algo que roda no mesmo contêiner, o endereço é `127.0.0.1`. É o caso do healthcheck de um serviço, que confere o próprio contêiner, e de um teste que abre um servidor temporário no contêiner onde roda.
 
@@ -106,9 +101,8 @@ A regra vale para variáveis de ambiente, arquivos de configuração e código q
 
 - **Responsabilidade única:** cada módulo e cada função tem uma responsabilidade clara. Reavalie isso a cada passo. Quando um módulo começa a criar ou alterar entidades de outro domínio, extraia a lógica para o módulo certo na hora, em vez de deixar para uma tarefa futura.
 - **Tipagem:** TypeScript estrito em todas as camadas.
-- **Testes:** pirâmide de testes em todos os níveis (unitários, de integração e de ponta a ponta).
+- **Testes:** pirâmide de testes em todos os níveis (unitários, de integração e end-to-end).
 - **Qualidade de código:** lint e formatação automáticos, com as ferramentas de cada projeto.
-- **Documentação:** cada informação fica no documento dono dela, como descrito em [Documentos](#documentos).
 
 ## Design e Figma
 
@@ -122,8 +116,8 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 Uma mudança no código só está concluída quando **todos** os itens abaixo passam:
 
-1. Durante o desenvolvimento, rode só os testes ligados ao código alterado.
-2. Antes de terminar, rode todas as suítes de teste do projeto. Elas estão listadas no `AGENTS.md` dele.
+1. Durante o desenvolvimento, rode só os testes ligados ao código alterado. Para conferir uma app inteira, há o `scripts/verify.sh full <app>`, que não libera o push.
+2. Antes de terminar, rode todas as suítes de teste do projeto. Elas estão listadas no `AGENTS.md` do projeto.
 3. O TypeScript compila sem erros: `pnpm exec tsc --noEmit` termina com código 0. Erros de compilação nunca ficam como dívida para tarefas futuras.
 4. O lint passa: `pnpm lint`.
 5. Em mudanças de interface, a validação visual descrita em `docs/design-system.md` foi feita.

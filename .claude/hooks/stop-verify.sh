@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Hook de fim de turno do Claude Code (evento Stop). Quando o agente tenta encerrar o turno com
-# código alterado em apps/api ou apps/web, roda o modo rápido do scripts/verify.sh nos projetos
-# alterados. Se falhar, devolve a saída ao agente, que continua o trabalho. O desenho está no
+# código alterado numa das apps registradas no scripts/verify.sh, roda o modo rápido dele nas apps
+# alteradas. Se falhar, devolve a saída ao agente, que continua o trabalho. O desenho está no
 # docs/harness.md.
 #
 # Sai com 0 para deixar o turno encerrar e com 2 para bloquear. No 2, o que foi escrito na
@@ -72,8 +72,14 @@ fingerprint() {
   } | sha256sum | cut -d' ' -f1
 }
 
+# Sem a lista, nenhuma app seria verificada e o turno passaria calado. Por isso a falha bloqueia.
+apps="$(scripts/verify.sh apps)" ||
+  block "não deu para ler a lista de apps do scripts/verify.sh" \
+    "Rode \`scripts/verify.sh apps\` e corrija o erro." \
+    ""
+
 projects=()
-for project in api web; do
+for project in $apps; do
   [[ -z "$(changed_files "$project")" ]] && continue
   [[ "$(cat "$state_dir/fast-ok-$project" 2>/dev/null)" == "$(fingerprint "$project")" ]] && continue
   projects+=("$project")

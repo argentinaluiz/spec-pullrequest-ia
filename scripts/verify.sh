@@ -3,13 +3,17 @@
 # Verificação do projeto. É a única definição de "passou": a CI chama o modo completo,
 # e os hooks chamam o modo rápido e o de antes do push. O desenho está no docs/harness.md.
 #
-#   scripts/verify.sh fast [api] [web]     tsc e lint dos projetos citados (os dois, se nenhum)
-#   scripts/verify.sh full [--start-apps]  o modo rápido, as suítes de teste, o build da web
-#                                          e a varredura de segredos
-#   scripts/verify.sh prepush              a varredura de segredos, e a conferência de que o
-#                                          modo completo aprovou o que está no último commit
+#   scripts/verify.sh fast [app...]                tipos e lint das apps citadas (todas, se nenhuma)
+#   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, a tabela de
+#                                                  aceite e a varredura de segredos; é o veredito,
+#                                                  e só ele libera o push
+#   scripts/verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas, para o dia
+#                                                  a dia; não libera o push
+#   scripts/verify.sh prepush                      a varredura de segredos, e a conferência de que o
+#                                                  modo completo aprovou o que está no último commit
+#   scripts/verify.sh apps                         as apps registradas, uma por linha
 #
-# Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. No modo completo,
+# Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
 #
 # Com ACCEPTANCE_BODY_FILE apontando para um arquivo com o corpo do pull request, o modo
@@ -20,12 +24,15 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
+# uma fica em scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports.
+APPS=(api web)
+
 COMPOSE=(docker compose -f compose.dev.yaml)
 # O mesmo comando, como texto, para as mensagens de como corrigir.
 EXEC="${COMPOSE[*]} exec"
-# Onde a API e a web respondem, cada uma dentro do próprio contêiner.
-API_URL=http://127.0.0.1:3000/v1
-WEB_URL=http://127.0.0.1:3000/
+# Se a suíte no navegador pode subir a web e a API. O `--start-apps` liga.
+START_APPS=no
 # Versão fixa, para o mesmo diff dar sempre o mesmo resultado.
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A varredura de segredos olha os commits que a branch tem a mais do que esta referência.
@@ -38,8 +45,21 @@ APPROVAL_FILE="$(git rev-parse --git-dir)/harness/full-ok"
 failures=()
 
 usage() {
-  sed -n '3,18p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
+}
+
+for app in "${APPS[@]}"; do
+  # shellcheck source=/dev/null
+  source "scripts/verify/$app.sh"
+done
+
+# Sai com o uso se algum nome não é de uma app registrada.
+check_apps() {
+  local app
+  for app in "$@"; do
+    [[ " ${APPS[*]} " == *" $app "* ]] || usage
+  done
 }
 
 # Não deu para verificar: falha fechada, com o que fazer.
@@ -79,41 +99,6 @@ check_report() {
   in_container "$service" node - "$kind" "$file" <scripts/check-report.cjs
 }
 
-# fast_project <api|web>
-fast_project() {
-  local service="$1" label
-  case "$service" in
-    api) label=API ;;
-    web) label=Web ;;
-    *) usage ;;
-  esac
-  require_container "$service"
-  if [[ "$service" == web ]]; then
-    # Os tipos globais das rotas (`PageProps`, `LayoutProps`) são gerados pelo Next.js. Num clone
-    # novo, sem `pnpm dev` nem `pnpm build` rodados, eles não existem e o tsc acusa erro falso.
-    step "$label: tipos de rota" \
-      "rode \`$EXEC $service pnpm exec next typegen\` e leia o erro." \
-      in_container "$service" pnpm exec next typegen
-  fi
-  step "$label: tipos" \
-    "corrija os erros apontados e rode \`$EXEC $service pnpm exec tsc --noEmit\`." \
-    in_container "$service" pnpm exec tsc --noEmit
-  step "$label: lint" \
-    "corrija os problemas apontados e rode \`$EXEC $service pnpm lint\`." \
-    in_container "$service" pnpm lint
-}
-
-# api_suite <nome> <script do pnpm> <arquivo do relatório>
-api_suite() {
-  local name="$1" script="$2" report="$3"
-  step "API: suíte $name" \
-    "rode \`$EXEC api pnpm $script\`, leia a falha e corrija o código ou o teste." \
-    in_container api pnpm "$script" --reporter=default --reporter=json "--outputFile.json=$report"
-  step "API: relatório da suíte $name" \
-    "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.todo\`." \
-    check_report api vitest "$report"
-}
-
 responds() {
   in_container "$1" node -e \
     "fetch('$2').then(() => process.exit(0), () => process.exit(1))" >/dev/null 2>&1
@@ -128,30 +113,10 @@ wait_for() {
   return 1
 }
 
-# A suíte no navegador fala com a web e a API reais, em modo de desenvolvimento.
-ensure_apps() {
-  local start="$1"
-  if responds api "$API_URL" && responds web "$WEB_URL"; then
-    return 0
-  fi
-  if [[ "$start" != yes ]]; then
-    abort "a web ou a API não está respondendo, e a suíte no navegador depende das duas." \
-      "suba \`pnpm start:dev\` no contêiner \`api\` e \`pnpm dev --hostname 0.0.0.0\` no \`web\`, cada um num terminal, e rode de novo."
-  fi
-  "${COMPOSE[@]}" exec -d api sh -c 'pnpm start:dev >/tmp/api.log 2>&1'
-  "${COMPOSE[@]}" exec -d web sh -c 'pnpm dev --hostname 0.0.0.0 >/tmp/web.log 2>&1'
-  if ! wait_for api "$API_URL" || ! wait_for web "$WEB_URL"; then
-    in_container api cat /tmp/api.log >&2
-    in_container web cat /tmp/web.log >&2
-    abort "a web ou a API não respondeu em três minutos." \
-      "leia os logs acima; o erro de subida está neles."
-  fi
-}
-
-# Confere a tabela de aceite do pull request contra os relatórios das quatro suítes.
-# A tabela só é exigida quando a branch altera código em apps/.
+# Confere a tabela de aceite do pull request contra os relatórios que as apps declaram em
+# <app>_reports. A tabela só é exigida quando a branch altera código em apps/.
 acceptance() {
-  local mode=--optional
+  local mode=--optional app ref spec prefix rest report target specs=()
   # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
   # do commit, e a tabela não pode passar como "não exigida" só por isso.
   if [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
@@ -159,17 +124,25 @@ acceptance() {
     mode=--required
   fi
 
-  # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e o
-  # relatório da web chegam a ele pela entrada padrão, sem depender da permissão da pasta.
-  in_container api sh -c 'mkdir -p reports && cat >reports/pr-body.md' <"$ACCEPTANCE_BODY_FILE" || return 1
-  in_container web cat reports/playwright.json |
-    in_container api sh -c 'cat >reports/playwright.json' || return 1
+  # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e os
+  # relatórios de cada app chegam a ele pela entrada padrão, sem depender da permissão da pasta.
+  in_container api sh -c 'mkdir -p reports/acceptance && cat >reports/acceptance/pr-body.md' \
+    <"$ACCEPTANCE_BODY_FILE" || return 1
+  for app in "${APPS[@]}"; do
+    ref="${app}_reports[@]"
+    for spec in "${!ref}"; do
+      prefix="${spec%%=*}"
+      rest="${spec#*=}"
+      report="${rest#*:}"
+      target="reports/acceptance/$app-$(basename "$report")"
+      in_container "$app" cat "$report" |
+        in_container api sh -c "cat >'$target'" || return 1
+      specs+=("$prefix=${rest%%:*}:$target")
+    done
+  done
 
-  in_container api node - "$mode" reports/pr-body.md \
-    apps/api=vitest:reports/unit.json \
-    apps/api=vitest:reports/int.json \
-    apps/api=vitest:reports/e2e.json \
-    apps/web/e2e=playwright:reports/playwright.json <scripts/check-acceptance.cjs
+  in_container api node - "$mode" reports/acceptance/pr-body.md "${specs[@]}" \
+    <scripts/check-acceptance.cjs
 }
 
 require_base() {
@@ -238,40 +211,19 @@ run_prepush() {
     approval
 }
 
+# O veredito: o grupo completo de todas as apps, mais o que atravessa as apps.
 run_full() {
-  local start_apps="$1"
+  local app
   require_base
   # O estado é resumido antes de tudo, para a aprovação valer para o que foi verificado, e não
   # para o que estiver na pasta quando a verificação terminar.
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
     "confira se o repositório do Git está íntegro, com \`git status\`."
   rm -f "$APPROVAL_FILE"
-  require_container api
-  require_container web
-  require_container playwright
 
-  # Relatório antigo não vale como evidência desta execução.
-  in_container api rm -rf reports
-  in_container web rm -rf reports
-
-  fast_project api
-  fast_project web
-
-  api_suite "de unidade" test reports/unit.json
-  api_suite "de integração" test:int reports/int.json
-  api_suite "de ponta a ponta" test:e2e reports/e2e.json
-
-  step "Web: build" \
-    "rode \`$EXEC web pnpm build\` e corrija o erro de pré-renderização ou de compilação." \
-    in_container web pnpm build
-
-  ensure_apps "$start_apps"
-  step "Web: suíte no navegador" \
-    "rode \`$EXEC playwright npx playwright test\` e abra o trace em apps/web/test-results/." \
-    "${COMPOSE[@]}" exec -T -e "CI=${CI:-}" playwright npx playwright test
-  step "Web: relatório da suíte no navegador" \
-    "a suíte tem de rodar ao menos um teste e não pode ter teste pulado: tire o \`.skip\`, o \`.only\` ou o \`.fixme\`." \
-    check_report web playwright reports/playwright.json
+  for app in "${APPS[@]}"; do
+    "${app}_full"
+  done
 
   # Só há tabela para conferir quando há um corpo de pull request: na CI, ou na máquina,
   # com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
@@ -289,27 +241,44 @@ run_full() {
 mode="${1:-}"
 [[ $# -gt 0 ]] && shift
 
+# As apps citadas no `full`. Sem nenhuma, ele é o veredito.
+apps=()
+
 case "$mode" in
   fast)
-    projects=("$@")
-    [[ ${#projects[@]} -eq 0 ]] && projects=(api web)
-    for project in "${projects[@]}"; do
-      fast_project "$project"
+    apps=("$@")
+    [[ ${#apps[@]} -eq 0 ]] && apps=("${APPS[@]}")
+    check_apps "${apps[@]}"
+    for app in "${apps[@]}"; do
+      "${app}_fast"
     done
+    apps=()
     ;;
   full)
-    start_apps=no
     for arg in "$@"; do
       case "$arg" in
-        --start-apps) start_apps=yes ;;
-        *) usage ;;
+        --start-apps) START_APPS=yes ;;
+        -*) usage ;;
+        *) apps+=("$arg") ;;
       esac
     done
-    run_full "$start_apps"
+    if [[ ${#apps[@]} -eq 0 ]]; then
+      run_full
+    else
+      check_apps "${apps[@]}"
+      for app in "${apps[@]}"; do
+        "${app}_full"
+      done
+    fi
     ;;
   prepush)
     [[ $# -eq 0 ]] || usage
     run_prepush
+    ;;
+  apps)
+    [[ $# -eq 0 ]] || usage
+    printf '%s\n' "${APPS[@]}"
+    exit 0
     ;;
   *) usage ;;
 esac
@@ -320,6 +289,12 @@ if [[ ${#failures[@]} -gt 0 ]]; then
     printf -- '- %s\n' "$failure" >&2
   done
   exit 1
+fi
+
+if [[ ${#apps[@]} -gt 0 ]]; then
+  printf '\nAPROVADO (%s %s).\n' "$mode" "${apps[*]}"
+  printf 'Isto não libera o push: rode `scripts/verify.sh full`, sem apps, antes de enviar.\n'
+  exit 0
 fi
 
 # Registra o que o modo completo aprovou, para o hook de antes do push conferir.
