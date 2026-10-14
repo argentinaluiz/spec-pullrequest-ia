@@ -14,7 +14,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 4 | Tabela de aceite | Implementado |
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
-| 7 | Plano do ticket e aceite congelado | Planejado. Ver "Plano do ticket (planejado)" |
+| 7 | Plano do ticket e aceite congelado | Em andamento. O processo está implementado (`AGENTS.md` e `/plan-ticket`); as conferências estão planejadas. Ver "Plano do ticket (planejado)" |
 | 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
 
 ## Princípios
@@ -258,7 +258,7 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 
 ## Plano do ticket (planejado)
 
-Nada desta seção está implementado. Ela registra as decisões das etapas 7 e 8 para a spec e os tickets que as implementam. Enquanto isso, valem as etapas 1 a 6 como descritas acima, e o `AGENTS.md` da raiz não muda.
+Desta seção, só o processo da etapa 7 está implementado: o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`. As conferências da etapa 7 e a etapa 8 seguem planejadas. Enquanto isso, valem as etapas 1 a 6 como descritas acima, inclusive a tabela de aceite do pull request.
 
 A tabela de aceite liga cada critério a um teste, mas só no pull request, escrita por quem implementou, e não confere se a tabela cobre todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
 

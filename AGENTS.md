@@ -228,17 +228,45 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 - Specs e tickets são escritos em português, com o vocabulário do `GLOSSARY.md`.
 - Não cite caminhos de arquivo nem trechos de código: eles envelhecem rápido. Cite documentos e módulos pelo nome.
-- Todo ticket traz critérios de aceite verificáveis, e cada critério diz por onde é conferido (teste HTTP da API ou teste no navegador).
+- Todo ticket traz critérios de aceite verificáveis. Cada critério leva um ID `CA<n>` e uma marca de conferência, como descrito em [Plano do ticket](#plano-do-ticket).
 - A spec e os tickets levam `ready-for-agent` e uma label de tipo.
 
 **Ao trabalhar em um ticket**
 
 - Pegue só tickets cujos bloqueios já foram concluídos.
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
+- Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
 - Use o identificador da issue no nome da branch, por exemplo `feature/lui-137-cadastro-e-verificacao`.
 - Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
+
+### Plano do ticket
+
+Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado. O desenho e os motivos estão em `docs/harness.md`, seção "Plano do ticket (planejado)".
+
+1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
+2. **Aprovar:** o usuário revisa o diff do plano. Só depois da aprovação você faz o commit de plano, com a lista de arquivos e interfaces na mensagem.
+3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano.
+
+**Critérios do ticket**
+
+- **ID:** `CA<n>` no ticket, e `<ticket>-CA<n>` fora do Linear, como `LUI-146-CA3`. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago.
+- **Marca de conferência:** teste HTTP, teste no Playwright, teste de unidade, revisão humana ou documento. Só as três primeiras são provadas por teste. A definição de pronto não é critério de ticket.
+- **Formato:** `- [ ] **CA3** · Texto do critério (teste HTTP).`
+
+**Arquivo de aceite**
+
+- **Onde:** `docs/aceite/<ticket>.md`, um por ticket, permanente. O texto do critério fica só no Linear.
+- **O que traz, por ID:** a marca, o cenário em Dado, Quando, Então e, nos critérios de teste, o teste previsto (camada, arquivo e nome).
+- **Desenho:** o contrato e o schema vão direto para o LLD, que é o dono deles. A lista de arquivos e interfaces fica só na mensagem do commit de plano.
+- **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
+- **Mecanismo:** por ora, o congelamento e o ID no teste são regras sem verificação automática. A cobertura por IDs e o bloqueio da edição vêm em tickets próprios (ver `docs/harness.md`).
+
+**Teste de aceite**
+
+- **ID no título:** cada teste de aceite leva no título o token `@<ticket>-CA<n>`, com o `@`, como `@LUI-146-CA3`. O nome e o arquivo podem mudar durante o ciclo da `tdd`, porque a ligação com o critério é o ID.
+- **Transição:** a tabela de aceite do pull request, descrita em "Tabela de aceite no pull request", continua valendo até a cobertura por IDs entrar na CI. Nela entram só os critérios provados por teste: os de revisão humana e de documento ficam fora.
 
 ## Convenções de Git
 
