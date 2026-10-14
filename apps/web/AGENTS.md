@@ -78,7 +78,7 @@ A estrutura de pastas, o contrato da API e as variáveis de ambiente estão no `
 
 - **Estados por classe, e não por prop.** Hover, foco, pressionado e desabilitado saem das variantes do Tailwind e dos utilitários de estado da seção "Tokens no Tailwind" do `docs/design-system.md`. Um componente só recebe prop para o estado que o CSS não enxerga, como `loading` e `error`.
 - **Link ou botão pelo `href`.** `button-primary` e `text-link` viram um `Link` do Next.js quando recebem `href`, e um `<button>` quando não recebem. O `button-primary` mantém o `type` nativo e envia o formulário em que está; o `text-link` sem `href` é `type="button"`.
-- **A vitrine** (`app/vitrine/`) mostra os componentes fora de qualquer fluxo: `/vitrine` traz os primitivos em cada estado, `/vitrine/auth-card` traz o cartão de autenticação montado, e `/vitrine/api` chama a API pelo cliente de `lib/api`. Ela serve à validação visual e aos testes no navegador, e só existe no servidor de desenvolvimento: no build de produção, as rotas dela respondem 404. Ao criar um componente ou um estado, acrescente-o à vitrine.
+- **A vitrine** (`app/vitrine/`) mostra os componentes fora de qualquer fluxo: `/vitrine` traz os primitivos em cada estado, `/vitrine/auth-card` traz o cartão de autenticação montado, `/vitrine/drive` traz as peças do Drive (casca, lista com "Carregar mais" e estado vazio), e `/vitrine/api` chama a API pelo cliente de `lib/api`. Ela serve à validação visual e aos testes no navegador, e só existe no servidor de desenvolvimento: no build de produção, as rotas dela respondem 404. Ao criar um componente ou um estado, acrescente-o à vitrine.
 
 ## Cache
 
@@ -129,7 +129,8 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 - **O que entra:** o que só existe na web, pela porta que o Usuário usa. As regras do contrato são provadas pelos testes de ponta a ponta da API, e não aqui.
 - **Sem outro nível de teste:** a web não tem executor de testes de unidade. Enquanto for assim, o cliente de `lib/api` é provado pela rota `/vitrine/api`, e os auxiliares de `e2e/support/`, por um teste próprio na mesma suíte.
 - **Onde ficam:** em `e2e/`, com o sufixo `.spec.ts`. Os auxiliares ficam em `e2e/support/`.
-- **Usuários de teste:** `e2e/support/account.ts` cadastra, verifica e entra pela própria interface (`createVerifiedUser()`, `signIn()`).
+- **Usuários de teste:** `e2e/support/account.ts` cadastra, verifica e entra pela própria interface (`createVerifiedUser()`, `signIn()`), e sai pelo menu da conta (`signOut()`). Quem está na casca do Drive é conferido pelo botão do menu da conta, que leva o e-mail no nome (`expectSignedInAs()`). Os cookies de token da Sessão são lidos e plantados com `e2e/support/session.ts`.
+- **Itens na Pasta raiz:** até o upload existir, nenhuma tela cria um Item. `seedRootFiles()`, de `e2e/support/items.ts`, grava arquivos ativos direto no banco da API, pela `DATABASE_URL` do serviço `playwright`. O Usuário já tem de ter entrado, porque a raiz nasce na primeira listagem; depois de gravar, recarregue a página.
 - **Token de acesso expirado:** o teste não espera os 15 minutos. Ele apaga o cookie do token de acesso, que é o que o navegador faz quando o token expira, e deixa o de renovação.
 - **E-mails:** `e2e/support/mailpit.ts` lê os e-mails pelo Mailpit. `uniqueEmail()` cria um destinatário que nenhum outro teste usa, `waitForMailTo()` espera o e-mail chegar e `extractLink()` tira dele o link de um caminho. Nenhum teste apaga a caixa do Mailpit, que também serve ao desenvolvimento.
 - **Seletores:** pelo papel e pelo nome acessível (`getByRole`, `getByLabel`), que é como o Usuário acha o elemento. `data-testid` fica para o que não tem papel nem rótulo.

@@ -18,6 +18,11 @@ type MenuProps = {
   trigger: ReactNode;
   /** Classes do botão que abre o menu: o tamanho e a forma mudam de um menu para outro. */
   triggerClassName: string;
+  /**
+   * A distância entre o botão e a camada, em classes de margem. O padrão é 4px; o menu da
+   * conta a aumenta para a camada abrir 4px abaixo da barra superior, e não do botão.
+   */
+  offsetClassName?: string;
   /** Os itens: `MenuItem`, `MenuSeparator` e `MenuHeader`. */
   children: ReactNode;
 };
@@ -28,7 +33,13 @@ const ITEM_SELECTOR = '[role="menuitem"]:not(:disabled)';
  * O `{component.menu}`: um botão que abre uma camada flutuante com ações. Fecha com Esc, com
  * um clique fora ou com Tab, e as setas passam de um item ao outro.
  */
-export function Menu({ label, trigger, triggerClassName, children }: MenuProps) {
+export function Menu({
+  label,
+  trigger,
+  triggerClassName,
+  offsetClassName = "mt-1",
+  children,
+}: MenuProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -93,7 +104,7 @@ export function Menu({ label, trigger, triggerClassName, children }: MenuProps) 
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
-          className="absolute top-full right-0 z-30 mt-1 flex w-60 min-w-50 flex-col rounded-lg border border-hairline bg-surface-raised p-1 shadow-overlay transition-[opacity,translate] duration-200 starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0"
+          className={`${offsetClassName} absolute top-full right-0 z-30 flex w-60 min-w-50 flex-col rounded-lg border border-hairline bg-surface-raised p-1 shadow-overlay transition-[opacity,translate] duration-200 starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0`}
         >
           {children}
         </div>

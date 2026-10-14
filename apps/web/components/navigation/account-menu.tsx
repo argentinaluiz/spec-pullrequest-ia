@@ -20,6 +20,8 @@ export function AccountMenu({ email, logout }: AccountMenuProps) {
       // O círculo tem 32px, e a área de toque sobe para 44px abaixo de `lg`.
       triggerClassName="focus-ring flex size-11 shrink-0 items-center justify-center rounded-full transition-[scale] duration-150 active:scale-95 motion-reduce:active:scale-100 lg:size-8"
       trigger={<AccountInitial email={email} />}
+      // O botão fica centrado na barra de 56px: 44px abaixo de `lg` e 32px a partir dele.
+      offsetClassName="mt-2.5 lg:mt-4"
     >
       <MenuHeader>
         <p className="truncate text-ui text-ink">{email}</p>

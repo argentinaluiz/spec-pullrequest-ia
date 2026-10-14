@@ -36,9 +36,10 @@ export function SidebarDrawer({ children }: { children: ReactNode }) {
         onClick={(event) => {
           if (event.target === event.currentTarget) event.currentTarget.close();
         }}
-        className="m-0 h-dvh max-h-none w-60 max-w-none bg-surface p-3 text-ink transition-[translate] duration-200 backdrop:bg-scrim starting:open:-translate-x-full motion-reduce:transition-none lg:hidden"
+        className="m-0 h-dvh max-h-none w-60 max-w-none bg-surface p-0 text-ink transition-[translate] duration-200 backdrop:bg-scrim starting:open:-translate-x-full motion-reduce:transition-none lg:hidden"
       >
-        {children}
+        {/* Ocupa a gaveta inteira: só o clique no véu chega ao `<dialog>`. */}
+        <div className="h-full p-3">{children}</div>
       </dialog>
     </>
   );

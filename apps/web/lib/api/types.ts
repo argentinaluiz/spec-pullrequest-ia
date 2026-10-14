@@ -82,3 +82,24 @@ export interface Me {
   id: string;
   email: string;
 }
+
+export type ItemType = "file" | "folder";
+
+/** Um Item da listagem de uma pasta. A forma é a do `ItemDto` do snapshot da OpenAPI. */
+export interface Item {
+  id: string;
+  type: ItemType;
+  name: string;
+  /** 0 para pastas. */
+  sizeBytes: number;
+  /** Nulo para pastas. */
+  mimeType: string | null;
+  /** Data de modificação, em ISO 8601. */
+  updatedAt: string;
+}
+
+/** Uma página da listagem. O cursor é opaco, e nulo na última página. */
+export interface ItemPage {
+  items: Item[];
+  nextCursor: string | null;
+}

@@ -67,12 +67,17 @@ services:
     environment:
       WEB_URL: http://web:3000
       MAILPIT_URL: http://mailpit:8025
+      # O banco da API que a web usa, para os testes gravarem Itens como preparação até o
+      # upload existir (apps/web/AGENTS.md, "Testes no navegador").
+      DATABASE_URL: postgresql://app:app@postgres:5432/app
     depends_on:
       # Usa a `node_modules` que o contêiner `web` instala.
       web:
         condition: service_healthy
       mailpit:
         condition: service_started
+      postgres:
+        condition: service_healthy
     # Fica parado, como `web` e `api`. Os testes são rodados com `docker compose exec`.
     command: ["tail", "-f", "/dev/null"]
 
