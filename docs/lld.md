@@ -54,7 +54,7 @@ O código fica num monorepo com pnpm workspaces, com dois projetos de deploy ind
 | Documentação da API | OpenAPI gerado pelo NestJS (Swagger) |
 | Autenticação | `@nestjs/jwt` com um guard próprio, sem Passport. Argon2 para o hash da senha. |
 | Storage e fila | SDKs oficiais do Google Cloud (Storage e Cloud Tasks) |
-| Testes | Vitest nas três suítes da API (unidade, integração e ponta a ponta) e Playwright nos testes no navegador da web |
+| Testes | Vitest nas três suítes da API (unidade, integração e ponta a ponta) e na suíte de unidade da web, só para módulos puros, e Playwright nos testes no navegador da web |
 | Lint e formatação | oxlint e Prettier na API, ESLint na web |
 
 **Componentes da API:** os tipos de peça e como elas se comunicam estão na seção 1.1.
