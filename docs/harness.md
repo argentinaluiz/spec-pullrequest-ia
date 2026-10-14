@@ -15,7 +15,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
 | 7 | Plano do ticket e aceite congelado | Em andamento. O processo, a cobertura por ID, as conferências do revisor e o congelamento do aceite (hook e guarda) estão implementados. Ver "Plano do ticket (planejado)" |
-| 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
+| 8 | Contrato e schema conferidos por máquina | Implementado. Ver "Etapa 8" |
 
 ## Princípios
 
@@ -288,7 +288,7 @@ Depois do commit de plano, o arquivo de aceite de um ticket não muda pelas mão
 
 ## Plano do ticket (planejado)
 
-Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`), a cobertura dos critérios por ID, descrita em "Aceite", e as conferências do aceite pelo revisor e o congelamento do arquivo de aceite (o hook e a sinalização na guarda), descritos em "Congelamento do aceite". Segue planejada a etapa 8.
+Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`), a cobertura dos critérios por ID, descrita em "Aceite", e as conferências do aceite pelo revisor e o congelamento do arquivo de aceite (o hook e a sinalização na guarda), descritos em "Congelamento do aceite". A etapa 8 também está implementada.
 
 A tabela de aceite que existia antes ligava cada critério a um teste, mas só no pull request, escrita por quem implementou, e não conferia se a tabela cobria todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
 
@@ -334,16 +334,21 @@ A tabela de aceite que existia antes ligava cada critério a um teste, mas só n
 
 ### Etapa 8: contrato e schema conferidos por máquina
 
-Feita num ticket de preparação, planejado com a própria `/plan-ticket`. Até lá, o LLD continua dono do contrato e do schema.
+Implementada. O contrato e o schema das tabelas e rotas que já existem passaram a ter dono máquina-conferível. O LLD continua dono das convenções, das regras e do que ainda não existe.
 
 | Peça | Dono depois da etapa | Conferência |
 | --- | --- | --- |
 | Contrato da API | Uma OpenAPI gerada do NestJS pelo `@nestjs/swagger`, cujo plugin lê os DTOs do `class-validator`, com o snapshot versionado na pasta da API. A seção 3 do LLD fica com as convenções e aponta para ele | O snapshot gerado do código tem de ser igual ao commitado (`oasdiff diff --fail-on-diff`, ignorando descrições e exemplos), e a mudança não pode quebrar o contrato da `main` (`oasdiff breaking --fail-on ERR`) |
-| Schema do banco | O `schema.prisma`, nas tabelas implementadas, com as observações de coluna em comentários `///`. A seção 2 do LLD fica com as convenções, o diagrama, as regras que não cabem numa coluna e as tabelas ainda não implementadas | Um `check:schema` reprova `schema.prisma` sem a migração correspondente, pelo `prisma migrate diff` com código de saída |
+| Schema do banco | O `schema.prisma`, nas tabelas implementadas, com as observações de coluna em comentários `///`. A seção 2 do LLD fica com as convenções, o diagrama, as regras que não cabem numa coluna e as tabelas ainda não implementadas | O passo "API: schema com a migração correspondente" aplica as migrações no banco do ambiente e reprova se o `prisma migrate diff --from-config-datasource --to-schema --exit-code` encontrar diferença |
 
 - **Por que gerada, e não escrita à mão:** um contrato escrito à mão, comparado com um gerado, acusa diferença até em descrição. Com o snapshot gerado como dono, o commit de plano escreve nele o delta planejado, e a comparação entre o snapshot do plano e o final mostra onde o contrato saiu diferente do planejado.
 - **Custo:** o plugin infere a entrada pelos DTOs, mas as respostas, inclusive os erros de cada rota, pedem tipo de retorno ou decorators.
-- **A confirmar na implementação:** como o `oasdiff` ignora descrições e exemplos, e se o `prisma migrate diff` precisa de um banco sombra para comparar com as migrações.
+- **Como a igualdade ignora o texto:** `--exclude-elements description,examples,summary`, no `oasdiff` v1.33.0 (imagem fixada em `scripts/verify/api.sh`). Uma diferença só de descrição não reprova, e uma resposta a menos reprova.
+- **Sem banco sombra:** no Prisma 7, comparar as migrações com o schema pede um banco sombra, configurado no `prisma.config.ts`. O passo evita isso comparando o banco do ambiente, já com as migrações aplicadas, com o schema.
+- **Primeira adoção:** o portão de quebra compara o snapshot com o da base e, sem snapshot na base, passa dizendo que não há o que comparar. A partir do merge desta mudança, ele vale.
+- **Onde estão os passos:** `api_contract`, em `scripts/verify/api.sh`, dentro do grupo completo da API. O snapshot é gerado por `pnpm openapi:generate <arquivo>`, que compila com o plugin do `@nestjs/swagger` num diretório à parte, sem mexer no `dist` do servidor de desenvolvimento.
+- **O que o snapshot descreve:** entrada (pelos DTOs), resposta de sucesso e erros de cada rota, como `application/problem+json` (decorator `ApiProblem`). Não descreve as regras do `class-validator` escritas em decorators próprios, como o formato do e-mail: o plugin só lê os decorators padrão.
+- **Limite:** a conferência prova que o snapshot bate com o código, e não que o código implementa o contrato do LLD. Os testes de ponta a ponta e o revisor cobrem isso.
 
 ## O que ficou de fora
 

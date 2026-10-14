@@ -131,48 +131,16 @@ erDiagram
     subscriptions ||--o{ payment_events : recebe
 ```
 
-### users
+**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens` e `rate_limits` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
+
+### users (colunas futuras)
 
 | Coluna | Tipo | Observação |
 | --- | --- | --- |
-| `id` | `UUID` | Chave primária |
-| `email` | `CITEXT` | Único |
-| `password_hash` | `TEXT` | Argon2id |
-| `email_verified_at` | `TIMESTAMPTZ` | Nulo até a verificação |
-| `terms_accepted_at` | `TIMESTAMPTZ` | Aceite dos termos e da política de privacidade, gravado no cadastro |
 | `plan_id` | `UUID` | Referência a `plans`. Começa no plano gratuito. |
 | `used_bytes` | `BIGINT` | Padrão 0. Restrição `used_bytes >= 0`. |
-| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
-
-O e-mail é gravado sem os espaços das pontas. O `CITEXT` ignora maiúsculas, e não há outra normalização: `joao+x@gmail.com` e `joao@gmail.com` são usuários diferentes.
 
 `plan_id` e `used_bytes` não fazem parte da primeira migração. Eles são acrescentados, junto com a tabela `plans`, pela funcionalidade de cota.
-
-### refresh_tokens
-
-| Coluna | Tipo | Observação |
-| --- | --- | --- |
-| `id` | `UUID` | Chave primária |
-| `user_id` | `UUID` | Referência a `users`, com exclusão em cascata |
-| `session_id` | `UUID` | Agrupa a cadeia de tokens de uma mesma Sessão. Gerado no login. |
-| `token_hash` | `TEXT` | SHA-256 do token. Único. |
-| `expires_at` | `TIMESTAMPTZ` | 30 dias após a emissão |
-| `rotated_at` | `TIMESTAMPTZ` | Preenchido quando o token é trocado |
-| `replaced_by_id` | `UUID` | O token que o substituiu |
-| `created_at` | `TIMESTAMPTZ` | |
-
-### email_tokens
-
-| Coluna | Tipo | Observação |
-| --- | --- | --- |
-| `id` | `UUID` | Chave primária |
-| `user_id` | `UUID` | Referência a `users`, com exclusão em cascata |
-| `type` | `TEXT` | `verify_email` ou `reset_password` |
-| `token_hash` | `TEXT` | Único |
-| `expires_at` | `TIMESTAMPTZ` | 24 horas para verificação, 1 hora para redefinição |
-| `used_at` | `TIMESTAMPTZ` | Uso único |
-
-Emitir um token substitui o anterior do mesmo usuário e do mesmo tipo: `(user_id, type)` é único, e por isso só o link mais recente funciona, mesmo com emissões simultâneas.
 
 ### items
 
@@ -252,19 +220,9 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 | `payload` | `JSONB` | Conteúdo recebido |
 | `received_at`, `processed_at` | `TIMESTAMPTZ` | |
 
-### rate_limits
-
-| Coluna | Tipo | Observação |
-| --- | --- | --- |
-| `key` | `TEXT` | Chave primária, por exemplo `login:email:<hash do e-mail>` ou `login:ip:<ip>` |
-| `window_start` | `TIMESTAMPTZ` | Início da janela |
-| `count` | `INTEGER` | Contador da janela |
-
-Cada chave tem uma linha só, com a janela atual. A janela abre na primeira tentativa e dura o tempo configurado, sem se esticar com as tentativas seguintes. A primeira tentativa depois de ela fechar abre outra, com o contador em 1. O relógio da janela é o do banco, que é um só para todas as instâncias da API.
-
-Os contadores ficam no PostgreSQL porque as instâncias do Cloud Run não compartilham memória. Uma troca futura por Redis fica restrita ao módulo `common/rate-limit`.
-
 ## 3. Contrato da API
+
+**Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base (`docs/harness.md`, etapa 8). As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
 
 ### 3.1 Convenções
 

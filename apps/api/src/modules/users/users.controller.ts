@@ -1,21 +1,22 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/auth/auth.guard.js';
 import { CurrentUserId } from '../../common/auth/current-user-id.decorator.js';
+import { ApiProblem } from '../../common/openapi/api-problem.decorator.js';
+import { MeDto } from './me.dto.js';
 import { UsersService } from './users.service.js';
 
-/** O Usuário autenticado, como a rota o devolve. */
-interface MeResponse {
-  id: string;
-  email: string;
-}
-
+@ApiTags('users')
+@ApiBearerAuth()
 @Controller('me')
 @UseGuards(AuthGuard)
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  async me(@CurrentUserId() userId: string): Promise<MeResponse> {
+  @ApiOkResponse({ type: MeDto })
+  @ApiProblem(401, 'unauthenticated')
+  async me(@CurrentUserId() userId: string): Promise<MeDto> {
     const user = await this.users.getAuthenticated(userId);
     return { id: user.id, email: user.email };
   }

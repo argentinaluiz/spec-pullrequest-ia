@@ -58,6 +58,15 @@ Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/
 - **IP de quem chama:** o controller leva `@UseGuards(ClientIpGuard)` e lê o IP com `@ClientIp()`, os dois de `src/common/client-ip/`. Ninguém lê o IP da requisição por conta própria: é o guard que decide entre o IP repassado pela web e o da conexão.
 - **Limite de tentativas:** o service do módulo dono da regra monta as chaves e chama o `RateLimitService`, de `src/common/rate-limit/`, antes de qualquer outra coisa. O módulo dele importa o `RateLimitModule`.
 
+### Contrato OpenAPI
+
+O contrato das rotas é o `openapi.json`, gerado do código pelo `@nestjs/swagger` e conferido pela verificação (`docs/harness.md`, etapa 8). O plugin do Nest (`nest-cli.json`) lê os DTOs, então eles não levam decorators do Swagger.
+
+- **Rota nova ou alterada:** o controller leva `@ApiTags`, o tipo de sucesso (`@ApiOkResponse({ type })` ou o tipo de retorno) e um `@ApiProblem(status, ...códigos)`, de `src/common/openapi/`, para cada erro que a rota pode devolver. A resposta é uma classe, e não uma `interface`, porque o plugin só lê classes.
+- **Rota protegida:** acrescente `@ApiBearerAuth()` ao controller.
+- **Regenerar o snapshot:** `pnpm openapi:generate openapi.json`, no contêiner `api`, e faça o commit do arquivo. A verificação reprova se o snapshot divergir do código.
+- **Schema do banco:** o `prisma/schema.prisma` é o dono das tabelas implementadas, com as observações nos comentários `///`. Mudou o schema, crie a migração: a verificação reprova schema sem migração.
+
 ## Práticas de código
 
 A estrutura de pastas, o esquema do banco, o contrato da API, os estados e as regras de negócio, as tarefas do worker e os limites, prazos e variáveis de ambiente estão no `docs/lld.md`, nas seções 1 a 6. Leia a do assunto antes de implementar, e as convenções das seções 2 e 3.1 antes de criar uma tabela ou uma rota.

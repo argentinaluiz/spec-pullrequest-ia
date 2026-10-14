@@ -20,7 +20,8 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:int": "vitest run --config ./vitest.config.int.ts",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
-    "setup:dev": "node scripts/setup-env.mjs && prisma generate && prisma migrate deploy"
+    "setup:dev": "node scripts/setup-env.mjs && prisma generate && prisma migrate deploy",
+    "openapi:generate": "nest build --path tsconfig.openapi.json && node reports/openapi-build/openapi/generate-openapi.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -28,6 +29,7 @@
     "@nestjs/core": "^12.0.1",
     "@nestjs/jwt": "^12.0.2",
     "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/swagger": "^12.0.2",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "argon2": "^0.45.1",
