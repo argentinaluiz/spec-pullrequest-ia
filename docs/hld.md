@@ -219,9 +219,9 @@ O sistema tem quatro ambientes. O desenvolvimento é todo local, sem conta no Go
 
 ### 6.1 Ambiente local
 
-Tudo roda no Docker Compose, inclusive o Next.js e o NestJS, com o código montado por volume. O Compose tem seis serviços: `web`, `api`, `worker`, `postgres`, `storage` e `mailpit`.
+Tudo roda no Docker Compose, inclusive o Next.js e o NestJS, com o código montado por volume. O Compose tem sete serviços: `web`, `api`, `worker`, `postgres`, `storage`, `mailpit` e `playwright`, com os navegadores dos testes da web.
 
-Hoje o Compose tem quatro deles: `web`, `api`, `postgres` e `mailpit`. O `worker` e o `storage` entram com as funcionalidades que os usam. Os comandos e os endereços de cada serviço estão na seção "Execução no Docker" do `AGENTS.md` da raiz.
+Hoje o Compose tem cinco deles: `web`, `api`, `postgres`, `mailpit` e `playwright`. O `worker` e o `storage` entram com as funcionalidades que os usam. Os comandos e os endereços de cada serviço estão na seção "Execução no Docker" do `AGENTS.md` da raiz.
 
 | Produção | Substituto local |
 | --- | --- |

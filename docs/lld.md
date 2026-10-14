@@ -22,22 +22,24 @@ O código fica num monorepo com pnpm workspaces, com dois projetos de deploy ind
 │   │   ├── lib/api/          # cliente da API, usado só no servidor
 │   │   ├── lib/session/      # leitura e renovação dos cookies de token
 │   │   ├── lib/dal/          # camada de acesso a dados: confere a Sessão na API
+│   │   ├── e2e/              # testes no navegador (Playwright)
 │   │   └── proxy.ts          # renova os cookies e redireciona antes de cada rota
 │   └── api/                  # NestJS (API e worker, mesma imagem)
 │       ├── prisma/           # schema.prisma e migrações
-│       └── src/
-│           ├── modules/
-│           │   ├── users/    # dono da tabela users e de GET /me
-│           │   ├── auth/     # Sessões, tokens de e-mail, cadastro e login
-│           │   ├── items/
-│           │   ├── uploads/
-│           │   ├── sharing/
-│           │   ├── quota/
-│           │   ├── billing/
-│           │   └── worker/   # endpoints internos das tarefas
-│           ├── config/       # módulo de config: schema e leitura das variáveis de ambiente
-│           ├── infra/        # database (cliente do Prisma), storage, tasks, mail, payment gateway
-│           └── common/       # guards, filtros de erro, rate limit
+│       ├── src/
+│       │   ├── modules/
+│       │   │   ├── users/    # dono da tabela users e de GET /me
+│       │   │   ├── auth/     # Sessões, tokens de e-mail, cadastro e login
+│       │   │   ├── items/
+│       │   │   ├── uploads/
+│       │   │   ├── sharing/
+│       │   │   ├── quota/
+│       │   │   ├── billing/
+│       │   │   └── worker/   # endpoints internos das tarefas
+│       │   ├── config/       # módulo de config: schema e leitura das variáveis de ambiente
+│       │   ├── infra/        # database (cliente do Prisma), storage, tasks, mail, payment gateway
+│       │   └── common/       # guards, filtros de erro, rate limit
+│       └── test/             # suíte de ponta a ponta e a base de testes
 └── packages/
     └── shared/               # tipos do contrato da API e códigos de erro
 ```
@@ -52,7 +54,7 @@ O código fica num monorepo com pnpm workspaces, com dois projetos de deploy ind
 | Documentação da API | OpenAPI gerado pelo NestJS (Swagger) |
 | Autenticação | `@nestjs/jwt` com um guard próprio, sem Passport. Argon2 para o hash da senha. |
 | Storage e fila | SDKs oficiais do Google Cloud (Storage e Cloud Tasks) |
-| Testes | Vitest na API e Playwright para os fluxos de ponta a ponta |
+| Testes | Vitest nas três suítes da API (unidade, integração e ponta a ponta) e Playwright nos testes no navegador da web |
 | Lint e formatação | oxlint e Prettier na API, ESLint na web |
 
 **Práticas de código da API:** as camadas de cada módulo, a direção das dependências, o tratamento de erros, os nomes de arquivos, os níveis de teste e o módulo de config estão no `AGENTS.md` do projeto `api`, e não neste documento.

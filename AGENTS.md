@@ -18,10 +18,9 @@ Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da
 **Onde cada informação mora**
 
 - **O que o sistema faz** fica em `docs/`: escopo, arquitetura, esquema, contrato, regras de negócio e configuração.
-- **Como o código é escrito** fica no `AGENTS.md` do projeto: camadas, regras de import, tratamento de erros, nomes de arquivos, níveis de teste e comandos.
 - **Nunca nos dois.** Uma informação tem um dono só, e o outro arquivo aponta para ele pelo nome do documento e da seção, sem repetir o conteúdo.
-- **Este arquivo** só traz o que vale para todos os projetos.
 
+<!-- instruções para fins didáticos -->
 **Arquivos que não devem ser lidos**
 
 Os caminhos abaixo existem para quem lê o repositório, e não para os agentes. **Nunca os leia nem os edite**, nem para buscar contexto de uma tarefa:
@@ -31,6 +30,7 @@ Os caminhos abaixo existem para quem lê o repositório, e não para os agentes.
 - `docs/Gerenciador de arquivos.fig`: exportação binária do arquivo do Figma. O design é lido pelo servidor MCP do Figma, como descrito em [Design e Figma](#design-e-figma).
 
 O `.claude/settings.json` nega a leitura e a escrita nesses caminhos.
+<!-- instruções para fins didáticos -->
 
 ## Execução no Docker
 
@@ -41,23 +41,14 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com cinco servi
 | Serviço | O que é | Endereço na máquina | Endereço entre contêineres |
 | --- | --- | --- | --- |
 | `web` | Frontend em Next.js | `http://localhost:3000` | `http://web:3000` |
-| `api` | API em NestJS | `http://localhost:3001` | `http://api:3000` |
+| `api` | API em NestJS, com as rotas sob `/v1` | `http://localhost:3001` | `http://api:3000` |
 | `postgres` | Banco PostgreSQL (usuário, senha e banco `app`) | Não é publicado | `postgres:5432` |
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
 
-Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado, e o comando dos testes está no `apps/web/AGENTS.md`. A `node_modules` é criada na pasta do projeto, montada da máquina, e não num volume do Docker. Os comandos são executados neles com `docker compose exec`.
+Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
-Na subida, o contêiner `api` faz sozinho, nesta ordem:
-
-1. Instala as dependências (`pnpm install`).
-2. Cria o `apps/api/.env` a partir do `apps/api/.env.example`, se ele ainda não existir. Se ele já existe, acrescenta as variáveis que o `.env.example` ganhou depois, sem trocar nenhum valor.
-3. Gera o par de chaves do JWT e o grava no `.env`, se ele ainda não tiver as chaves.
-4. Gera o cliente do Prisma e aplica as migrações pendentes no banco.
-
-Nenhum desses passos é manual. O `.env` fica fora do Git, e o `.env.example`, que é versionado, funciona sem alterações.
-
-**Iniciar o projeto**
+### Subir e derrubar
 
 ```bash
 docker compose -f compose.dev.yaml up -d --build --wait
@@ -65,24 +56,9 @@ docker compose -f compose.dev.yaml exec web pnpm dev --hostname 0.0.0.0
 docker compose -f compose.dev.yaml exec api pnpm start:dev
 ```
 
-O `--wait` segura o primeiro comando até os cinco serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Se ele terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api`.
+O `--wait` segura o primeiro comando até os cinco serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Os outros dois ficam presos ao terminal, então rode cada um em segundo plano. O `--hostname 0.0.0.0` é necessário para que a web aceite conexões de fora do contêiner.
 
-Quando a preparação da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` encerra e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pela preparação:
-
-```bash
-docker compose -f compose.dev.yaml run --rm api <comando>
-```
-
-Depois do conserto, suba o ambiente de novo.
-
-Os dois últimos comandos ficam presos ao terminal, então rode cada um num terminal próprio.
-
-- **Web:** responde em `http://localhost:3000`. O `--hostname 0.0.0.0` é necessário para que ela aceite conexões de fora do contêiner.
-- **API:** responde em `http://localhost:3001` na máquina, com as rotas sob `/v1`.
-- **E-mails:** tudo o que a API envia aparece em `http://localhost:8025`.
-- **Banco:** para abrir um console SQL, rode `docker compose -f compose.dev.yaml exec postgres psql -U app app`.
-
-**Derrubar o projeto**
+**Derrubar**
 
 ```bash
 docker compose -f compose.dev.yaml down
@@ -98,27 +74,26 @@ docker compose -f compose.dev.yaml down -v
 
 O `-v` apaga o volume do banco. Na subida seguinte, o banco é recriado e as migrações são aplicadas de novo. Para gerar também um `.env` e chaves novas, apague o `apps/api/.env` antes de subir.
 
-**Executar comandos dentro do contêiner**
+### Quando a API não sobe
+
+Se o `up --wait` terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api`.
+
+Quando a preparação da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` encerra e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pela preparação:
 
 ```bash
-docker compose -f compose.dev.yaml exec web <comando>
+docker compose -f compose.dev.yaml run --rm api <comando>
 ```
 
-Exemplos:
+Depois do conserto, suba o ambiente de novo.
 
-```bash
-docker compose -f compose.dev.yaml exec web pnpm lint
-docker compose -f compose.dev.yaml exec web pnpm exec tsc --noEmit
-docker compose -f compose.dev.yaml exec web bash
-```
+### Banco e e-mails
 
-O `web` é o nome do serviço no Compose. Para a API, troque por `api`.
+- **Banco:** para abrir um console SQL, rode `docker compose -f compose.dev.yaml exec postgres psql -U app app`.
+- **E-mails:** tudo o que a API envia fica no `mailpit`, nos endereços da tabela.
 
-## Rede no Docker
+### Rede entre serviços
 
-O projeto roda inteiro em contêineres do Docker Compose. Ao configurar a conexão entre serviços (banco, storage, e-mail, worker), **use sempre o nome do serviço do Compose como host**, nunca `localhost` nem `127.0.0.1`.
-
-Dentro de um contêiner, `localhost` é o próprio contêiner, e não a máquina nem os outros serviços.
+Ao configurar a conexão entre serviços (banco, storage, e-mail, worker), **use sempre o nome do serviço do Compose como host**, nunca `localhost` nem `127.0.0.1`. Dentro de um contêiner, `localhost` é o próprio contêiner, e não a máquina nem os outros serviços.
 
 - **Certo:** `DATABASE_URL=postgresql://user:pass@postgres:5432/app`
 - **Errado:** `DATABASE_URL=postgresql://user:pass@localhost:5432/app`
@@ -288,3 +263,6 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 Quando precisar consultar a documentação de uma biblioteca, use o context7 para buscar informações atualizadas e precisas.
 
+## Agent Skill Usage
+
+When working on any task (planning, implementing, debugging, refactoring, reviewing, etc.), decompose the request into its underlying subtasks and concerns, then identify which available skills match any of them and activate those skills.
