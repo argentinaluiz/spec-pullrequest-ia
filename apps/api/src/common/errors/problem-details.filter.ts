@@ -144,8 +144,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 /**
  * Status de um erro que o próprio framework levantou. Só dois tipos contam:
  *
- * - `HttpException`, do Nest ou lançada de propósito pelo código, desde que o
- *   status seja de erro (4xx ou 5xx);
+ * - `HttpException`, que só o próprio Nest lança (o código do projeto lança
+ *   erro de domínio), desde que o status seja de erro (4xx ou 5xx);
  * - erro do leitor do corpo do Express (JSON malformado, corpo grande demais),
  *   reconhecido pelo `type`, que tem de ser um dos que o leitor levanta.
  *

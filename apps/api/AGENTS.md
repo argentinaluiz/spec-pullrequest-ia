@@ -35,44 +35,19 @@ O `pnpm lint` só aponta os problemas, sem corrigir. A formatação é conferida
 - **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco fica no `prisma.config.ts`, e não no schema. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
 - **pnpm:** os pacotes que rodam script na instalação precisam estar liberados no `pnpm-workspace.yaml` (`allowBuilds`). Sem isso, a instalação falha.
 
-## Nomes de arquivos
+## Testes
 
-Os arquivos seguem a convenção do Nest: nome em `kebab-case`, seguido de um sufixo que diz o papel do arquivo. A classe leva o mesmo nome em `PascalCase`, com o papel no fim (`items.service.ts` exporta `ItemsService`). Na dúvida, gere o arquivo com o Nest CLI (`pnpm exec nest g <tipo> <nome>`), que já aplica o padrão. Os papéis que o CLI não gera seguem estes nomes:
-
-| Artefato | Arquivo |
-| --- | --- |
-| Repository | `items.repository.ts` |
-| Entidade | `entities/item.entity.ts` |
-| Erro de domínio | `quota-exceeded.error.ts` |
-| Interface de `src/infra/` e a implementação dela | `mail-sender.ts` e `smtp-mail-sender.ts` |
-| Configuração de um assunto | `mail.config.ts` |
-
-**Testes**
-
-O sufixo do arquivo define o nível do teste e a suíte que o executa:
+O arquivo de teste leva o nome do arquivo testado, como descrito em `.claude/rules/nest-coding-standards.md`. O sufixo define o nível do teste e a suíte que o executa:
 
 | Nível | Sufixo | Onde fica | O que exercita |
 | --- | --- | --- | --- |
-| Unidade | `.spec.ts` | Ao lado do código, em `src/` | Uma classe isolada, com as dependências trocadas por dublês |
-| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, como um repository contra o PostgreSQL |
-| Ponta a ponta | `.e2e-spec.ts` | Em `test/` | A aplicação inteira por HTTP, com `Test.createTestingModule` e `supertest` |
-
-O arquivo de teste leva o nome do arquivo testado: `items.service.ts` é coberto por `items.service.spec.ts`.
+| Unidade | `.spec.ts` | Ao lado do código, em `src/` | Uma classe isolada, criada com `new`, com as dependências trocadas por dublês |
+| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, montada com `Test.createTestingModule`, como um repository contra o PostgreSQL |
+| Ponta a ponta | `.e2e-spec.ts` | Em `test/` | A aplicação inteira por HTTP, com `createTestApp()` e `supertest` |
 
 **Onde cada regra é provada:** as regras de negócio são provadas pelos testes de ponta a ponta, pelas rotas, com banco e e-mail reais. O teste de unidade de um service é opcional, e vale quando a regra tem muitos casos que seriam lentos ou repetitivos pelas rotas. Funções puras têm teste de unidade. A spec da funcionalidade pode restringir isso, e ela prevalece.
 
-**Base de testes**
-
-As suítes de integração e de ponta a ponta usam a base de `test/support/`. Não há dublês de banco nem de e-mail.
-
-- **Banco de testes:** é um banco separado no mesmo PostgreSQL, com o nome do banco de `DATABASE_URL` mais o sufixo `_test`. Ele é criado e migrado sozinho no começo de cada execução da suíte, e todas as tabelas são esvaziadas antes de cada arquivo de teste. Por dividirem esse banco, os arquivos rodam um por vez.
-- **Aplicação:** um teste de ponta a ponta sobe a aplicação inteira com `createTestApp()`, que aplica a mesma configuração do `main.ts`, e fala com ela só por HTTP, com `supertest`. No fim, fecha com `app.close()`.
-- **Rotas da autenticação:** `authRoutes(app)`, de `test/support/auth-routes.ts`, traz as chamadas de cadastro, verificação, login, renovação, logout, recuperação de senha e `GET /me`, e os atalhos que deixam um Usuário cadastrado ou verificado. O token de um link de e-mail sai de `verificationToken()` e `resetToken()`, que falham se o e-mail não tiver exatamente um link para o caminho esperado.
-- **E-mail:** os testes leem o que foi enviado pela API HTTP do Mailpit, com `waitForMailTo()`. Cada teste usa um destinatário próprio, de `uniqueEmail()`, e acha os e-mails por ele. A caixa do Mailpit nunca é apagada, porque ela também serve ao desenvolvimento. Quando o teste provoca mais de um e-mail para o mesmo destinatário (reenvio, redefinição de senha), ele espera o seguinte com `waitForMailTo(endereço, { count: 2 })`. Sem o `count`, a espera termina no primeiro e-mail que já existir. Para provar que um envio **não** aconteceu, o teste provoca em seguida um envio que conhece, espera por ele e confere o total com `countMailTo()`.
-- **Prazos:** são testados reduzindo a variável de ambiente no teste, com `vi.stubEnv` antes de `createTestApp()`, sem relógio falso dentro dos services. O valor trocado passa pelo schema: se for inválido, a aplicação do teste não sobe. O Vitest desfaz a troca sozinho no fim de cada teste (`unstubEnvs`), sem `vi.unstubAllEnvs()` à mão.
-- **Limite de tentativas:** a base de testes sobe os tetos por e-mail e por IP, porque os testes saem todos do mesmo IP e repetem chamadas com o mesmo e-mail. O teste que exercita um teto o reduz com `vi.stubEnv` antes de `createTestApp()` e esvazia o banco antes de cada caso, com `cleanDatabase()`, para o contador do IP não atravessar os testes.
-- **Configuração no teste:** um teste que precisa de um valor de configuração o pega da configuração injetada (`app.get(mailConfig.KEY)`), e não de `process.env`.
-- **Rota só de teste:** para provar um comportamento da fundação que nenhuma rota de negócio exercita, o teste declara um controller próprio e o passa em `createTestApp({ controllers })`. Ele não entra na aplicação real.
+Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/rules/nest-tests.md`.
 
 ## Aplicação HTTP
 
@@ -88,6 +63,8 @@ A estrutura de pastas, o esquema do banco, o contrato da API, os estados e as re
 
 O código segue Clean Architecture e SOLID. A regra central é a direção das dependências: o controller conhece o service, e o service não conhece nem o HTTP nem o fornecedor de nenhuma integração.
 
+As convenções de cada artefato estão em `.claude/rules/nest-*.md`, e cada uma vale para os arquivos listados no `paths` dela. O Claude Code as carrega sozinho quando mexe num desses arquivos. Outro agente lê a do artefato antes de mexer nele.
+
 ### Camadas de cada módulo
 
 - **Controller:** rotas HTTP, DTOs e validação.
@@ -96,7 +73,7 @@ O código segue Clean Architecture e SOLID. A regra central é a direção das d
 
 Cada módulo é dono das próprias tabelas. Um módulo só chama outro pelo service público dele, nunca pelas tabelas nem pelo repository.
 
-As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. A implementação concreta é ligada no módulo por um token de injeção, e nos testes de unidade a interface é trocada por um dublê, sem `vi.mock()` de SDK. Guards, filtros de erro e rate limit ficam em `src/common/`.
+As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. A implementação concreta é ligada no módulo por um token de injeção. Guards, filtros de erro e rate limit ficam em `src/common/`.
 
 ### A camada de serviços não conhece o mundo externo
 
@@ -119,13 +96,7 @@ A mesma regra vale para o repository: ele não importa nada de HTTP.
 
 ### Erros
 
-- **No service:** uma regra de negócio violada lança um erro de domínio, uma classe própria que carrega o `code` estável do contrato (`quota_exceeded`, `invalid_move`) e os dados do caso. O erro não sabe o status HTTP.
-- **No exception filter:** a resposta HTTP de erro é desenhada num único lugar, um exception filter global em `src/common/`. Ele traduz o erro de domínio em status e corpo `application/problem+json`, e é ali que mora o mapa de `code` para status da seção 3.1 do LLD.
-- **No controller:** nada de `try/catch` para converter erro em resposta, nem `res.status(...).json(...)`. O controller deixa o erro subir até o filter.
-- **Erro de domínio:** estende `DomainError`, de `src/common/errors/`, e fica no módulo dono da regra. Um `code` novo entra na mesma tarefa no tipo `ErrorCode`, no mapa de status do filter e na tabela da seção 3.1 do LLD. A mensagem do erro vai para o campo `detail` da resposta, então não traz detalhes internos.
-- **Validação de entrada:** os DTOs são validados por um pipe global, com os decorators do class-validator. O erro dele passa pelo mesmo filter e sai como `validation_error`. Os campos que o DTO não declara são descartados.
-- **Erro inesperado:** o filter registra em log e responde 500, sem expor mensagem interna nem stack trace. Isso vale também para o erro de uma biblioteca que traz um `statusCode` próprio: o filter só aceita o status de uma `HttpException` e dos erros do leitor do corpo do Express.
-- **Erro de fornecedor:** a implementação de `src/infra/` que recebe um erro com significado para a regra de negócio (objeto inexistente, limite atingido) o converte em erro de domínio. Ela não deixa o erro do SDK subir contando com o status dele.
+O service lança erro de domínio, e só o exception filter global conhece o HTTP: ele traduz o erro em status e corpo `application/problem+json`. As regras estão em `.claude/rules/nest-errors.md` e, para o controller, em `.claude/rules/nest-controller.md`.
 
 ## Configuração
 
@@ -138,5 +109,5 @@ Toda configuração entra no projeto por um módulo de config próprio, em `src/
 - **Tipagem:** os valores saem do módulo já convertidos e tipados (número, booleano, duração), e não como `string | undefined`. Prefira configurações agrupadas por assunto, com `registerAs` (`auth`, `storage`, `mail`), a chaves soltas lidas por nome. Cada assunto tem o próprio arquivo (`mail.config.ts`) e é injetado pela chave dele: `@Inject(mailConfig.KEY) config: ConfigType<typeof mailConfig>`.
 - **Variável nova:** entra na mesma tarefa no schema do Joi, no `.env.example` e na tabela da seção 6 do LLD.
 - **Padrões:** os valores padrão do schema são os de produção. O ambiente local os reduz pelo `.env`.
-- **Testes:** os testes de unidade não carregam o `ConfigModule`. Eles injetam um objeto de configuração montado no próprio teste. Nas suítes de integração e de ponta a ponta, a base de testes carrega o `.env` e troca `DATABASE_URL` pelo banco de testes; ela e o `prisma.config.ts` são as únicas exceções à regra de não ler `process.env` fora de `src/config/`. A CLI do Prisma roda fora do Nest, então lê o `.env` e a `DATABASE_URL` por conta própria.
+- **Exceções à leitura de `process.env`:** a base de testes, que carrega o `.env` e troca `DATABASE_URL` pelo banco de testes, e o `prisma.config.ts` são os únicos que leem `process.env` fora de `src/config/`. A CLI do Prisma roda fora do Nest, então lê o `.env` e a `DATABASE_URL` por conta própria.
 - **Arquivo `.env`:** a aplicação lê o `.env` da pasta do projeto, se ele existir, e as variáveis já definidas no ambiente prevalecem sobre as do arquivo. Em produção não há arquivo.
