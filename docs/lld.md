@@ -132,20 +132,7 @@ erDiagram
     subscriptions ||--o{ payment_events : recebe
 ```
 
-**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits` e `items` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
-
-### quotas
-
-Dona: o módulo `quota`, que é também dono de `plans`. Os outros módulos leem e alteram a cota só pelo service público dele.
-
-| Coluna | Tipo | Observação |
-| --- | --- | --- |
-| `user_id` | `UUID` | Chave primária. Referência a `users`, com exclusão em cascata. |
-| `plan_id` | `UUID` | Referência a `plans`. Começa no plano gratuito. |
-| `used_bytes` | `BIGINT` | Padrão 0. Restrição `used_bytes >= 0`. |
-| `updated_at` | `TIMESTAMPTZ` | |
-
-A linha nasce sob demanda, na primeira reserva ou leitura da cota, no plano gratuito (seção 4.2). A migração que cria a tabela cria também a linha dos usuários que já existem. A conta (`users`) não tem coluna de cota.
+**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
 ### items
 
@@ -174,18 +161,6 @@ Dona: o módulo `items`, que é também dono da Pasta raiz. A tabela está imple
 | `created_at` | `TIMESTAMPTZ` | |
 
 Como só o hash é guardado, a URL do link é exibida uma única vez, na criação. Depois disso, a listagem mostra a data, a expiração e se há senha, mas não a URL.
-
-### plans
-
-| Coluna | Tipo | Observação |
-| --- | --- | --- |
-| `id` | `UUID` | Chave primária |
-| `code` | `TEXT` | `free`, `plan_100gb`, `plan_1tb` ou `plan_2tb`. Único. |
-| `storage_bytes` | `BIGINT` | Limite da cota |
-| `price_monthly_cents`, `price_yearly_cents` | `INTEGER` | Valores a definir (questão em aberto do brief) |
-| `active` | `BOOLEAN` | Plano disponível para contratação |
-
-A tabela nasce com o upload, só com `id`, `code`, `storage_bytes` e `active`, e só com o plano gratuito (15 GB), inserido pela migração: é dado de referência, que também existe em produção, e não seed. Os preços e os outros três planos entram com a cobrança.
 
 ### subscriptions
 
@@ -394,7 +369,7 @@ WHERE q.user_id = $user_id
   AND q.used_bytes + $size <= p.storage_bytes;
 ```
 
-Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação. Antes da reserva, na mesma transação, a linha da cota é criada no plano gratuito se ainda não existir (`INSERT ... ON CONFLICT DO NOTHING`).
+Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação. Antes da reserva, na mesma transação, a linha da cota é criada no plano gratuito se ainda não existir (`INSERT ... ON CONFLICT DO NOTHING`). O `UPDATE` também grava `updated_at = now()`, porque o `@updatedAt` do Prisma só vale nas gravações pelo cliente. A devolução subtrai com `GREATEST(used_bytes - $size, 0)`, e só quem apagou o Item pendente (`DELETE ... WHERE status = 'pending'`) devolve, para a conclusão repetida ou simultânea não devolver duas vezes. O módulo `quota` é o dono dessas duas tabelas e expõe `reserve` e `release` aos outros módulos, que passam o cliente da transação deles. O erro `quota_exceeded` nasce nele.
 
 | Evento | Efeito em `used_bytes` |
 | --- | --- |
@@ -457,6 +432,14 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
 - **Remoção do objeto:** no cancelamento e no `upload_size_mismatch`, a API apaga a sessão ou o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
 
+**Como o upload de um arquivo é executado (LUI-167)**
+
+- **Ordem do início:** (1) o destino é resolvido (`root` ou uma pasta `active` do usuário; qualquer outro valor, inclusive um texto que não é UUID, é `not_found`); (2) uma transação cria a linha da cota, reserva o tamanho e cria o item `pending`, com a chave do objeto (UUID aleatório) e sem a sessão; (3) fora da transação, a sessão é criada no storage; (4) o endereço dela é gravado no item. Chamar o storage dentro da transação a prenderia durante uma chamada de rede. Se o passo 3 falhar, uma transação de compensação apaga o item pendente e devolve o espaço, e o erro sobe (`internal_error`). Se a compensação também falhar, o item fica `pending` e a limpeza o remove.
+- **Validade da sessão:** `expiresAt` é a criação do item mais 24 horas, o prazo em que a limpeza remove um pendente (seção 5). O Cloud Storage guarda a sessão por mais tempo, e esse prazo não é o que o cliente vê.
+- **Tamanho:** 5 GB são 5 GiB (5 × 1024³ bytes), como os 15 GB do plano gratuito são 15 GiB. O limite é inclusivo.
+- **Conclusão:** o item é lido pelo dono (outro usuário e id inexistente, ou que não é UUID, são `not_found`). Já `active`, é devolvido. `pending`, o tamanho vem do storage: ausente é `upload_incomplete`, diferente do declarado é `upload_size_mismatch`, igual ativa o item. A ativação é um `UPDATE ... WHERE status = 'pending'`: se outra conclusão chegou antes, a perdedora relê o item e o devolve.
+- **Divergência de tamanho com falha na remoção:** no `upload_size_mismatch`, o objeto é apagado primeiro e, depois, uma transação apaga o item e devolve o espaço. Se o objeto não puder ser apagado, o erro do storage sobe (`internal_error`) e nada muda: o item continua `pending`, com o espaço reservado, até a limpeza.
+
 **Interface de storage**
 
 A interface `FileStorage` (`src/infra/storage/`, token `FILE_STORAGE`) é a única peça que conhece o Cloud Storage. A implementação, `GcsFileStorage`, usa o SDK oficial `@google-cloud/storage`. Os módulos de negócio a recebem pelo token e a descrevem com o vocabulário do negócio:
@@ -479,7 +462,7 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam em `http://web:3000`.
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
 - **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
-- **Rota de apoio:** `/v1/dev/storage/*` (sessão, URL de leitura, tamanho e remoção) expõe a interface de storage aos testes no navegador. Só existe quando `STORAGE_EMULATOR_HOST` está definida, fica fora do OpenAPI e sai quando o `POST /uploads` existir (LUI-167).
+- **Rota de apoio:** `/v1/dev/storage/*` existiu no LUI-165, para os testes no navegador alcançarem a interface de storage, e saiu com o `POST /uploads` (LUI-167). Os testes no navegador criam a sessão por `POST /uploads` e conferem o tamanho pela conclusão.
 
 **Resultado da validação contra o emulador (`fake-gcs-server` 1.56.1)**
 
@@ -649,7 +632,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, e "Carregar mais". Enviar e baixar entram com o upload e o download. | Existe: "Meus arquivos", a lista da pasta raiz |
+| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). Baixar entra com o download. | Existe: "Meus arquivos", a lista da pasta raiz |
 | `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
@@ -659,7 +642,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/s/[token]` | Pública | `POST /public/links/{token}/access`, `GET /public/links/{token}/children` | Informar a senha do link | A detalhar (seção 7.6) |
 | `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
 
-- **Casca do `(drive)` hoje:** a barra superior com a marca e o menu da conta (o e-mail e "Sair"), a navegação só com "Meus arquivos", aberta como gaveta pelo botão de menu abaixo de `lg`, e a área de conteúdo, com o título da pasta. O que o item seguinte descreve e ainda não existe entra com a funcionalidade dona, sem link morto nem botão desabilitado.
+- **Casca do `(drive)` hoje:** a barra superior com a marca e o menu da conta (o e-mail e "Sair"), a navegação só com "Meus arquivos", aberta como gaveta pelo botão de menu abaixo de `lg`, o botão "Enviar", que escolhe arquivos e os envia num único `PUT` ao storage (o corte em chunks, a repetição, os vários arquivos e o arrastar e soltar entram com os arquivos grandes), o painel de envios, com o nome e o estado (enviando, concluído ou falhou, com o erro em português) de cada arquivo, num provider de cliente do layout, e a área de conteúdo, com o título da pasta. O que o item seguinte descreve e ainda não existe entra com a funcionalidade dona, sem link morto nem botão desabilitado.
 - **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura, seleção nem o menu de ações. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
 - **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
 - **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL.

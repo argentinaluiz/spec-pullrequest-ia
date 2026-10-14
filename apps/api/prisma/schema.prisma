@@ -33,6 +33,7 @@ model User {
   emailTokens   EmailToken[]
   refreshTokens RefreshToken[]
   items         Item[]
+  quota         Quota?
 
   @@map("users")
 }
@@ -126,4 +127,33 @@ model Item {
   /// Para a limpeza dos uploads pendentes.
   @@index([status, createdAt], map: "items_pending_idx", where: raw("status = 'pending'"))
   @@map("items")
+}
+
+/// O plano de armazenamento, dado de referência: a tabela nasce só com o plano gratuito, inserido pela migração (existe também em produção, e não é seed). Os preços e os outros planos entram com a cobrança. Dono: o módulo `quota`.
+model Plan {
+  id           String  @id @db.Uuid
+  /// `free`, `plan_100gb`, `plan_1tb` ou `plan_2tb`. Só `free` existe até a cobrança.
+  code         String  @unique
+  /// Limite da Cota, em bytes. 15 GB no plano gratuito.
+  storageBytes BigInt  @map("storage_bytes")
+  /// Plano disponível para contratação.
+  active       Boolean @default(true)
+
+  quotas Quota[]
+
+  @@map("plans")
+}
+
+/// A Cota de um Usuário: o plano e os bytes usados, contando os uploads em andamento. Uma linha por Usuário, que nasce sob demanda, no plano gratuito, na mesma transação da primeira reserva; a migração que cria a tabela cria também a linha dos Usuários que já existem. A conta (`users`) não tem coluna de cota. Dono: o módulo `quota`, e os outros módulos só a usam pelo service público dele.
+model Quota {
+  userId    String   @id @map("user_id") @db.Uuid
+  planId    String   @map("plan_id") @db.Uuid
+  /// Bytes reservados pelos Itens do Usuário, com o tamanho declarado dos uploads pendentes. A restrição `used_bytes >= 0` é escrita à mão na migração, porque o Prisma não a expressa. A reserva é um único `UPDATE` condicionado ao limite do plano (seção 4.2 do docs/lld.md).
+  usedBytes BigInt   @default(0) @map("used_bytes")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@map("quotas")
 }
