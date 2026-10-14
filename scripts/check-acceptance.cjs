@@ -156,7 +156,9 @@ if (!['--required', '--optional'].includes(mode) || !bodyFile || !acceptDir || r
   process.exit(2);
 }
 
-if (!fs.existsSync(bodyFile)) {
+// Sem corpo de PR, só a cobertura é conferida. Onde a seção é exigida, a falta do corpo reprova.
+const bodyExists = fs.existsSync(bodyFile);
+if (!bodyExists && mode === '--required') {
   fatal(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há seção "Aceite" para conferir.`);
 }
 
@@ -169,7 +171,7 @@ if (fs.existsSync(acceptDir)) {
 }
 
 // A seção "Aceite" do PR.
-const section = acceptSection(fs.readFileSync(bodyFile, 'utf8'));
+const section = acceptSection(bodyExists ? fs.readFileSync(bodyFile, 'utf8') : '');
 if (section === null) {
   if (mode === '--required') {
     error(

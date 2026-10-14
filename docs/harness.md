@@ -195,6 +195,7 @@ O formato da seção do PR e do arquivo de aceite está no `AGENTS.md` da raiz, 
 | O PR não altera nada em `apps/` e não tem a seção | Passa, e a cobertura continua conferida |
 | Critério com marca de revisão humana ou de documento | Não exige teste |
 
+- **Sem corpo de PR:** a cobertura dos critérios roda sempre, também numa branch sem `ACCEPTANCE_BODY_FILE` e num push na `main`. O que depende do corpo é só a seção `## Aceite`.
 - **Onde é conferido:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os arquivos de `docs/aceite/`, o corpo do PR e os relatórios JSON das suítes da própria execução. Faz parte do `Veredito`. Os contêineres só montam a pasta da própria app, então o `verify.sh` entrega ao conferidor, pela entrada padrão, o corpo do PR e os arquivos de aceite, como já fazia com os relatórios.
 - **Testes do harness:** o conferidor tem testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
 - **ID no título, e não nas `tags` do Vitest:** com `strictTags`, cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`. No Playwright, o conferidor lê o ID no título e nas tags. O formato é o token `@<ticket>-CA<n>` no título.

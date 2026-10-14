@@ -127,10 +127,10 @@ harness_tests() {
 # pull request e a cobertura dos critérios de todos os tickets. A seção só é exigida quando a
 # branch altera código em apps/.
 acceptance() {
-  local mode=--optional app ref spec report target specs=()
+  local mode=--optional app ref spec report target body="${ACCEPTANCE_BODY_FILE:-}" specs=()
   # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
   # do commit, e a tabela não pode passar como "não exigida" só por isso.
-  if [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
+  if [[ -n "$body" ]] && [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
     -n "$(git ls-files --others --exclude-standard -- apps/)" ]]; then
     mode=--required
   fi
@@ -138,7 +138,7 @@ acceptance() {
   # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e os
   # relatórios de cada app chegam a ele pela entrada padrão, sem depender da permissão da pasta.
   in_container api sh -c 'mkdir -p reports/acceptance && cat >reports/acceptance/pr-body.md' \
-    <"$ACCEPTANCE_BODY_FILE" || return 1
+    <"${body:-/dev/null}" || return 1
   tar -c -C docs aceite |
     in_container api sh -c 'rm -rf reports/acceptance/aceite && tar -x -C reports/acceptance' || return 1
   for app in "${APPS[@]}"; do
@@ -240,13 +240,11 @@ run_full() {
     "corrija o conferidor ou o teste que falhou, em scripts/, e rode \`scripts/verify.sh full\` de novo." \
     harness_tests
 
-  # Só há seção "Aceite" para conferir quando há um corpo de pull request: na CI, ou na máquina,
-  # com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
-  if [[ -n "${ACCEPTANCE_BODY_FILE:-}" ]]; then
-    step "Aceite" \
-      "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
-      acceptance
-  fi
+  # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
+  # pull request: na CI, ou na máquina, com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
+  step "Aceite" \
+    "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
+    acceptance
 
   step "Segredos nos commits da branch" \
     "tire o segredo do código, troque-o na origem (ele já vazou para o histórico) e reescreva o commit que o trouxe." \

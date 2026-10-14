@@ -186,6 +186,14 @@ test('aceita título de critério com texto depois do ID, marca com ponto final 
   assert.equal(code, 0, out);
 });
 
+test('sem corpo de PR, o modo opcional confere só a cobertura, e o obrigatório reprova', () => {
+  const run = (mode) =>
+    spawnSync(process.execPath, [CHECKER, mode, '/nao/existe.md', '/nao/existe', 'vitest:/nao/existe.json'], { encoding: 'utf8' });
+  // O relatório também falta, então os dois reprovam; a mensagem mostra qual falta apareceu primeiro.
+  assert.match(run('--required').stdout, /corpo do pull request/);
+  assert.doesNotMatch(run('--optional').stdout, /corpo do pull request/);
+});
+
 test('reprova o relatório ausente em vez de aprovar sem conferir', () => {
   const result = spawnSync(process.execPath, [CHECKER, '--optional', '/nao/existe.md', '/nao/existe', 'vitest:/x.json'], {
     encoding: 'utf8',
