@@ -407,6 +407,7 @@ O arquivo do Figma espelha este documento com os mesmos nomes. Nenhuma camada us
 - **Estados de interação:** são valores da propriedade `State` (`default`, `hover`, `focus`, `disabled`, `loading`). O hover é um segundo preenchimento em `colors/surface-hover`, sobre o preenchimento do controle, exceto nos campos de texto, onde ele muda a borda. O pressionado não é desenhado, porque é uma transformação (`scale(0.95)`) e não muda cor nem forma.
 - **Anel de foco:** é a camada `focus-ring`, 4px maior que o controle em cada lado, com borda interna de 2px em `colors/primary-focus`. Isso reproduz o `outline` de 2px com 2px de afastamento. O raio do anel é o do controle mais 4px. No campo, o anel contorna só a caixa, e não o rótulo.
 - **Ícones:** os do Lucide, com o nome original na camada, para que o código importe o mesmo ícone do `lucide-react`.
+- **Medidas fora da escala:** as medidas que este documento fixa fora das escalas de `spacing` e `rounded` ficam como valor no Figma, e não viram variável: o padding horizontal de 14px do `{component.button-utility}`, o de 2px do `{component.segmented-control}`, o raio de 4px do `{component.checkbox}`, o padding de 11px × 22px do `{component.button-primary}` e o raio do anel de foco. São a única exceção à regra do valor solto. Uma medida nova fora da escala entra primeiro nesta lista.
 - **Processo:** as regras de trabalho com o Figma (sincronia, fluxo, assets, validação) estão na seção "Fluxo de trabalho com o Figma", a seguir.
 
 ## Fluxo de trabalho com o Figma
