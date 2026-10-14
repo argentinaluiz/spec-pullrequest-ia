@@ -14,7 +14,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | 4 | Aceite: seção do PR e cobertura dos critérios por ID | Implementado. Substitui a tabela de aceite |
 | 5 | Revisor em contexto novo | Implementado |
 | 6 | Bloqueio no push | Implementado |
-| 7 | Plano do ticket e aceite congelado | Em andamento. O processo e a cobertura por ID estão implementados; o congelamento do aceite e o revisor estão planejados. Ver "Plano do ticket (planejado)" |
+| 7 | Plano do ticket e aceite congelado | Em andamento. O processo, a cobertura por ID e as conferências do revisor estão implementados; o congelamento do aceite está planejado. Ver "Plano do ticket (planejado)" |
 | 8 | Contrato e schema conferidos por máquina | Planejado. Ver "Plano do ticket (planejado)" |
 
 ## Princípios
@@ -216,13 +216,13 @@ O princípio é que quem faz não avalia. A separação é de papel, e não de m
 | Quem revisa | O subagente `revisor`, definido em `.claude/agents/revisor.md` |
 | O que ele recebe | O arquivo de diff, com a mudança já em commit, e o identificador do ticket. Em PR sem ticket, os critérios de aceite no lugar dele. Nunca o resumo nem a opinião de quem implementou |
 | O que ele pode fazer | Ler o repositório e o ticket. Não tem ferramenta de escrita nem de shell |
-| O que ele confere | Se o diff entrega cada critério de aceite, se os testes provam os critérios, defeitos, regras do projeto e documentos desatualizados |
+| O que ele confere | Se o diff entrega cada critério de aceite, se os IDs dos critérios do ticket estão todos no arquivo de aceite, se cada teste prova o cenário aprovado do ID dele, defeitos, regras do projeto e documentos desatualizados |
 | Onde fica o resultado | Num comentário no PR, com cada achado marcado como corrigido ou não, o motivo e o relatório na íntegra |
 | Efeito | Nenhum bloqueio. A CI não lê o comentário |
 
 O passo a passo que o agente segue e o formato do comentário estão no `AGENTS.md` da raiz, seção "Revisão em contexto novo".
 
-- **O que ele cobre que a CI não cobre:** a cobertura do aceite prova que existe um teste com o ID do critério e que ele passou. O revisor lê as asserções e aponta o teste que passaria mesmo com o comportamento quebrado.
+- **O que ele cobre que a CI não cobre:** a cobertura do aceite prova que existe um teste com o ID do critério e que ele passou. O revisor lê as asserções contra o cenário aprovado e aponta o teste que passaria mesmo com o comportamento quebrado. Ele também compara os IDs do ticket com os do arquivo de aceite: um critério acrescentado no Linear depois do commit de plano, ou um arquivo de aceite ausente, não chega à CI, e é achado de severidade alta. Essas conferências foram escritas antes de haver um ticket piloto, então o formato do arquivo de aceite que elas leem ainda não foi exercitado num ticket real.
 - **Por que não bloqueia:** o revisor é inferencial e não foi calibrado. O mesmo diff pode render achados diferentes em duas execuções, e ele pode apontar um defeito que não existe. Dar poder de bloqueio a isso trocaria um veredito reprodutível por um que não é.
 - **Todo achado fica registrado,** inclusive o que o agente que implementou considera errado. Assim, a decisão sobre um achado não corrigido é do humano no merge, e não de quem escreveu o código.
 - **A definição do revisor é arquivo do harness.** O `.claude/agents/` está entre os caminhos protegidos pelo guarda, porque enfraquecer as instruções do revisor enfraqueceria a revisão sem alterar nenhum check.
@@ -267,7 +267,7 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 
 ## Plano do ticket (planejado)
 
-Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`) e a cobertura dos critérios por ID, descrita em "Aceite". Seguem planejados o congelamento do arquivo de aceite (o hook e a sinalização na guarda), as conferências novas do revisor e a etapa 8.
+Desta seção, estão implementados o processo da etapa 7 (o fluxo e os formatos no `AGENTS.md` da raiz e a skill `/plan-ticket`), a cobertura dos critérios por ID, descrita em "Aceite", e as conferências do aceite pelo revisor. Seguem planejados o congelamento do arquivo de aceite (o hook e a sinalização na guarda) e a etapa 8.
 
 A tabela de aceite que existia antes ligava cada critério a um teste, mas só no pull request, escrita por quem implementou, e não conferia se a tabela cobria todos os critérios do ticket. O desenho técnico do ticket (rotas, contrato e schema) também só aparece no código. Entre o ticket, que diz o quê, e a implementação falta uma camada que diga como cada critério será provado e o que muda no contrato e no schema, aprovada antes do código.
 
@@ -302,7 +302,7 @@ A tabela de aceite que existia antes ligava cada critério a um teste, mas só n
 - **Por que o plano fica no repositório, e não no Linear:** a CI não lê o Linear sem um segredo, o plano cita caminhos, que o ticket não pode citar, e a aprovação fica presa a um commit.
 - **Por que a cobertura confere todos os arquivos de aceite:** um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado. Os arquivos de aceite formam a matriz de rastreabilidade do projeto.
 - **Descongelar é um ato humano.** Quando um ticket muda um comportamento já entregue, o humano edita o arquivo de aceite antigo, no editor ou no terminal.
-- **O revisor ganha duas conferências:** os IDs do ticket contra os do arquivo de aceite, já que um critério acrescentado no Linear depois do plano não chega à CI, e cada teste contra o cenário do ID dele.
+- **O revisor ganhou duas conferências,** descritas em "Revisor em contexto novo": os IDs do ticket contra os do arquivo de aceite e cada teste contra o cenário do ID dele.
 - **Caminhos verificados:** `docs/aceite/` entrou na lista do `verify.sh`, porque mudar o aceite muda o resultado da verificação.
 - **Onde ficam as regras:** o fluxo e o formato do arquivo de aceite vão para o `AGENTS.md` da raiz, no lugar da antiga seção "Tabela de aceite no pull request". As conferências ficam neste documento. A `/plan-ticket` aponta para os dois, e as skills copiadas (`to-tickets`, `implement-spec` e `tdd`) recebem só os ajustes mínimos para não contrariá-los.
 - **Ordem:** o processo (o `AGENTS.md`, a `/plan-ticket` e os ajustes nas skills) vem primeiro, para ser usado num ticket piloto antes de a máquina conferi-lo. A cobertura por ID foi implementada antes de existir um piloto, então o formato do arquivo de aceite ainda não foi exercitado num ticket real.

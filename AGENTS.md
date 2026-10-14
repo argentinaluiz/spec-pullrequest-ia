@@ -174,6 +174,7 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
    O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso.
 
 2. **Chame o subagente `revisor`** passando só o caminho desse arquivo e o identificador do ticket. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
+   O que o revisor confere, inclusive o aceite do ticket, está em `.claude/agents/revisor.md` e em `docs/harness.md`. Rode a revisão no checkout da branch do PR, porque ele lê o arquivo de aceite dessa branch.
 3. **Corrija os achados com que você concorda,** faça o commit das correções e rode a verificação de novo.
 4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
 
