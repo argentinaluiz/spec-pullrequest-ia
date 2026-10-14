@@ -132,7 +132,7 @@ erDiagram
     subscriptions ||--o{ payment_events : recebe
 ```
 
-**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens` e `rate_limits` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
+**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits` e `items` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
 ### quotas
 
@@ -149,29 +149,17 @@ A linha nasce sob demanda, na primeira reserva ou leitura da cota, no plano grat
 
 ### items
 
+Dona: o módulo `items`, que é também dono da Pasta raiz. A tabela está implementada e mora no `schema.prisma`, com os índices de listagem, de pendentes e da raiz única por usuário, que são parciais (prévia `partialIndexes` do Prisma). Ficam para as funcionalidades donas delas:
+
 | Coluna | Tipo | Observação |
 | --- | --- | --- |
-| `id` | `UUID` | Chave primária |
-| `owner_id` | `UUID` | Referência a `users`, com exclusão em cascata |
-| `parent_id` | `UUID` | Referência a `items`. Nulo só na pasta raiz. |
-| `type` | `TEXT` | `file` ou `folder` |
-| `name` | `VARCHAR(255)` | Sem `/` nem caracteres de controle. Nomes duplicados são permitidos. |
-| `status` | `TEXT` | `pending`, `active` ou `trashed` |
-| `size_bytes` | `BIGINT` | 0 para pastas |
-| `mime_type` | `TEXT` | Nulo para pastas |
-| `object_key` | `TEXT` | Chave aleatória no bucket. Nulo para pastas. Único. |
-| `upload_session_uri` | `TEXT` | Sessão retomável do Cloud Storage, enquanto `pending` |
-| `thumbnail_key` | `TEXT` | Nulo se não houver miniatura |
-| `trashed_at` | `TIMESTAMPTZ` | Preenchido ao enviar para a lixeira |
-| `created_at`, `updated_at` | `TIMESTAMPTZ` | |
+| `thumbnail_key` | `TEXT` | Nulo se não houver miniatura. Entra com a pré-visualização. |
+| `trashed_at` | `TIMESTAMPTZ` | Preenchido ao enviar para a lixeira. Entra com a lixeira. |
 
-**Índices de `items`**
+**Índices ainda não implementados**
 
-- `(parent_id)` filtrado por `status = 'active'`, para listar uma pasta.
-- `(owner_id, status, trashed_at)`, para a lixeira e o expurgo.
-- `(status, created_at)` filtrado por `status = 'pending'`, para a limpeza de uploads.
-- Trigramas (`pg_trgm`, GIN) em `name`, para a busca.
-- Único em `(owner_id)` filtrado por `parent_id IS NULL`, para garantir uma raiz por usuário.
+- `(owner_id, status, trashed_at)`, para a lixeira e o expurgo. Entra com a lixeira.
+- Trigramas (`pg_trgm`, GIN) em `name`, para a busca. Entra com a busca.
 
 ### share_links
 
@@ -239,8 +227,8 @@ A tabela nasce com o upload, só com `id`, `code`, `storage_bytes` e `active`, e
 | Formato | JSON, com campos em `camelCase` |
 | Autenticação | `Authorization: Bearer <token de acesso>` |
 | Erros | RFC 9457 (`application/problem+json`), com um campo `code` estável |
-| Paginação | Por cursor: `?limit=50&cursor=...`, com máximo de 200. A resposta traz `nextCursor`. |
-| Ordenação de listagens | Pastas primeiro, depois por nome |
+| Paginação | Por cursor: `?limit=50&cursor=...`. O `limit` vai de 1 a 200, com padrão de 50, e um valor fora disso responde `validation_error`. O cursor é opaco: o cliente só o devolve como recebeu, e um cursor ilegível responde `validation_error`. A resposta traz `nextCursor`, nulo na última página. |
+| Ordenação de listagens | Pastas primeiro, depois por nome, na ordenação de texto do banco, com o id como desempate entre nomes iguais. O cursor guarda o último tipo, nome e id da página, e a página seguinte começa depois dele. |
 | Idempotência | Cabeçalho `Idempotency-Key` em `POST /billing/checkout`. O `POST /uploads` não tem: uma repetição deixa um item `pending` invisível, que a limpeza de pendentes remove (seção 5). |
 
 **Códigos de erro**
@@ -329,7 +317,9 @@ Todo erro sai com `Content-Type: application/problem+json` e este corpo:
 | `DELETE /trash` | | 202. Esvazia a lixeira, em segundo plano. |
 | `GET /search` | `q` (mínimo de 2 caracteres), `limit`, `cursor` | Itens ativos cujo nome contém `q` |
 
-O id `root` é aceito como atalho para a pasta raiz do usuário.
+O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez que ele é usado, a raiz nasce (seção 4.1).
+
+- **`GET /items/{id}/children` antes das pastas:** até a funcionalidade de pastas, a rota aceita só `root`, e qualquer outro id responde `not_found`. A data que a lista mostra é a de modificação (`updatedAt`). A forma da resposta está no snapshot da OpenAPI.
 
 ### 3.4 Upload e download
 
@@ -633,7 +623,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), enviar e baixar arquivos | A detalhar: vira "Meus arquivos", a lista da pasta raiz |
+| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, e "Carregar mais". Enviar e baixar entram com o upload e o download. | Existe: "Meus arquivos", a lista da pasta raiz |
 | `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
@@ -643,6 +633,8 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/s/[token]` | Pública | `POST /public/links/{token}/access`, `GET /public/links/{token}/children` | Informar a senha do link | A detalhar (seção 7.6) |
 | `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
 
+- **Casca do `(drive)` hoje:** a barra superior com a marca e o menu da conta (o e-mail e "Sair"), a navegação só com "Meus arquivos", aberta como gaveta pelo botão de menu abaixo de `lg`, e a área de conteúdo, com o título da pasta. O que o item seguinte descreve e ainda não existe entra com a funcionalidade dona, sem link morto nem botão desabilitado.
+- **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura, seleção nem o menu de ações. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
 - **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
 - **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL.
 - **Paginação das listas:** o Server Component mostra a primeira página, e um botão "Carregar mais", no fim da lista, busca a seguinte por Server Action e a acrescenta no cliente. O cursor não vai para a URL. Depois de um upload, o `router.refresh()` atualiza a primeira página, e as páginas acrescentadas ficam como estavam. O diálogo de compartilhar e o menu de cada item são estado de cliente.

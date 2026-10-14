@@ -8,6 +8,8 @@ generator client {
   output              = "../src/generated/prisma"
   moduleFormat        = "esm"
   importFileExtension = "js"
+  // Os índices parciais (`where`) de `items` dependem desta prévia, que existe desde o Prisma 7.4.
+  previewFeatures     = ["partialIndexes"]
 }
 
 datasource db {
@@ -30,6 +32,7 @@ model User {
 
   emailTokens   EmailToken[]
   refreshTokens RefreshToken[]
+  items         Item[]
 
   @@map("users")
 }
@@ -86,4 +89,41 @@ model RateLimit {
   count       Int
 
   @@map("rate_limits")
+}
+
+/// Um arquivo ou uma pasta de um Usuário. O conteúdo do arquivo fica no storage, no objeto de `object_key`. A miniatura e a lixeira acrescentam colunas e índices com as funcionalidades delas (seção 2 do docs/lld.md).
+model Item {
+  id               String   @id @db.Uuid
+  ownerId          String   @map("owner_id") @db.Uuid
+  /// Nulo só na Pasta raiz, que nasce sob demanda e se chama "Meus arquivos".
+  parentId         String?  @map("parent_id") @db.Uuid
+  /// `file` ou `folder`.
+  type             String
+  /// Sem `/` nem caracteres de controle. Nomes duplicados são permitidos.
+  name             String   @db.VarChar(255)
+  /// `pending`, `active` ou `trashed`.
+  status           String
+  /// 0 para pastas.
+  sizeBytes        BigInt   @default(0) @map("size_bytes")
+  /// Nulo para pastas.
+  mimeType         String?  @map("mime_type")
+  /// Chave aleatória do objeto no bucket. Nula para pastas.
+  objectKey        String?  @unique @map("object_key")
+  /// Sessão retomável do storage, enquanto `pending`.
+  uploadSessionUri String?  @map("upload_session_uri")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner    User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// `NoAction`, e não `Restrict`: a conferência fica para o fim do comando, e a exclusão em cascata de um Usuário apaga pais e filhos juntos. Fora dela, o expurgo apaga os descendentes antes da pasta.
+  parent   Item?  @relation("ItemChildren", fields: [parentId], references: [id], onDelete: NoAction)
+  children Item[] @relation("ItemChildren")
+
+  /// Uma Pasta raiz por Usuário, mesmo com chamadas simultâneas no primeiro uso.
+  @@unique([ownerId], map: "items_root_key", where: raw("parent_id IS NULL"))
+  /// Lista uma pasta na ordem do contrato e pagina por cursor: pastas primeiro (`folder` vem depois de `file` no alfabeto, daí o `Desc`), depois por nome, com o id como desempate.
+  @@index([parentId, type(sort: Desc), name, id], map: "items_listing_idx", where: raw("status = 'active'"))
+  /// Para a limpeza dos uploads pendentes.
+  @@index([status, createdAt], map: "items_pending_idx", where: raw("status = 'pending'"))
+  @@map("items")
 }
