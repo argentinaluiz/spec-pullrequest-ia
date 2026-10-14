@@ -457,6 +457,29 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
 - **Remoção do objeto:** no cancelamento e no `upload_size_mismatch`, a API apaga a sessão ou o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
 
+**Interface de storage**
+
+A interface `FileStorage` (`src/infra/storage/`, token `FILE_STORAGE`) é a única peça que conhece o Cloud Storage. A implementação, `GcsFileStorage`, usa o SDK oficial `@google-cloud/storage`. Os módulos de negócio a recebem pelo token e a descrevem com o vocabulário do negócio:
+
+| Operação | O que faz |
+| --- | --- |
+| `createUploadSession` | Recebe o nome do objeto, o tipo MIME e a origem do frontend (`WEB_ORIGIN`), cria a sessão de upload retomável e devolve o endereço dela. A origem vai na criação porque o Cloud Storage amarra a sessão ao CORS dessa origem. |
+| `signReadUrl` | Recebe o nome do objeto, o nome do arquivo e a validade (padrão de 5 minutos). Devolve uma URL assinada (V4) de leitura, com o nome do arquivo no `response-content-disposition` (`attachment; filename*=UTF-8''…`). |
+| `getObjectSize` | Devolve o tamanho em bytes, ou `null` se o objeto não existe. O objeto só passa a existir quando o envio termina. |
+| `deleteObject` | Apaga o objeto. Um objeto que não existe não é erro. |
+| `cancelUploadSession` | Cancela uma sessão pelo endereço dela (`DELETE`, que o Cloud Storage responde com 499). Uma sessão que já terminou ou expirou não é erro. |
+
+Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `StorageUnavailableError`, erro de domínio: o service não conhece o erro do SDK.
+
+**Endereço público e assinatura local**
+
+- **Dois endereços do emulador:** a API fala com ele por `STORAGE_EMULATOR_HOST` (`http://storage:4443`, o nome do serviço do Compose). O navegador não alcança esse host, e alcança `http://localhost:4443`, a porta que o Compose publica. Esse é o `STORAGE_PUBLIC_URL`, que só existe no ambiente local.
+- **Endereço da sessão:** o emulador monta o endereço da sessão com o `Host` da requisição que recebeu, então ele volta com `storage:4443`. Com `STORAGE_PUBLIC_URL` definido, a implementação troca a origem do endereço por ela antes de devolvê-lo. Sem a variável (staging e produção), o endereço sai como veio do Cloud Storage.
+- **URL assinada:** a implementação passa a origem de `STORAGE_PUBLIC_URL` como `host` da assinatura, e a URL já sai com o endereço que o navegador alcança. O emulador só serve a URL assinada (`/<bucket>/<objeto>`) quando o `Host` da requisição é igual ao `-public-host` dele, que o Compose define com o mesmo host e porta do `STORAGE_PUBLIC_URL`.
+- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam em `http://web:3000`.
+- **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
+- **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente. A implementação passa o endereço por configuração (`apiEndpoint`) e não depende dessa leitura.
+
 **Pontos de implementação a validar**
 
 - **Origem na criação da sessão:** a API precisa informar a origem do frontend ao criar a sessão retomável, para que o navegador possa usá-la.
@@ -574,7 +597,9 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 | `GCS_BUCKET` | api | Nome do bucket privado |
 | `TASKS_QUEUE`, `WORKER_URL` | api | Fila do Cloud Tasks e endereço do worker |
 | `QUEUE_DRIVER` | api | `cloud-tasks` em staging e produção, `local` no desenvolvimento (chamada HTTP direta ao worker) |
-| `STORAGE_EMULATOR_HOST` | api | Endereço do emulador de storage, só no desenvolvimento |
+| `STORAGE_EMULATOR_HOST` | api | Endereço do emulador de storage, só no desenvolvimento (`http://storage:4443`) |
+| `STORAGE_PUBLIC_URL` | api | Origem do emulador que o navegador alcança, só no desenvolvimento (`http://localhost:4443`). Obrigatória quando `STORAGE_EMULATOR_HOST` existe. |
+| `STORAGE_SIGNER_EMAIL`, `STORAGE_SIGNER_PRIVATE_KEY` | api | Credencial de assinatura das URLs, só no desenvolvimento: um e-mail fictício e uma chave RSA em PEM gerada pelo `setup-env.mjs`. Obrigatórias quando `STORAGE_EMULATOR_HOST` existe, e ausentes em produção, onde a assinatura usa a identidade do serviço. |
 | `TRASH_RETENTION_DAYS`, `PENDING_UPLOAD_TTL_HOURS` | api | Padrões de 30 dias e 24 horas |
 | `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS` | api | Validade do token de acesso e do token de renovação, em segundos. Padrões de 900 (15 minutos) e 2592000 (30 dias). |
 | `REFRESH_TOKEN_REUSE_GRACE_SECONDS` | api | Por quanto tempo um token de renovação já trocado ainda é aceito, em segundos. Padrão de 10. Zero desliga a tolerância. |
