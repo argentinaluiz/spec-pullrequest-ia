@@ -29,7 +29,8 @@ export class ItemsService {
     if (folderId !== ROOT_ALIAS) {
       throw new ItemNotFoundError();
     }
-    const after = page.cursor ? decodeItemCursor(page.cursor) : undefined;
+    const after =
+      page.cursor === undefined ? undefined : decodeItemCursor(page.cursor);
     const rootId = await this.items.ensureRoot(ownerId, uuidv7());
     // Um Item a mais que a página diz se há outra depois dela.
     const rows = await this.items.listActiveChildren(

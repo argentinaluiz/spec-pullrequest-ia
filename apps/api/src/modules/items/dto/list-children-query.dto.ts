@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /** Itens por página quando o pedido não traz `limit`. */
 export const DEFAULT_PAGE_SIZE = 50;
@@ -16,5 +23,6 @@ export class ListChildrenQueryDto {
   /** Opaco: o cliente só o devolve como recebeu no `nextCursor`. */
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
   cursor?: string;
 }

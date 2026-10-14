@@ -224,4 +224,14 @@ describe('Lista da Pasta raiz', () => {
 
     expectValidationError(response, 'cursor');
   });
+
+  it('recusa um cursor vazio com validation_error, em vez de devolver a primeira página', async () => {
+    const { accessToken } = await signedInUser();
+
+    const response = await items
+      .listChildren('root', accessToken, { cursor: '' })
+      .expect(400);
+
+    expectValidationError(response, 'cursor');
+  });
 });
