@@ -14,10 +14,20 @@ export type StartUploadResult =
   | { ok: true; itemId: string; uploadUrl: string }
   | { ok: false; message: string };
 
-/** O que a Server Action de concluir um envio devolve. `incomplete`: o storage ainda não tem o objeto inteiro. */
+/**
+ * O que a Server Action de concluir um envio devolve. Na falha, `reason` diz o que vale a sessão:
+ * `discarded`, a API apagou o upload ou ele não existe mais (`upload_size_mismatch`, `not_found`)
+ * e a sessão não serve mais; `incomplete`, o storage ainda não tem o objeto inteiro
+ * (`upload_incomplete`); `retryable`, a sessão continua e só a conclusão se repete
+ * (`internal_error`, `rate_limited`); `terminal`, qualquer outro código, que encerra o envio sem
+ * nova tentativa.
+ */
 export type CompleteUploadResult =
   | { ok: true }
-  | { ok: false; message: string; incomplete: boolean };
+  | { ok: false; message: string; reason: CompleteFailureReason };
+
+/** Por que a conclusão falhou, do ponto de vista da sessão de upload. */
+export type CompleteFailureReason = "discarded" | "incomplete" | "retryable" | "terminal";
 
 /** O que a Server Action de cancelar um envio devolve. A falha não muda o destino do envio. */
 export type CancelUploadResult = { ok: true } | { ok: false; message: string };
@@ -57,11 +67,13 @@ export type UploadSleep = (ms: number, signal: AbortSignal) => Promise<void>;
 export type UploadStatus = "queued" | "uploading" | "paused" | "done" | "failed";
 
 /**
- * Por que o envio falhou: a API recusou o início (`rejected`: Cota, limite de tamanho), os bytes
- * não chegaram ao storage (`connection`) ou a conclusão descartou o upload (`mismatch`: tamanho
- * divergente, ou o upload já não existe). Só `rejected` não melhora com uma nova tentativa.
+ * Por que o envio falhou: a API recusou o início (Cota, limite de tamanho) ou a conclusão com um
+ * código que outra tentativa não muda (`rejected`), os bytes não chegaram ao storage ou a
+ * conclusão não respondeu bem (`connection`, na mesma sessão), ou a sessão não serve mais
+ * (`discarded`: a conclusão apagou o upload ou ele não existe mais, ou o storage recusou o pedido
+ * com um 4xx). Só `rejected` não melhora com uma nova tentativa.
  */
-export type UploadFailure = "rejected" | "connection" | "mismatch";
+export type UploadFailure = "rejected" | "connection" | "discarded";
 
 /** Um arquivo no painel de envios. */
 export interface UploadEntry {

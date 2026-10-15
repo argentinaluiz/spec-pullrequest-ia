@@ -5,16 +5,14 @@ export const FOLDER_DROPPED_MESSAGE =
   "Pastas não podem ser enviadas. Envie os arquivos de dentro da pasta.";
 
 /**
- * O título do painel: "Enviando 3 de 5" enquanto há arquivo enviando ou na fila (3 enviam entre
- * 5 no painel), "Envio pausado" quando só restam pausados, e "2 de 2 enviado" depois, como no Figma.
+ * O título do painel, como no Figma: "Enviando 3 de 5" enquanto há arquivo enviando, pausado ou
+ * na fila (3 enviando ou pausados entre 5 no painel), e "2 de 2 enviado" quando todos terminaram.
  */
 export function panelTitle(entries: UploadEntry[]): string {
   const count = (status: UploadEntry["status"]) =>
     entries.filter((entry) => entry.status === status).length;
   const total = entries.length;
-  if (count("uploading") > 0 || count("queued") > 0) {
-    return `Enviando ${count("uploading")} de ${total}`;
-  }
-  if (count("paused") > 0) return "Envio pausado";
+  const sending = count("uploading") + count("paused");
+  if (sending > 0 || count("queued") > 0) return `Enviando ${sending} de ${total}`;
   return `${count("done")} de ${total} enviado`;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createUploadEngine } from "@/lib/uploads/engine";
+import { canRetry, createUploadEngine } from "@/lib/uploads/engine";
 import { panelTitle } from "@/lib/uploads/panel";
 import type {
   CompleteUploadResult,
@@ -228,13 +228,16 @@ describe("motor de envio", () => {
 
   it("com a sessão expirada, cancela o upload e recomeça do zero numa sessão nova @LUI-170-CA4", async () => {
     for (const expiredStatus of [404, 410]) {
+      // A primeira sessão confirma o primeiro chunk e expira no segundo.
+      const firstSession = new FakeStorage();
       const storage = new FakeStorage();
       const api = fakeApi();
       const engine = createUploadEngine({
-        transport: async (request) =>
-          request.url.endsWith("session-1")
-            ? { status: expiredStatus, range: null }
-            : storage.respond(request),
+        transport: async (request) => {
+          if (!request.url.endsWith("session-1")) return storage.respond(request);
+          if (firstSession.puts.length === 0) return firstSession.respond(request);
+          return { status: expiredStatus, range: null };
+        },
         sleep: instantSleep(),
         api,
       });
@@ -242,8 +245,10 @@ describe("motor de envio", () => {
       const [key] = engine.add([file(9 * MiB)], "root");
       await waitForStatus(engine, key, "done");
 
+      expect(firstSession.received).toBe(8 * MiB);
       expect(api.cancel).toHaveBeenCalledExactlyOnceWith("item-1");
       expect(api.start).toHaveBeenCalledTimes(2);
+      // A sessão nova começa do byte 0, e não do que a sessão expirada tinha confirmado.
       expect(storage.puts.map((put) => [put.url, put.contentRange])).toEqual([
         ["https://storage.test/session-2", "bytes 0-8388607/9437184"],
         ["https://storage.test/session-2", "bytes 8388608-9437183/9437184"],
@@ -256,7 +261,7 @@ describe("motor de envio", () => {
     const incomplete: CompleteUploadResult = {
       ok: false,
       message: "O envio ainda não terminou.",
-      incomplete: true,
+      reason: "incomplete",
     };
 
     // O storage já tem tudo quando a consulta chega: nada a enviar.
@@ -303,6 +308,193 @@ describe("motor de envio", () => {
     ]);
     expect(partialApi.complete).toHaveBeenCalledTimes(2);
     expect(states).not.toContain("failed");
+  });
+
+  it("uma falha da conclusão que não é upload_size_mismatch, not_found nem upload_incomplete mantém a sessão e repete só a conclusão, e o upload_size_mismatch a descarta", async () => {
+    // `rate_limited` uma vez: espera e conclui na mesma sessão, sem consultar o progresso.
+    const limited = new FakeStorage();
+    const limitedSleep = instantSleep();
+    const limitedApi = fakeApi();
+    limitedApi.complete.mockResolvedValueOnce({
+      ok: false,
+      message: "Muitas tentativas. Tente de novo em alguns minutos.",
+      reason: "retryable",
+    });
+    const limitedEngine = createUploadEngine({
+      transport: async (request) => limited.respond(request),
+      sleep: limitedSleep,
+      api: limitedApi,
+    });
+    const [limitedKey] = limitedEngine.add([file(10)], "root");
+    await waitForStatus(limitedEngine, limitedKey, "done");
+    expect(limitedSleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+    expect(limitedApi.complete.mock.calls).toEqual([["item-1"], ["item-1"]]);
+    expect(limited.puts.map((put) => put.contentRange)).toEqual(["bytes 0-9/10"]);
+    expect(limitedApi.start).toHaveBeenCalledOnce();
+    expect(limitedApi.cancel).not.toHaveBeenCalled();
+
+    // `internal_error` sempre: 5 tentativas, a falha, e "Tentar de novo" conclui na mesma sessão.
+    const broken = new FakeStorage();
+    const brokenSleep = instantSleep();
+    const brokenApi = fakeApi();
+    let failing = true;
+    brokenApi.complete.mockImplementation(async () =>
+      failing
+        ? { ok: false, message: "Algo deu errado. Tente de novo.", reason: "retryable" }
+        : { ok: true },
+    );
+    const brokenEngine = createUploadEngine({
+      transport: async (request) => broken.respond(request),
+      sleep: brokenSleep,
+      api: brokenApi,
+    });
+    const [brokenKey] = brokenEngine.add([file(10)], "root");
+    await waitForStatus(brokenEngine, brokenKey, "failed");
+    expect(brokenSleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000, 8000, 16000]);
+    expect(brokenEngine.getSnapshot().entries[0].message).toBe("Algo deu errado. Tente de novo.");
+    failing = false;
+    brokenEngine.retry(brokenKey);
+    await waitForStatus(brokenEngine, brokenKey, "done");
+    expect(brokenApi.start).toHaveBeenCalledOnce();
+    expect(brokenApi.complete).toHaveBeenLastCalledWith("item-1");
+    expect(broken.puts.map((put) => put.contentRange)).toEqual(["bytes 0-9/10"]);
+    expect(brokenApi.cancel).not.toHaveBeenCalled();
+
+    // `upload_size_mismatch`: a API já apagou o upload; o arquivo falha na hora, e a nova
+    // tentativa começa noutra sessão.
+    const mismatched = new FakeStorage();
+    const mismatchSleep = instantSleep();
+    const mismatchApi = fakeApi();
+    mismatchApi.complete.mockResolvedValueOnce({
+      ok: false,
+      message: "O arquivo chegou com um tamanho diferente do esperado.",
+      reason: "discarded",
+    });
+    const mismatchEngine = createUploadEngine({
+      transport: async (request) => mismatched.respond(request),
+      sleep: mismatchSleep,
+      api: mismatchApi,
+    });
+    const [mismatchKey] = mismatchEngine.add([file(10)], "root");
+    await waitForStatus(mismatchEngine, mismatchKey, "failed");
+    expect(mismatchSleep).not.toHaveBeenCalled();
+    mismatchEngine.retry(mismatchKey);
+    await waitForStatus(mismatchEngine, mismatchKey, "done");
+    expect(mismatchApi.start).toHaveBeenCalledTimes(2);
+    expect(mismatchApi.complete.mock.calls).toEqual([["item-1"], ["item-2"]]);
+  });
+
+  it("um not_found na conclusão descarta a sessão, sem nova espera, e a nova tentativa começa noutra", async () => {
+    const storage = new FakeStorage();
+    const sleep = instantSleep();
+    const api = fakeApi();
+    api.complete.mockResolvedValueOnce({
+      ok: false,
+      message: "O item não foi encontrado.",
+      reason: "discarded",
+    });
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep,
+      api,
+    });
+
+    const [key] = engine.add([file(10)], "root");
+    await waitForStatus(engine, key, "failed");
+
+    expect(sleep).not.toHaveBeenCalled();
+    expect(api.complete).toHaveBeenCalledOnce();
+    expect(engine.getSnapshot().entries[0].message).toBe("O item não foi encontrado.");
+
+    engine.retry(key);
+    await waitForStatus(engine, key, "done");
+
+    expect(api.start).toHaveBeenCalledTimes(2);
+    expect(api.complete.mock.calls).toEqual([["item-1"], ["item-2"]]);
+    expect(storage.puts.map((put) => put.url)).toEqual([
+      "https://storage.test/session-1",
+      "https://storage.test/session-2",
+    ]);
+  });
+
+  it("um código da conclusão que não se resolve com outra tentativa falha o arquivo na hora, sem Tentar de novo", async () => {
+    const storage = new FakeStorage();
+    const sleep = instantSleep();
+    const api = fakeApi();
+    api.complete.mockResolvedValueOnce({
+      ok: false,
+      message: "Os dados enviados são inválidos.",
+      reason: "terminal",
+    });
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep,
+      api,
+    });
+
+    const [key] = engine.add([file(10)], "root");
+    await waitForStatus(engine, key, "failed");
+
+    const [entry] = engine.getSnapshot().entries;
+    expect(sleep).not.toHaveBeenCalled();
+    expect(api.complete).toHaveBeenCalledOnce();
+    expect(entry.message).toBe("Os dados enviados são inválidos.");
+    expect(canRetry(entry)).toBe(false);
+  });
+
+  it("uma conclusão cuja chamada é rejeitada, como a da Server Action que leva à Sessão encerrada, não se repete", async () => {
+    const storage = new FakeStorage();
+    const sleep = instantSleep();
+    const api = fakeApi();
+    api.complete.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep,
+      api,
+    });
+
+    const [key] = engine.add([file(10)], "root");
+    await waitForStatus(engine, key, "failed");
+
+    expect(sleep).not.toHaveBeenCalled();
+    expect(api.complete).toHaveBeenCalledOnce();
+
+    // "Tentar de novo" conclui na mesma sessão, que o storage já tem inteira.
+    engine.retry(key);
+    await waitForStatus(engine, key, "done");
+
+    expect(api.start).toHaveBeenCalledOnce();
+    expect(api.complete.mock.calls).toEqual([["item-1"], ["item-1"]]);
+    expect(storage.puts.map((put) => put.contentRange)).toEqual(["bytes 0-9/10"]);
+  });
+
+  it("um 4xx do storage que não é 404 nem 410 não se repete: o arquivo falha na hora, o upload é cancelado e a nova tentativa começa noutra sessão", async () => {
+    const storage = new FakeStorage();
+    const sleep = instantSleep();
+    const api = fakeApi();
+    const engine = createUploadEngine({
+      transport: async (request) =>
+        request.url.endsWith("session-1") ? { status: 403, range: null } : storage.respond(request),
+      sleep,
+      api,
+    });
+
+    const [key] = engine.add([file(10)], "root");
+    await waitForStatus(engine, key, "failed");
+
+    expect(sleep).not.toHaveBeenCalled();
+    expect(api.complete).not.toHaveBeenCalled();
+    expect(api.cancel).toHaveBeenCalledExactlyOnceWith("item-1");
+    expect(canRetry(engine.getSnapshot().entries[0])).toBe(true);
+
+    engine.retry(key);
+    await waitForStatus(engine, key, "done");
+
+    expect(api.start).toHaveBeenCalledTimes(2);
+    expect(api.complete).toHaveBeenCalledExactlyOnceWith("item-2");
+    expect(storage.puts.map((put) => [put.url, put.contentRange])).toEqual([
+      ["https://storage.test/session-2", "bytes 0-9/10"],
+    ]);
   });
 
   it("envia no máximo 3 arquivos ao mesmo tempo e começa o próximo da fila quando um termina @LUI-170-CA6", async () => {
@@ -551,7 +743,7 @@ describe("motor de envio", () => {
 
     await vi.waitFor(() => expect(api.cancel).toHaveBeenCalledExactlyOnceWith("item-1"));
     // O cancelamento ganhou na API: a conclusão encontra o upload apagado.
-    answerComplete({ ok: false, message: "O item não existe.", incomplete: false });
+    answerComplete({ ok: false, message: "O item não existe.", reason: "discarded" });
     await settle();
     expect(engine.getSnapshot().entries).toEqual([]);
     expect(onDone).not.toHaveBeenCalled();

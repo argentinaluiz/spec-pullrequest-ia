@@ -19,7 +19,7 @@ import { DomainError } from '../src/common/errors/domain-error.js';
 import { FieldError } from '../src/common/errors/input-validation.error.js';
 import { PrismaService } from '../src/infra/database/prisma.service.js';
 import { createTestApp } from './support/create-test-app.js';
-import { expectProblem } from './support/problem.js';
+import { INTERNAL_ERROR, expectProblem } from './support/problem.js';
 
 class ProbeAddressDto {
   @IsString()
@@ -266,11 +266,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
         .get('/v1/probe/unexpected-error')
         .expect(500);
 
-      expectProblem(response, {
-        title: 'Internal Server Error',
-        status: 500,
-        code: 'internal_error',
-      });
+      expectProblem(response, INTERNAL_ERROR);
       expect(response.text).not.toContain('hunter2');
       expect(response.text).not.toContain('stack');
     });
@@ -282,11 +278,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
           .get('/v1/probe/record-not-found')
           .expect(500);
 
-        expectProblem(response, {
-          title: 'Internal Server Error',
-          status: 500,
-          code: 'internal_error',
-        });
+        expectProblem(response, INTERNAL_ERROR);
         expect(logged).toHaveBeenCalledTimes(1);
         expect(logged).toHaveBeenCalledWith(
           expect.stringContaining('PrismaClientKnownRequestError'),
@@ -303,11 +295,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
           .get(`/v1/probe/${route}`)
           .expect(500);
 
-        expectProblem(response, {
-          title: 'Internal Server Error',
-          status: 500,
-          code: 'internal_error',
-        });
+        expectProblem(response, INTERNAL_ERROR);
       },
     );
 
@@ -318,11 +306,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
           .get(`/v1/probe/${route}`)
           .expect(500);
 
-        expectProblem(response, {
-          title: 'Internal Server Error',
-          status: 500,
-          code: 'internal_error',
-        });
+        expectProblem(response, INTERNAL_ERROR);
       },
     );
 

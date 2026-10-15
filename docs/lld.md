@@ -145,7 +145,7 @@ erDiagram
 
 ### items
 
-Dona: o módulo `items`, que é também dono da Pasta raiz. A tabela está implementada e mora no `schema.prisma`, com os índices de listagem, de pendentes e da raiz única por usuário, que são parciais (prévia `partialIndexes` do Prisma). Ficam para as funcionalidades donas delas:
+Dona: o módulo `items`, que é também dono da Pasta raiz. A tabela está implementada e mora no `schema.prisma`, com os índices de listagem, de pendentes (que cobre também os itens `deleting`) e da raiz única por usuário, que são parciais (prévia `partialIndexes` do Prisma). Ficam para as funcionalidades donas delas:
 
 | Coluna | Tipo | Observação |
 | --- | --- | --- |
@@ -367,12 +367,14 @@ stateDiagram-v2
     [*] --> pending: POST /uploads
     [*] --> active: POST /folders
     pending --> active: upload concluído e conferido
-    pending --> [*]: cancelado ou pendente há mais de 24 horas
+    pending --> deleting: cancelado ou pendente há mais de 24 horas
+    deleting --> [*]: sessão e objeto removidos do storage
     active --> trashed: enviar à lixeira
     trashed --> active: restaurar
     trashed --> [*]: expurgo após 30 dias ou exclusão definitiva
 ```
 
+- **`deleting`:** o upload que o expurgo já tomou e cujo storage ainda está sendo limpo (seção 4.6). Fica invisível como o `pending` e nunca é ativado.
 - **Enviar uma pasta à lixeira** marca só a pasta. Os descendentes continuam `active`, mas ficam inacessíveis.
 - **Consequência para busca e links públicos:** como os descendentes não são marcados, essas consultas precisam conferir se algum ancestral está na lixeira. A conferência é feita com uma consulta recursiva sobre a página de resultados (até 200 itens, até 50 níveis).
 - **Restaurar** devolve o item à pasta de origem. Se ela não existir mais ou estiver na lixeira, o item volta para a raiz.
@@ -393,12 +395,12 @@ WHERE q.user_id = $user_id
   AND q.used_bytes + $size <= p.storage_bytes;
 ```
 
-Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação. Antes da reserva, na mesma transação, a linha da cota é criada no plano gratuito se ainda não existir (`INSERT ... ON CONFLICT DO NOTHING`). O `UPDATE` também grava `updated_at = now()`, porque o `@updatedAt` do Prisma só vale nas gravações pelo cliente. A devolução subtrai com `GREATEST(used_bytes - $size, 0)`, e só quem apagou o Item pendente (`DELETE ... WHERE status = 'pending'`) devolve, para a conclusão repetida ou simultânea não devolver duas vezes. O módulo `quota` é o dono dessas duas tabelas e expõe `reserve` e `release` aos outros módulos, que passam o cliente da transação deles. O erro `quota_exceeded` nasce nele.
+Se nenhuma linha for afetada, a API responde `quota_exceeded`. A reserva e a criação do item `pending` ocorrem na mesma transação. Antes da reserva, na mesma transação, a linha da cota é criada no plano gratuito se ainda não existir (`INSERT ... ON CONFLICT DO NOTHING`). O `UPDATE` também grava `updated_at = now()`, porque o `@updatedAt` do Prisma só vale nas gravações pelo cliente. A devolução subtrai com `GREATEST(used_bytes - $size, 0)`, e só quem tirou o Item de `pending` devolve, para a conclusão repetida ou simultânea não devolver duas vezes: o expurgo, que o passa a `deleting` (`UPDATE ... WHERE status = 'pending'`, seção 4.6), e a divergência de tamanho e a compensação do início, que o apagam (`DELETE ... WHERE status = 'pending'`). O módulo `quota` é o dono dessas duas tabelas e expõe `reserve` e `release` aos outros módulos, que passam o cliente da transação deles. O erro `quota_exceeded` nasce nele.
 
 | Evento | Efeito em `used_bytes` |
 | --- | --- |
 | Iniciar upload | Soma o tamanho declarado |
-| Cancelar upload ou limpeza de pendente | Subtrai |
+| Cancelar upload ou limpeza de pendente | Subtrai, quando o item passa a `deleting`, antes de o storage ser limpo |
 | Tamanho real diferente do declarado | Subtrai, e o objeto é apagado |
 | Enviar à lixeira ou restaurar | Nenhum |
 | Expurgo ou exclusão definitiva | Subtrai, depois de o objeto ser apagado do storage |
@@ -455,14 +457,16 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Arquivo vazio:** um arquivo de 0 bytes reserva 0 bytes e é enviado num único `PUT` vazio.
 - **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
 - **Remoção do objeto:** no `upload_size_mismatch`, a API apaga o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
-- **Ordem do cancelamento:** o item sai primeiro, por um `DELETE ... WHERE status = 'pending'`, com o espaço devolvido na mesma transação; só então a API cancela a sessão e apaga o objeto. Uma conclusão simultânea ou ativa o item antes (e o cancelamento responde `not_found`, sem tocar no objeto) ou o encontra apagado (`not_found`), e nunca fica um item ativo sem o objeto. Se o storage falhar depois de o item sair, o cancelamento vale e a falha fica no log, com a chave do objeto.
+- **Ordem do expurgo:** o cancelamento (`DELETE /uploads/{itemId}`) e a limpeza de pendentes (seção 5) apagam o upload do mesmo jeito, em três passos, sem transação aberta nem trava durante as chamadas ao storage. (1) Uma transação curta toma o item, `UPDATE items SET status = 'deleting' WHERE id = $id AND status = 'pending'` (no cancelamento, também pelo dono), e devolve o espaço à cota só se a linha mudou: repetir ou paralelizar o expurgo não devolve duas vezes. (2) A sessão de upload e depois o objeto saem do storage, cada remoção tentada mesmo que a outra falhe, e a primeira falha sobe. (3) A linha `deleting` é apagada. Na ordem inversa (a linha apagada antes do storage), uma falha no meio deixaria objetos órfãos, gerando custo sem registro.
+- **Conclusão simultânea ao expurgo:** a ativação (`UPDATE ... WHERE status = 'pending'`) não encontra um item `deleting`, e a conclusão responde `not_found` na hora, sem esperar o storage. Se a conclusão ativa antes, o expurgo não toma o item, e o cancelamento responde `not_found`, com o objeto intacto. Nunca fica um item ativo sem o objeto.
+- **Falha do storage no expurgo:** o item fica `deleting`, com o espaço já devolvido, e não volta a `pending`. O cancelamento responde `internal_error`; um novo cancelamento do mesmo item pelo dono refaz os passos 2 e 3 e responde 204. A limpeza conta a falha, segue com os demais e, nas próximas execuções, pega também os itens `deleting` tomados há mais que a carência da seção 5 e refaz os passos 2 e 3. Ela conta como removido só o item cuja linha ela mesma apagou: o que outro expurgo terminou no meio não entra na contagem.
 
 **Como o upload de um arquivo é executado (LUI-167)**
 
 - **Ordem do início:** (1) o destino é resolvido (`root` ou uma pasta `active` do usuário; qualquer outro valor, inclusive um texto que não é UUID, é `not_found`); (2) uma transação cria a linha da cota, reserva o tamanho e cria o item `pending`, com a chave do objeto (UUID aleatório) e sem a sessão; (3) fora da transação, a sessão é criada no storage; (4) o endereço dela é gravado no item. Chamar o storage dentro da transação a prenderia durante uma chamada de rede. Se o passo 3 falhar, uma transação de compensação apaga o item pendente e devolve o espaço, e o erro sobe (`internal_error`). Se a compensação também falhar, o item fica `pending` e a limpeza o remove.
 - **Validade da sessão:** `expiresAt` é a criação do item mais 24 horas, o prazo em que a limpeza remove um pendente (seção 5). O Cloud Storage guarda a sessão por mais tempo, e esse prazo não é o que o cliente vê.
 - **Tamanho:** 5 GB são 5 GiB (5 × 1024³ bytes), como os 15 GB do plano gratuito são 15 GiB. O limite é inclusivo.
-- **Conclusão:** o item é lido pelo dono (outro usuário e id inexistente, ou que não é UUID, são `not_found`). Já `active`, é devolvido. `pending`, o tamanho vem do storage: ausente é `upload_incomplete`, diferente do declarado é `upload_size_mismatch`, igual ativa o item. A ativação é um `UPDATE ... WHERE status = 'pending'`: se outra conclusão chegou antes, a perdedora relê o item e o devolve.
+- **Conclusão:** o item é lido pelo dono (outro usuário e id inexistente, ou que não é UUID, são `not_found`). Já `active`, é devolvido. `pending`, o tamanho vem do storage: ausente, o item é relido, e é `upload_incomplete` se ele continua `pending` e `not_found` se um expurgo o tomou no meio da conclusão; diferente do declarado é `upload_size_mismatch`, igual ativa o item. Um item `deleting` é `not_found`, como o inexistente. A ativação é um `UPDATE ... WHERE status = 'pending'`: se outra conclusão chegou antes, a perdedora relê o item e o devolve.
 - **Divergência de tamanho com falha na remoção:** no `upload_size_mismatch`, o objeto é apagado primeiro e, depois, uma transação apaga o item e devolve o espaço. Se o objeto não puder ser apagado, o erro do storage sobe (`internal_error`) e nada muda: o item continua `pending`, com o espaço reservado, até a limpeza.
 
 **Interface de storage**
@@ -475,7 +479,7 @@ A interface `FileStorage` (`src/infra/storage/`, token `FILE_STORAGE`) é a úni
 | `signReadUrl` | Recebe o nome do objeto, o nome do arquivo e a validade, obrigatória: a interface não tem prazo padrão, e quem chama decide (o download usa 5 minutos, seção 3.4). Devolve uma URL assinada (V4) de leitura, com o nome do arquivo no `response-content-disposition` (`attachment; filename*=UTF-8''…`), e o `expiresAt`, contado do instante da assinatura. |
 | `getObjectSize` | Devolve o tamanho em bytes, ou `null` se o objeto não existe. O objeto só passa a existir quando o envio termina. |
 | `deleteObject` | Apaga o objeto. Um objeto que não existe não é erro. |
-| `cancelUploadSession` | Cancela uma sessão pelo endereço dela (`DELETE`, que o Cloud Storage responde com 499). Uma sessão que já terminou ou expirou não é erro. |
+| `cancelUploadSession` | Cancela uma sessão pelo endereço dela (`DELETE`, que o Cloud Storage responde com 499). Qualquer resposta `4xx` (a sessão já terminou, expirou, foi finalizada ou é inválida) diz que ela não aceita mais bytes e não é erro; só o `5xx` e a falha de rede são. |
 
 Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `StorageUnavailableError`, erro de domínio: o service não conhece o erro do SDK.
 
@@ -555,7 +559,7 @@ O worker é a mesma imagem da API, publicada como um serviço separado do Cloud 
 | Tarefa | Disparo | Em caso de falha |
 | --- | --- | --- |
 | Gerar miniatura de imagem | Cloud Tasks, na conclusão do upload | 3 tentativas. Depois disso, o arquivo fica sem miniatura. |
-| Limpar uploads `pending` há mais de 24 horas | Cloud Scheduler, a cada hora | Tenta de novo na próxima execução |
+| Limpar uploads `pending` há mais de 24 horas e os `deleting` tomados há mais de 15 minutos | Cloud Scheduler, a cada hora | O item fica `deleting`, e a próxima execução termina a remoção |
 | Expurgar itens há mais de 30 dias na lixeira | Cloud Scheduler, diário | Tenta de novo na próxima execução |
 | Apagar objetos no Cloud Storage | Cloud Tasks, uma tarefa por lote | Novas tentativas com espera crescente |
 | Gerar cobrança Pix | Cloud Scheduler, diário, 5 dias antes do vencimento | Nova tentativa e alerta |
@@ -565,7 +569,9 @@ O worker é a mesma imagem da API, publicada como um serviço separado do Cloud 
 
 **Antes do worker:** enquanto o serviço do worker não existe, a limpeza de uploads `pending` roda por um comando no contêiner `api`, que chama o mesmo service que o endpoint do worker vai chamar. É o substituto local do Cloud Scheduler (HLD, seção 6.1), e o uso dele está em `apps/api/AGENTS.md`. A ordem de cada remoção é a do expurgo, abaixo. O worker, o endpoint interno com OIDC e a fila entram quando houver deploy, e a miniatura entra com a pré-visualização.
 
-**Ordem do expurgo:** primeiro a sessão de upload, o objeto e a miniatura são apagados do Cloud Storage, e só depois uma transação apaga a linha (só se ainda estiver `pending`) e devolve o espaço à cota (só se uma linha foi apagada, então repetir ou paralelizar a limpeza não devolve duas vezes). Antes de apagar o objeto, a limpeza lê o status do Item de novo e o pula se ele já não estiver `pending`. Uma conclusão que chegue entre essa leitura e a remoção do objeto ainda é possível com o prazo zero, que existe só para testes e para o ambiente de desenvolvimento; com o padrão de 24 horas, um upload tão antigo não foi concluído por um cliente vivo. Se o storage falhar, a linha fica para a próxima execução e as demais seguem. Na ordem inversa, uma falha no meio deixaria objetos órfãos, gerando custo sem registro.
+**Ordem do expurgo:** é a mesma do cancelamento, na seção 4.6 ("Ordem do expurgo" e "Falha do storage no expurgo"). A miniatura, quando existir, sai do Cloud Storage junto com o objeto. O `pending` listado ainda é tomado, e fica de fora se uma conclusão ou outro expurgo chegou antes; o `deleting` listado já foi tomado e vai direto aos passos 2 e 3.
+
+**Carência dos `deleting`:** a limpeza só pega um item `deleting` 15 minutos depois da tomada, que é o `updated_at` que a tomada grava (nenhuma outra gravação muda um item `deleting`). Antes disso, o expurgo que o tomou (um cancelamento ou outra limpeza) pode ainda estar limpando o storage, e as duas fariam o mesmo trabalho ao mesmo tempo. O prazo fica bem acima do que um expurgo leva (o cancelamento da sessão tem 10 segundos de limite) e abaixo do intervalo da limpeza, então um item que ficou para trás é terminado na execução seguinte. O cancelamento pelo dono não espera a carência.
 
 **Miniaturas:** são geradas só para imagens de até 50 MB, com 320 px no lado maior, em WebP, e gravadas no mesmo bucket sob o prefixo `thumbnails/`.
 
@@ -722,9 +728,12 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 | Tentativas por chunk | 5, com espera crescente de 1 a 30 segundos |
 
 - **Espera entre tentativas:** 1, 2, 4, 8 e 16 segundos: dobra a cada tentativa e nunca passa de 30. Depois da quinta, o arquivo fica como falha, com o botão "Tentar de novo", que consulta o progresso e recomeça a contagem na mesma sessão.
+- **308 sem bytes novos:** um chunk respondido com 308 cujo `Range` não passa do que o storage já tinha confirmado conta como uma tentativa que falhou, com a mesma espera e o mesmo limite de 5, e não como um passo que deu certo.
+- **Sessão expirada seguidas vezes:** o arquivo recomeça do zero numa sessão nova no máximo 3 vezes seguidas. Se a quarta sessão também expirar, o arquivo fica como falha, com "Tentar de novo", que recomeça a contagem dos 3 recomeços.
 - **Progresso na tela:** o que o storage confirmou (o `Range` da 308), e não o que o navegador já mandou.
 - **Pausar e retomar:** pausar aborta o `PUT` em curso e não manda outro; o arquivo continua `pending` na API, com o espaço reservado. Retomar faz a consulta de progresso e continua do byte seguinte.
 - **Cancelar:** aborta o `PUT` em curso e chama `DELETE /uploads/{itemId}` (Server Action); o arquivo sai do painel e não aparece na lista.
+- **Tirar do painel um arquivo que falhou:** remover o arquivo do painel, ou fechar o painel com ele, chama `DELETE /uploads/{itemId}` quando ele ainda tem uma sessão aberta, para o espaço reservado voltar à cota. O arquivo concluído sai do painel sem chamar a API.
 - **Motor de envio:** a fila, os chunks, as tentativas, a pausa e o cancelamento ficam num módulo sem React, que recebe o transporte (`fetch`), o relógio e as ações da API, e por isso é testado por unidade. O provider só o liga ao painel.
 
 **Envio**
@@ -754,8 +763,13 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 | --- | --- |
 | `5xx` ou falha de rede | Consultar o progresso e repetir o chunk, até 5 vezes |
 | `404` ou `410` na sessão | A sessão expirou. O navegador chama `DELETE /uploads/{itemId}` e recomeça do zero. |
+| Outro `4xx` na sessão | Não se repete, porque o mesmo pedido teria a mesma resposta, e a sessão não serve mais: o navegador chama `DELETE /uploads/{itemId}`, descarta a sessão e mostra o arquivo como falha, com "Tentar de novo", que começa um upload novo |
 | `upload_size_mismatch` na conclusão | A API apaga o objeto e devolve o espaço. O navegador mostra o erro. |
+| `not_found` na conclusão | O upload foi cancelado ou removido pela limpeza. O navegador descarta a sessão e mostra o erro, sem nova tentativa; "Tentar de novo" começa um upload novo. |
 | `upload_incomplete` na conclusão | O navegador consulta o progresso e retoma o envio, sem mostrar erro |
+| Chamada da Server Action rejeitada: a Sessão vencida (`unauthenticated`) ou a falha de rede | Não se repete. A Sessão vencida segue a seção 7.8: a Server Action leva a `/sessao-encerrada`, o que rejeita a chamada no navegador, e a saída do `(drive)` para os envios. Na falha de rede, o arquivo fica como falha, com "Tentar de novo", na mesma sessão. |
+| `internal_error` ou `rate_limited` na conclusão | A sessão continua. É uma tentativa que falhou: o navegador espera e pede a conclusão de novo, sem consultar o progresso, porque o storage já tem o arquivo inteiro, até 5 vezes, e então mostra a falha com "Tentar de novo", na mesma sessão |
+| Outro `code` na conclusão | Não se repete: o arquivo fica como falha, sem "Tentar de novo". Tirá-lo do painel cancela o upload, como em qualquer falha com a sessão aberta. |
 | Usuário cancela | O navegador chama `DELETE /uploads/{itemId}` |
 
 **A fila de envios**

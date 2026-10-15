@@ -25,6 +25,13 @@ const DEFAULT_MIME_TYPE = 'application/octet-stream';
 /** Quantos uploads vencidos a limpeza lê por vez. */
 const CLEANUP_BATCH_SIZE = 100;
 
+/**
+ * Quanto tempo depois da tomada a limpeza termina um upload `deleting`: antes
+ * disso, o expurgo que o tomou pode ainda estar limpando o storage (seção 5 do
+ * docs/lld.md).
+ */
+const DELETING_GRACE_MS = 15 * 60 * 1000;
+
 /** O resultado de uma limpeza: quantos pendentes saíram e em quantos o storage falhou. */
 export interface PendingCleanupResult {
   removed: number;
@@ -115,7 +122,10 @@ export class UploadsService {
 
   /**
    * Confere o objeto no storage e ativa o Item. Um Item já ativo é devolvido
-   * como está, e a conclusão repetida ou simultânea devolve o mesmo Item.
+   * como está, e a conclusão repetida ou simultânea devolve o mesmo Item. Sem
+   * o objeto, o Item é relido: se um expurgo o tomou no meio da conclusão, ele
+   * não está mais `pending`, e a resposta é `not_found`, e não
+   * `upload_incomplete`.
    */
   async complete(userId: string, itemId: string): Promise<Item> {
     const file = await this.items.findFile(userId, itemId);
@@ -128,7 +138,14 @@ export class UploadsService {
     if (file.status === 'pending') {
       const size = await this.storage.getObjectSize(file.objectKey);
       if (size === null) {
-        throw new UploadIncompleteError();
+        const current = await this.items.findFile(userId, itemId);
+        if (!current) {
+          throw new ItemNotFoundError();
+        }
+        if (current.status === 'pending') {
+          throw new UploadIncompleteError();
+        }
+        return toItem(current);
       }
       if (size !== file.sizeBytes) {
         // O objeto sai primeiro: se o storage falhar, nada muda e a limpeza resolve depois.
@@ -147,55 +164,56 @@ export class UploadsService {
   }
 
   /**
-   * Cancela o upload `pending` do Usuário: o Item sai primeiro, só se ainda
-   * está `pending`, junto com o espaço, e o storage depois. Assim uma conclusão
-   * simultânea ou ganha antes (e o cancelamento é `not_found`, com o objeto
-   * intacto) ou encontra o Item apagado. Outro dono, inexistente ou que já não
-   * está `pending` é `not_found`. Uma falha do storage depois disso só é
-   * registrada: o cancelamento já valeu.
+   * Cancela o upload do Usuário pelo expurgo, com a ordem e o efeito de uma
+   * falha do storage descritos no docs/lld.md, seção 4.6 ("Ordem do
+   * expurgo"). Um upload que um expurgo anterior deixou em `deleting` é
+   * terminado. Outro dono, inexistente, já concluído ou já removido é
+   * `not_found`.
    */
   async cancel(userId: string, itemId: string): Promise<void> {
-    const upload = await this.items.findPendingUpload(userId, itemId);
-    if (
-      !upload ||
-      !(await this.discardPending(userId, upload.id, upload.sizeBytes))
-    ) {
+    const upload =
+      (await this.claim(userId, itemId)) ??
+      (await this.items.findDeletingUpload(userId, itemId));
+    if (!upload) {
       throw new ItemNotFoundError();
     }
-    try {
-      if (upload.uploadSessionUri) {
-        await this.storage.cancelUploadSession(upload.uploadSessionUri);
-      }
-      if (upload.objectKey) {
-        await this.storage.deleteObject(upload.objectKey);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Upload ${upload.id} cancelado, mas o objeto ${upload.objectKey ?? '(sem chave)'} ficou no storage: ${String(error)}`,
-      );
-    }
+    await this.purge(upload);
   }
 
-  /** Remove os uploads `pending` vencidos, na ordem do expurgo (seção 5 do docs/lld.md). */
+  /**
+   * Remove pelo expurgo os uploads `pending` vencidos e os que ficaram em
+   * `deleting` há mais que o prazo de carência (seção 4.6 do docs/lld.md,
+   * "Ordem do expurgo", e seção 5). O `pending` listado ainda é tomado, e
+   * sai da contagem se uma conclusão ou outro expurgo chegou antes; o
+   * `deleting` já foi tomado e segue direto para o storage. Só conta o
+   * upload cuja linha esta limpeza apagou.
+   */
   async cleanupPending(): Promise<PendingCleanupResult> {
-    const before = new Date(Date.now() - this.config.pendingTtlMs);
+    const now = Date.now();
+    const pendingBefore = new Date(now - this.config.pendingTtlMs);
+    const deletingBefore = new Date(now - DELETING_GRACE_MS);
     const result: PendingCleanupResult = { removed: 0, failed: 0 };
     let afterId: string | undefined;
     let batch: PendingUpload[];
     do {
-      batch = await this.items.listExpiredPending(
-        before,
+      batch = await this.items.listPurgeableUploads(
+        pendingBefore,
+        deletingBefore,
         afterId,
         CLEANUP_BATCH_SIZE,
       );
-      for (const upload of batch) {
+      for (const listed of batch) {
         try {
-          if ((await this.removePending(upload)) === 'removed') {
+          const claimed =
+            listed.status === 'pending'
+              ? await this.claim(listed.ownerId, listed.id)
+              : listed;
+          if (claimed && (await this.purge(claimed))) {
             result.removed += 1;
           }
         } catch (error) {
           this.logger.warn(
-            `Upload pendente ${upload.id} fica para a próxima limpeza: ${String(error)}`,
+            `Upload ${listed.id} fica em remoção para a próxima limpeza: ${String(error)}`,
           );
           result.failed += 1;
         }
@@ -206,48 +224,71 @@ export class UploadsService {
   }
 
   /**
-   * Apaga um upload `pending`: o storage primeiro, depois o Item e o espaço.
-   * Devolve `skipped` se uma conclusão o ativou no meio do caminho. Um erro do
-   * storage ou do banco sobe, e o Item continua `pending`.
+   * Os passos 2 e 3 do expurgo de um upload já tomado (`deleting`), na ordem
+   * do docs/lld.md, seção 4.6 ("Ordem do expurgo"): limpa o storage sem
+   * transação aberta e só então apaga o Item. Devolve se foi esta chamada que
+   * apagou a linha: `false` quando outro expurgo a terminou antes. Uma falha
+   * do storage sobe, e o Item fica `deleting`, com a Cota já devolvida.
    */
-  private async removePending(
-    upload: PendingUpload,
-  ): Promise<'removed' | 'skipped'> {
+  private async purge(upload: PendingUpload): Promise<boolean> {
+    await this.removeFromStorage(upload);
+    return this.items.removeDeletingUpload(upload.id);
+  }
+
+  /**
+   * Numa transação curta, passa o upload `pending` a `deleting` e devolve a
+   * Cota dele. Só quem o tomou devolve, então dois expurgos simultâneos não
+   * devolvem duas vezes.
+   */
+  private claim(userId: string, itemId: string): Promise<PendingUpload | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const upload = await this.items.claimPendingUpload(userId, itemId, tx);
+      if (upload) {
+        await this.quota.release(userId, upload.sizeBytes, tx);
+      }
+      return upload;
+    });
+  }
+
+  /**
+   * Cancela a sessão e apaga o objeto do upload, nessa ordem. Uma remoção não
+   * depende da outra: se a sessão falhar, o objeto ainda é apagado, e a
+   * primeira falha sobe no fim.
+   */
+  private async removeFromStorage(upload: PendingUpload): Promise<void> {
+    let failure: unknown;
     if (upload.uploadSessionUri) {
-      await this.storage.cancelUploadSession(upload.uploadSessionUri);
-    }
-    // Estreita a janela: uma conclusão que ativou o Item desde a leitura poupa o objeto.
-    const current = await this.items.findFile(upload.ownerId, upload.id);
-    if (current?.status !== 'pending') {
-      return 'skipped';
+      await this.storage
+        .cancelUploadSession(upload.uploadSessionUri)
+        .catch((error: unknown) => {
+          failure ??= error;
+        });
     }
     if (upload.objectKey) {
-      await this.storage.deleteObject(upload.objectKey);
+      await this.storage
+        .deleteObject(upload.objectKey)
+        .catch((error: unknown) => {
+          failure ??= error;
+        });
     }
-    // Uma conclusão que ativou o Item no meio do caminho não o perde: só apaga `pending`.
-    const removed = await this.discardPending(
-      upload.ownerId,
-      upload.id,
-      upload.sizeBytes,
-    );
-    return removed ? 'removed' : 'skipped';
+    if (failure !== undefined) {
+      throw failure;
+    }
   }
 
   /**
    * Apaga o Item `pending` e devolve o espaço, só se foi esta chamada que o
-   * apagou. Devolve se foi.
+   * apagou.
    */
   private discardPending(
     userId: string,
     itemId: string,
     sizeBytes: number,
-  ): Promise<boolean> {
+  ): Promise<void> {
     return this.prisma.$transaction(async (tx) => {
-      const removed = await this.items.removePending(itemId, tx);
-      if (removed) {
+      if (await this.items.removePending(itemId, tx)) {
         await this.quota.release(userId, sizeBytes, tx);
       }
-      return removed;
     });
   }
 }

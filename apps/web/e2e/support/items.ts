@@ -74,15 +74,3 @@ export async function seedRootFiles(email: string, files: SeedFile[]) {
     }
   });
 }
-
-/** O tamanho gravado na API para o arquivo ativo do Usuário com esse nome, ou `null` se ele não existe. */
-export async function storedSizeOf(email: string, name: string): Promise<number | null> {
-  return withDatabase(async (client) => {
-    const { rows } = await client.query<{ size_bytes: string }>(
-      `SELECT items.size_bytes FROM items JOIN users ON users.id = items.owner_id
-        WHERE users.email = $1 AND items.name = $2 AND items.status = 'active'`,
-      [email, name],
-    );
-    return rows[0] ? Number(rows[0].size_bytes) : null;
-  });
-}

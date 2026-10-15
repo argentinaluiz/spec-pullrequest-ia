@@ -119,17 +119,35 @@ export class ItemsService {
       : Promise.resolve(null);
   }
 
-  /** O upload `pending` do Usuário, ou `null` (outro dono, inexistente, id que não é UUID ou já concluído). */
-  findPendingUpload(
+  /**
+   * Toma o upload `pending` do Usuário para o expurgo (passa a `deleting`),
+   * dentro da transação de quem chama, e o devolve. `null`: outro dono,
+   * inexistente, id que não é UUID, já concluído ou já tomado.
+   */
+  claimPendingUpload(
+    ownerId: string,
+    id: string,
+    db: Prisma.TransactionClient,
+  ): Promise<PendingUpload | null> {
+    return isUUID(id)
+      ? this.items.claimPendingUpload(ownerId, id, db)
+      : Promise.resolve(null);
+  }
+
+  /** O upload `deleting` do Usuário, que um expurgo tomou e não terminou, ou `null` (inclusive id que não é UUID). */
+  findDeletingUpload(
     ownerId: string,
     id: string,
   ): Promise<PendingUpload | null> {
     return isUUID(id)
-      ? this.items.findPendingUpload(ownerId, id)
+      ? this.items.findDeletingUpload(ownerId, id)
       : Promise.resolve(null);
   }
 
-  /** Ativa o Item `pending`. Devolve `false` se outra conclusão chegou antes. */
+  /**
+   * Ativa o Item `pending`. Devolve `false` se outra conclusão chegou antes ou
+   * se o expurgo já o tomou (`deleting`).
+   */
   activatePending(id: string): Promise<boolean> {
     return this.items.activatePending(id);
   }
@@ -142,13 +160,31 @@ export class ItemsService {
     return this.items.deletePending(id, db);
   }
 
-  /** Até `limit` uploads `pending` criados até `before`, a partir do que vem depois de `afterId`. */
-  listExpiredPending(
-    before: Date,
+  /**
+   * Apaga o Item `deleting`, depois de o expurgo limpar o storage. Devolve se
+   * foi esta chamada que o apagou.
+   */
+  removeDeletingUpload(id: string): Promise<boolean> {
+    return this.items.deleteDeleting(id);
+  }
+
+  /**
+   * Até `limit` uploads para o expurgo, a partir do que vem depois de
+   * `afterId`: os `pending` criados até `pendingBefore` e os `deleting`
+   * tomados até `deletingBefore`.
+   */
+  listPurgeableUploads(
+    pendingBefore: Date,
+    deletingBefore: Date,
     afterId: string | undefined,
     limit: number,
   ): Promise<PendingUpload[]> {
-    return this.items.listExpiredPending(before, afterId, limit);
+    return this.items.listPurgeableUploads(
+      pendingBefore,
+      deletingBefore,
+      afterId,
+      limit,
+    );
   }
 
   /** Guarda o endereço da sessão de upload no Item `pending`. */

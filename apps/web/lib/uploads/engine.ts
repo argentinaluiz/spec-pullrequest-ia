@@ -53,6 +53,10 @@ interface Run {
 class Interrupted extends Error {}
 /** A sessão de upload acabou (404 ou 410): é preciso cancelar o upload e começar outro. */
 class SessionExpired extends Error {}
+/** A sessão recusou o pedido com outro 4xx: o mesmo pedido teria a mesma resposta, e ela não serve mais. */
+class SessionRefused extends Error {}
+/** Uma falha do passo que a API explicou: conta para as tentativas, e a mensagem dela vai à tela. */
+class StepFailed extends Error {}
 /** Uma falha que repetir o passo não resolve. */
 class Failed extends Error {
   constructor(
@@ -142,6 +146,13 @@ export function createUploadEngine(options: UploadEngineOptions) {
     if (failure === "rejected") task.file = null;
   }
 
+  /** Esquece a sessão: a próxima tentativa começa do zero, noutra. */
+  function resetSession(task: Task) {
+    task.session = null;
+    task.confirmed = 0;
+    task.stored = false;
+  }
+
   /**
    * Esquece a sessão e cancela o upload na API. Uma falha, que a Server Action já registra, não
    * muda o destino do envio: o upload que não foi cancelado continua `pending`, e a limpeza o
@@ -149,9 +160,7 @@ export function createUploadEngine(options: UploadEngineOptions) {
    */
   async function dropSession(task: Task) {
     const session = task.session;
-    task.session = null;
-    task.confirmed = 0;
-    task.stored = false;
+    resetSession(task);
     if (!session) return;
     await api.cancel(session.itemId).catch(() => undefined);
   }
@@ -186,6 +195,7 @@ export function createUploadEngine(options: UploadEngineOptions) {
       // Pausa ou cancelamento: quem os pediu já deixou o estado do arquivo certo.
       if (run.signal.aborted) return;
       if (error instanceof Failed) fail(task, error.failure, error.message);
+      else if (error instanceof StepFailed) fail(task, "connection", error.message);
       else fail(task, "connection", CONNECTION_FAILED);
     } finally {
       // Cancelado com o envio em curso: o upload é desfeito na API depois de o envio parar.
@@ -196,13 +206,21 @@ export function createUploadEngine(options: UploadEngineOptions) {
     }
   }
 
-  /** O arquivo inteiro. Uma sessão expirada recomeça do zero, numa sessão nova, até 3 vezes. */
+  /**
+   * O arquivo inteiro. Uma sessão expirada recomeça do zero, numa sessão nova, até 3 vezes. Uma
+   * sessão que recusou o pedido é descartada, com o upload cancelado na API, e o arquivo falha: a
+   * nova tentativa começa noutra sessão.
+   */
   async function upload(run: Run) {
     const { task } = run;
     for (;;) {
       try {
         return await transfer(run);
       } catch (error) {
+        if (error instanceof SessionRefused) {
+          await dropSession(task);
+          throw new Failed("discarded", CONNECTION_FAILED);
+        }
         if (!(error instanceof SessionExpired) || task.restarts >= MAX_RESTARTS) throw error;
         task.restarts += 1;
         await dropSession(task);
@@ -242,27 +260,29 @@ export function createUploadEngine(options: UploadEngineOptions) {
   }
 
   /**
-   * Repete `step` até ela dizer que terminou. Uma falha de rede, de status ou um
-   * `upload_incomplete` espera 1, 2, 4, 8 e 16 s, consulta o progresso e tenta de novo; depois da
+   * Repete `step` até ela dizer que terminou. Uma falha de rede, de status ou da conclusão que
+   * mantém a sessão espera 1, 2, 4, 8 e 16 s, consulta o progresso e tenta de novo; depois da
    * quinta espera, o arquivo falha. Um passo que dá certo zera a contagem. Com `recovering`, a
-   * consulta vem antes do primeiro passo.
+   * consulta vem antes do primeiro passo, menos quando o storage já tem o arquivo inteiro: aí só
+   * a conclusão se repete.
    */
   async function drive(run: Run, recovering: boolean, step: () => Promise<boolean>) {
     let failures = 0;
     for (;;) {
       try {
-        if (recovering) {
+        if (recovering && !run.task.stored) {
           await queryProgress(run);
-          recovering = false;
         } else if (await step()) {
           return;
         } else {
           failures = 0;
         }
+        recovering = false;
       } catch (error) {
         interruptIfStopped(run);
         if (
           error instanceof SessionExpired ||
+          error instanceof SessionRefused ||
           error instanceof Failed ||
           failures >= RETRY_WAIT_MS.length
         ) {
@@ -326,21 +346,36 @@ export function createUploadEngine(options: UploadEngineOptions) {
     change(task, { progress: progressOf(task, file) });
   }
 
+  /**
+   * Pede a conclusão à API (docs/lld.md, seção 7.4). O upload que a API descartou ou que não
+   * existe mais (`upload_size_mismatch`, `not_found`) descarta a sessão. O `upload_incomplete` e
+   * as falhas que se repetem (`internal_error`, `rate_limited`) mantêm a sessão e são uma falha do
+   * passo: o primeiro consulta o progresso antes de tentar de novo, e as outras repetem só a
+   * conclusão. Qualquer outro código encerra o envio, sem "Tentar de novo", e a sessão fica para o
+   * cancelamento quando o arquivo sai do painel. Uma chamada rejeitada, como a da Server Action que
+   * leva à Sessão encerrada, não se repete.
+   */
   async function complete(run: Run) {
     const { task } = run;
     task.completing = true;
-    const result = await api.complete(sessionOf(task).itemId).finally(() => {
-      task.completing = false;
-    });
+    const result = await api
+      .complete(sessionOf(task).itemId)
+      .catch(() => {
+        throw new Failed("connection", CONNECTION_FAILED);
+      })
+      .finally(() => {
+        task.completing = false;
+      });
     if (result.ok) return;
-    // O storage ainda não tem tudo: é mais uma falha do passo, que consulta o progresso e segue.
-    if (result.incomplete) throw new Error(result.message);
-    // A API já apagou o upload (tamanho diferente) ou ele não existe mais: uma nova tentativa
-    // começa noutra sessão.
-    task.session = null;
-    task.confirmed = 0;
-    task.stored = false;
-    throw new Failed("mismatch", result.message);
+    if (result.reason === "discarded") {
+      // A nova tentativa começa noutra sessão.
+      resetSession(task);
+      throw new Failed("discarded", result.message);
+    }
+    if (result.reason === "terminal") throw new Failed("rejected", result.message);
+    // O storage ainda não tem tudo: a consulta de progresso diz o que falta.
+    if (result.reason === "incomplete") task.stored = false;
+    throw new StepFailed(result.message);
   }
 
   return {
@@ -454,11 +489,16 @@ function sessionOf(task: Task) {
   return task.session;
 }
 
-/** 404 e 410 são a sessão que acabou; 5xx e 4xx inesperados, falha que se repete. 2xx e 308 passam. */
+/**
+ * 404 e 410 são a sessão que acabou; 5xx, falha que se repete; outro 4xx, a sessão que recusou o
+ * pedido, que repetir não resolve (docs/lld.md, seção 7.4). 2xx e 308 passam.
+ */
 function assertStored(response: PutResponse) {
-  if (response.status === 404 || response.status === 410) throw new SessionExpired();
-  if (response.status !== 308 && (response.status < 200 || response.status >= 300)) {
-    throw new Error(`O storage respondeu ${response.status}`);
+  const { status } = response;
+  if (status === 404 || status === 410) throw new SessionExpired();
+  if (status >= 400 && status < 500) throw new SessionRefused();
+  if (status !== 308 && (status < 200 || status >= 300)) {
+    throw new Error(`O storage respondeu ${status}`);
   }
 }
 

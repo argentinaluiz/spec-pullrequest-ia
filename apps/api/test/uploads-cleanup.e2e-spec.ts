@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
+import { storageConfig } from '../src/config/storage.config.js';
 import { PrismaService } from '../src/infra/database/prisma.service.js';
 import {
   FILE_STORAGE,
@@ -10,6 +11,10 @@ import { createTestApp } from './support/create-test-app.js';
 import { itemRoutes } from './support/items.js';
 import { uniqueEmail } from './support/mailpit.js';
 import { expectProblem } from './support/problem.js';
+import {
+  type StorageProxy,
+  startStorageProxy,
+} from './support/storage-proxy.js';
 import { uploadRoutes } from './support/uploads.js';
 import { ItemsService } from '../src/modules/items/items.service.js';
 import { UploadsService } from '../src/modules/uploads/uploads.service.js';
@@ -159,10 +164,10 @@ describe('Limpeza dos uploads pendentes', () => {
     await uploads().putBytes(uploadUrl, 'abcde');
     const objectKey = await uploads().objectKeyOf(itemId);
     const items = app.get(ItemsService);
-    const listExpiredPending = items.listExpiredPending.bind(items);
-    vi.spyOn(items, 'listExpiredPending').mockImplementation(
+    const listPurgeableUploads = items.listPurgeableUploads.bind(items);
+    vi.spyOn(items, 'listPurgeableUploads').mockImplementation(
       async (...args) => {
-        const listed = await listExpiredPending(...args);
+        const listed = await listPurgeableUploads(...args);
         await items.activatePending(itemId);
         return listed;
       },
@@ -213,5 +218,152 @@ describe('Limpeza dos uploads pendentes, com o prazo padrão', () => {
     expect(completed.status).toBe(200);
     expect((completed.body as { id: string }).id).toBe(itemId);
     expect(await itemOf(itemId)).toMatchObject({ status: 'active' });
+  });
+});
+
+// Por último no arquivo: o Vitest desfaz o `vi.stubEnv` de um `beforeEach` só antes do próximo
+// teste, e o `beforeAll` de um `describe` seguinte criaria a aplicação com o endereço do proxy.
+describe('Limpeza dos uploads, com o storage atrás de um proxy que recusa um pedido', () => {
+  // A aplicação direta tem o prazo padrão; a do proxy, o prazo zero.
+  let direct: INestApplication<App>;
+  let proxy: StorageProxy;
+  let viaProxy: INestApplication<App>;
+
+  beforeAll(async () => {
+    direct = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await direct.close();
+  });
+
+  beforeEach(async () => {
+    proxy = await startStorageProxy(direct.get(storageConfig.KEY).emulatorHost);
+    vi.stubEnv('PENDING_UPLOAD_TTL_HOURS', '0');
+    vi.stubEnv('STORAGE_EMULATOR_HOST', proxy.url);
+    viaProxy = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await viaProxy.close().catch(() => undefined);
+    await proxy.close();
+  });
+
+  it('com o storage fora do ar, conta a falha e deixa o upload em remoção, com o objeto e a Cota já devolvida', async () => {
+    // Os uploads de antes saem primeiro: as falhas pedidas ao proxy ficam com o deste teste.
+    await cleanup(viaProxy);
+    const { accessToken, userId } = await signedInUser(direct);
+    const routes = uploadRoutes(direct);
+    const pending = await routes.start(accessToken, {
+      name: 'storage-fora.txt',
+      sizeBytes: 5,
+    });
+    const objectKey = await routes.storeObject(pending, 'abcde');
+    proxy.failNext('DELETE');
+    proxy.failNext('DELETE');
+
+    const result = await cleanup(viaProxy);
+
+    expect(result).toEqual({ removed: 0, failed: 1 });
+    expect(await routes.itemStatus(pending.itemId)).toBe('deleting');
+    expect(await routes.objectStatus(objectKey)).toBe(200);
+    expect(await routes.usedBytes(userId)).toBe(0);
+  });
+
+  it('conta um 4xx no cancelamento da sessão como sessão já encerrada e remove o upload', async () => {
+    await cleanup(viaProxy);
+    const { accessToken, userId } = await signedInUser(direct);
+    const routes = uploadRoutes(direct);
+    const pending = await routes.start(accessToken, {
+      name: 'sessao-finalizada.txt',
+      sizeBytes: 5,
+    });
+    const objectKey = await routes.storeObject(pending, 'abcde');
+    proxy.failNext('DELETE', 400);
+
+    const result = await cleanup(viaProxy);
+
+    expect(result).toEqual({ removed: 1, failed: 0 });
+    expect(await routes.itemStatus(pending.itemId)).toBeNull();
+    expect(await routes.objectStatus(objectKey)).toBe(404);
+    expect(await routes.usedBytes(userId)).toBe(0);
+  });
+
+  /**
+   * Um Usuário com um upload de 10 bytes em remoção: o cancelamento o tomou e
+   * devolveu a Cota, mas o storage recusou as duas remoções. `usedBefore` é a
+   * Cota de antes do envio. `beforeClaim` roda com o upload ainda pendente.
+   */
+  const deletingUpload = async (
+    beforeClaim: (itemId: string) => Promise<void> = async () => undefined,
+  ) => {
+    const { accessToken, userId } = await signedInUser(direct);
+    const routes = uploadRoutes(direct);
+    await routes.leaveFreeBytes(userId, 20);
+    const usedBefore = await routes.usedBytes(userId);
+    const pending = await routes.start(accessToken, {
+      name: 'em-remocao.txt',
+      sizeBytes: 10,
+    });
+    const objectKey = await routes.storeObject(pending, '0123456789');
+    await beforeClaim(pending.itemId);
+    proxy.failNext('DELETE');
+    proxy.failNext('DELETE');
+    await uploadRoutes(viaProxy)
+      .cancel(accessToken, pending.itemId)
+      .expect(500);
+    return {
+      routes,
+      accessToken,
+      userId,
+      usedBefore,
+      itemId: pending.itemId,
+      objectKey,
+    };
+  };
+
+  it('termina o upload que ficou em remoção há mais de 15 minutos, mesmo dentro do prazo, sem devolver a Cota outra vez', async () => {
+    const { routes, userId, usedBefore, itemId, objectKey } =
+      await deletingUpload();
+    await routes.updatedMinutesAgo(itemId, 16);
+
+    const result = await cleanup(direct);
+
+    expect(result.removed).toBeGreaterThanOrEqual(1);
+    expect(result.failed).toBe(0);
+    expect(await routes.itemStatus(itemId)).toBeNull();
+    expect(await routes.objectStatus(objectKey)).toBe(404);
+    expect(await routes.usedBytes(userId)).toBe(usedBefore);
+  });
+
+  it('não conta o upload em remoção que outro expurgo terminou enquanto esta limpeza limpava o storage', async () => {
+    await cleanup(viaProxy);
+    const { routes, accessToken, itemId } = await deletingUpload();
+    await routes.updatedMinutesAgo(itemId, 16);
+    // A limpeza já leu o upload em remoção e fica parada no cancelamento da sessão.
+    const storageCall = proxy.holdNext('DELETE');
+    const cleaning = cleanup(viaProxy);
+    await storageCall.reached;
+    await routes.cancel(accessToken, itemId).expect(204);
+
+    storageCall.release();
+    const result = await cleaning;
+
+    expect(result).toEqual({ removed: 0, failed: 0 });
+    expect(await routes.itemStatus(itemId)).toBeNull();
+  });
+
+  it('não toca no upload tomado pelo expurgo há menos de 15 minutos, que pode ainda estar em remoção, contados da tomada', async () => {
+    // Gravado pela última vez há uma hora, e tomado agora.
+    const { routes, userId, usedBefore, itemId, objectKey } =
+      await deletingUpload((id) =>
+        uploadRoutes(direct).updatedMinutesAgo(id, 60),
+      );
+
+    await cleanup(direct);
+
+    expect(await routes.itemStatus(itemId)).toBe('deleting');
+    expect(await routes.objectStatus(objectKey)).toBe(200);
+    expect(await routes.usedBytes(userId)).toBe(usedBefore);
   });
 });

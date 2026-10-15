@@ -102,7 +102,7 @@ model Item {
   type             String
   /// Sem `/` nem caracteres de controle. Nomes duplicados são permitidos.
   name             String   @db.VarChar(255)
-  /// `pending`, `active` ou `trashed`.
+  /// `pending`, `deleting`, `active` ou `trashed`. `deleting` é o upload que o expurgo já tomou (cancelamento ou limpeza), com a Cota já devolvida, enquanto o storage é limpo: nunca é ativado nem aparece em leitura nenhuma, e a limpeza o termina (seção 4.6 do docs/lld.md).
   status           String
   /// 0 para pastas.
   sizeBytes        BigInt   @default(0) @map("size_bytes")
@@ -124,8 +124,8 @@ model Item {
   @@unique([ownerId], map: "items_root_key", where: raw("parent_id IS NULL"))
   /// Lista uma pasta na ordem do contrato e pagina por cursor: pastas primeiro (`folder` vem depois de `file` no alfabeto, daí o `Desc`), depois por nome, com o id como desempate.
   @@index([parentId, type(sort: Desc), name, id], map: "items_listing_idx", where: raw("status = 'active'"))
-  /// Para a limpeza dos uploads pendentes.
-  @@index([status, createdAt], map: "items_pending_idx", where: raw("status = 'pending'"))
+  /// Para a limpeza dos uploads pendentes e dos que ficaram em remoção. O filtro está escrito como o PostgreSQL o guarda (o `IN` vira `= ANY (ARRAY[...])`), para o Prisma não ver diferença entre o schema e o banco.
+  @@index([status, createdAt], map: "items_pending_idx", where: raw("status = ANY (ARRAY['pending'::text, 'deleting'::text])"))
   @@map("items")
 }
 

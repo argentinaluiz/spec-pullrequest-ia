@@ -40,7 +40,10 @@ export interface FileStorage {
   getObjectSize(objectName: string): Promise<number | null>;
   /** Apaga o objeto. Um objeto que não existe não é erro. */
   deleteObject(objectName: string): Promise<void>;
-  /** Cancela a sessão pelo endereço dela. Uma sessão que já terminou ou expirou não é erro. */
+  /**
+   * Cancela a sessão pelo endereço dela. Uma sessão que o storage recusa com um 4xx (já terminou,
+   * expirou ou é inválida) não é erro: só o 5xx e a falha de rede são.
+   */
   cancelUploadSession(sessionUrl: string): Promise<void>;
 }
 

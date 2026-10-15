@@ -20,10 +20,11 @@ const ITEM_FIELDS = {
   updatedAt: true,
 } satisfies Prisma.ItemSelect;
 
-/** O que o cancelamento e a limpeza leem de um upload `pending`. */
+/** O que o cancelamento e a limpeza leem de um upload `pending` ou `deleting`. */
 const PENDING_UPLOAD_FIELDS = {
   id: true,
   ownerId: true,
+  status: true,
   sizeBytes: true,
   objectKey: true,
   uploadSessionUri: true,
@@ -32,7 +33,11 @@ const PENDING_UPLOAD_FIELDS = {
 function toPendingUpload(
   row: Prisma.ItemGetPayload<{ select: typeof PENDING_UPLOAD_FIELDS }>,
 ): PendingUpload {
-  return { ...row, sizeBytes: Number(row.sizeBytes) };
+  return {
+    ...row,
+    status: row.status as PendingUpload['status'],
+    sizeBytes: Number(row.sizeBytes),
+  };
 }
 
 @Injectable()
@@ -157,19 +162,41 @@ export class ItemsRepository {
     };
   }
 
-  /** O upload `pending` do Usuário, ou `null` (outro dono, inexistente ou que já não está `pending`). */
-  async findPendingUpload(
+  /**
+   * Toma o upload `pending` do Usuário para o expurgo: passa a `deleting`, numa
+   * só gravação, e o devolve. A gravação renova o `updatedAt`, que passa a ser
+   * o instante da tomada. Devolve `null` se ele não estava `pending` (outro
+   * dono, inexistente, já concluído ou já tomado).
+   */
+  async claimPendingUpload(
+    ownerId: string,
+    id: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<PendingUpload | null> {
+    const [row] = await db.item.updateManyAndReturn({
+      where: { id, ownerId, type: 'file', status: 'pending' },
+      data: { status: 'deleting' },
+      select: PENDING_UPLOAD_FIELDS,
+    });
+    return row ? toPendingUpload(row) : null;
+  }
+
+  /** O upload `deleting` do Usuário, que o expurgo tomou e não terminou, ou `null`. */
+  async findDeletingUpload(
     ownerId: string,
     id: string,
   ): Promise<PendingUpload | null> {
     const row = await this.prisma.item.findFirst({
-      where: { id, ownerId, type: 'file', status: 'pending' },
+      where: { id, ownerId, type: 'file', status: 'deleting' },
       select: PENDING_UPLOAD_FIELDS,
     });
     return row && toPendingUpload(row);
   }
 
-  /** Ativa o Item `pending`. Devolve `false` se ele já não estava `pending`. */
+  /**
+   * Ativa o Item `pending`. Devolve `false` se ele já não estava `pending`,
+   * inclusive o que o expurgo já tomou (`deleting`), que nunca é ativado.
+   */
   async activatePending(id: string): Promise<boolean> {
     const { count } = await this.prisma.item.updateMany({
       where: { id, status: 'pending' },
@@ -189,21 +216,33 @@ export class ItemsRepository {
     return count > 0;
   }
 
+  /** Apaga o Item `deleting`. Devolve `false` se ele já não existia. */
+  async deleteDeleting(id: string): Promise<boolean> {
+    const { count } = await this.prisma.item.deleteMany({
+      where: { id, status: 'deleting' },
+    });
+    return count > 0;
+  }
+
   /**
-   * Até `limit` uploads `pending` criados até `before`, em ordem de id, a
-   * partir do que vem depois de `afterId`. O índice parcial dos pendentes
-   * atende o filtro.
+   * Até `limit` uploads que o expurgo deve remover, em ordem de id, a partir do
+   * que vem depois de `afterId`: os `pending` criados até `pendingBefore` e os
+   * `deleting` tomados (`updatedAt`) até `deletingBefore`, que um expurgo
+   * anterior não terminou. O índice parcial dos pendentes atende o filtro.
    */
-  async listExpiredPending(
-    before: Date,
+  async listPurgeableUploads(
+    pendingBefore: Date,
+    deletingBefore: Date,
     afterId: string | undefined,
     limit: number,
   ): Promise<PendingUpload[]> {
     const rows = await this.prisma.item.findMany({
       where: {
-        status: 'pending',
         type: 'file',
-        createdAt: { lte: before },
+        OR: [
+          { status: 'pending', createdAt: { lte: pendingBefore } },
+          { status: 'deleting', updatedAt: { lte: deletingBefore } },
+        ],
         ...(afterId && { id: { gt: afterId } }),
       },
       orderBy: { id: 'asc' },

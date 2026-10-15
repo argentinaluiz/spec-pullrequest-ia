@@ -118,6 +118,46 @@ export function uploadRoutes(app: INestApplication<App>) {
     return item.objectKey ?? '';
   };
 
+  /**
+   * Envia `body` à sessão num único `PUT`, que termina o envio, e devolve a
+   * chave do objeto. Falha se o emulador não criou o objeto.
+   */
+  const storeObject = async (
+    upload: { itemId: string; uploadUrl: string },
+    body: string,
+  ): Promise<string> => {
+    await putBytes(upload.uploadUrl, body);
+    const objectKey = await objectKeyOf(upload.itemId);
+    const status = await objectStatus(objectKey);
+    if (status !== 200) {
+      throw new Error(
+        `O objeto do upload ${upload.itemId} não foi criado no emulador (${status}).`,
+      );
+    }
+    return objectKey;
+  };
+
+  /** O status gravado do Item, ou `null` se a linha não existe mais. */
+  const itemStatus = async (itemId: string): Promise<string | null> => {
+    const item = await prisma.item.findUnique({
+      where: { id: itemId },
+      select: { status: true },
+    });
+    return item?.status ?? null;
+  };
+
+  /**
+   * Leva o `updated_at` do Item para `minutes` minutos atrás. Num upload em
+   * remoção, é o instante em que o expurgo o tomou. Nenhuma rota produz um
+   * Item gravado há tempos, então a linha é gravada direto no banco.
+   */
+  const updatedMinutesAgo = async (itemId: string, minutes: number) => {
+    await prisma.item.update({
+      where: { id: itemId },
+      data: { updatedAt: new Date(Date.now() - minutes * 60 * 1000) },
+    });
+  };
+
   return {
     create,
     complete,
@@ -129,5 +169,8 @@ export function uploadRoutes(app: INestApplication<App>) {
     freePlanBytes,
     objectStatus,
     objectKeyOf,
+    storeObject,
+    itemStatus,
+    updatedMinutesAgo,
   };
 }

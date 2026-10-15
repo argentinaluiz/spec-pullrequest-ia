@@ -140,8 +140,9 @@ export class GcsFileStorage implements FileStorage {
         headers: { 'Content-Length': '0' },
         signal: AbortSignal.timeout(10_000),
       });
-      // O Cloud Storage responde 499 ao cancelamento. 404 e 410: a sessão já terminou ou expirou.
-      if (![499, 404, 410].includes(response.status)) {
+      // O Cloud Storage responde 499 ao cancelamento. Qualquer outro 4xx (404, 410, a sessão já
+      // finalizada ou inválida) também diz que ela não aceita mais bytes: só o 5xx é falha.
+      if (response.status >= 500) {
         throw new Error(
           `O cancelamento da sessão respondeu ${response.status}`,
         );

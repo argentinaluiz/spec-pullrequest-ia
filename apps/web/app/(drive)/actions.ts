@@ -6,6 +6,7 @@ import { toFileRow } from "@/components/files/format";
 import type { LoadMoreResult } from "@/components/files/load-more";
 import * as authApi from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/error-messages";
+import { completeFailureReason } from "@/lib/uploads/complete-failure";
 import type {
   CancelUploadResult,
   CompleteUploadResult,
@@ -98,7 +99,7 @@ export async function completeUpload(
     return {
       ok: false,
       message: errorMessage("validation_error"),
-      incomplete: false,
+      reason: completeFailureReason("validation_error"),
     };
   }
   const result = await finishUpload(parsed.data);
@@ -106,7 +107,7 @@ export async function completeUpload(
     return {
       ok: false,
       message: errorMessage(result.error.code),
-      incomplete: result.error.code === "upload_incomplete",
+      reason: completeFailureReason(result.error.code),
     };
   }
   return { ok: true };

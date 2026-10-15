@@ -8,6 +8,19 @@ export interface SignedUrlResponse {
 }
 
 /**
+ * O endereço do emulador de storage (o `STORAGE_EMULATOR_HOST` da configuração
+ * injetada), ou um erro que diz como subir o ambiente.
+ */
+export function requireEmulatorHost(emulatorHost: string | undefined): URL {
+  if (!emulatorHost) {
+    throw new Error(
+      'STORAGE_EMULATOR_HOST não está definida. Suba o ambiente pelo Compose antes de rodar os testes.',
+    );
+  }
+  return new URL(emulatorHost);
+}
+
+/**
  * `GET` de uma URL assinada no emulador de storage, no papel do navegador. O
  * contêiner da API não alcança o endereço público, e o emulador só serve a URL
  * com o `Host` dele, que o `fetch` não deixa definir: a requisição vai ao
@@ -18,13 +31,8 @@ export function getSignedUrlOnEmulator(
   emulatorHost: string | undefined,
   signedUrl: string,
 ): Promise<SignedUrlResponse> {
-  if (!emulatorHost) {
-    throw new Error(
-      'STORAGE_EMULATOR_HOST não está definida. Suba o ambiente pelo Compose antes de rodar os testes.',
-    );
-  }
+  const emulator = requireEmulatorHost(emulatorHost);
   const url = new URL(signedUrl);
-  const emulator = new URL(emulatorHost);
   return new Promise((resolve, reject) => {
     const req = request(
       {

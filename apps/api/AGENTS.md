@@ -21,7 +21,7 @@ docker compose -f compose.dev.yaml exec api <comando>
 | `pnpm build` | Compila para `dist/` |
 | `pnpm exec prisma migrate dev --name <nome>` | Cria uma migração a partir do `prisma/schema.prisma` e a aplica no banco local. Não gera o cliente. |
 | `pnpm exec prisma generate` | Gera de novo o cliente do Prisma, depois de mudar o schema |
-| `pnpm uploads:cleanup-pending` | Remove os uploads `pending` vencidos e devolve o espaço à Cota (docs/lld.md, seção 5). Compila e abre a aplicação sem o servidor HTTP, imprime `Uploads pendentes removidos: <n>. Falhas: <m>.` e sai com 1 se alguma falhou, ou com 0. O prazo é o `PENDING_UPLOAD_TTL_HOURS`, com o padrão e a regra da tabela de variáveis do LLD (seção 6). Compilado por `tsconfig.uploads-cleanup.json`, que tem o próprio `outDir`. |
+| `pnpm uploads:cleanup-pending` | Remove os uploads `pending` vencidos, devolvendo o espaço à Cota, e termina os que um expurgo anterior deixou `deleting` (docs/lld.md, seções 4.6 e 5). Compila e abre a aplicação sem o servidor HTTP, imprime `Uploads pendentes removidos: <n>. Falhas: <m>.` e sai com 1 se alguma falhou, ou com 0. O prazo é o `PENDING_UPLOAD_TTL_HOURS`, com o padrão e a regra da tabela de variáveis do LLD (seção 6). Compilado por `tsconfig.uploads-cleanup.json`, que tem o próprio `outDir`. |
 | `pnpm setup:dev` | Prepara o ambiente: `.env`, chaves do JWT, cliente do Prisma e migrações. Já roda sozinho quando o contêiner sobe. |
 
 **Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para rodar as três, use `pnpm test`, `pnpm test:int` e `pnpm test:e2e`. O `scripts/verify.sh full api` roda as três de uma vez.

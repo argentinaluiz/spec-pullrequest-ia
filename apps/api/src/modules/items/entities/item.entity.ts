@@ -52,10 +52,12 @@ export interface DownloadUrl {
   expiresAt: Date;
 }
 
-/** Um upload `pending`, com o que a limpeza e o cancelamento precisam para desfazê-lo. */
+/** Um upload `pending` ou `deleting`, com o que a limpeza e o cancelamento precisam para desfazê-lo. */
 export interface PendingUpload {
   id: string;
   ownerId: string;
+  /** `deleting`: um expurgo já o tomou e devolveu a Cota, e falta limpar o storage e apagar a linha. */
+  status: 'pending' | 'deleting';
   sizeBytes: number;
   objectKey: string | null;
   /** Endereço da sessão de upload no storage, ausente se ela nunca chegou a ser gravada. */
