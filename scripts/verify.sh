@@ -21,8 +21,10 @@
 #                                                  Markdown; sem <para>, até a pasta de trabalho, e
 #                                                  sem nenhum, do HEAD até ela. É o comando do
 #                                                  contrato da skill de plano
-#   scripts/verify.sh plan <ticket> [<commit>]     atalho para o plan-page.sh da skill de plano, com
-#                                                  os valores deste projeto
+#   scripts/verify.sh plan <pai> <ticket> [<commit>]
+#                                                  atalho para o plan-page.sh da skill de plano, com
+#                                                  os valores deste projeto; <pai> é a issue pai do
+#                                                  ticket, a pasta dele em docs/tickets
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
@@ -197,6 +199,9 @@ harness_tests() {
     # Os hooks usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na
     # máquina: os testes deles rodam aqui.
     scripts/test/freeze-acceptance.test.sh &&
+    scripts/test/plan-page.test.sh &&
+    scripts/test/verify-plan.test.sh &&
+    scripts/test/harness-guard.test.sh &&
     scripts/test/push-verify.test.sh &&
     scripts/test/full-lock.test.sh
 }
@@ -258,7 +263,7 @@ contract_drift() {
   elif [[ -z "$plan" ]]; then
     echo "Não há commit de plano para comparar: nenhum commit desta branch criou o $file, citado na seção \"Aceite\" do corpo do PR."
   else
-    # A pasta do ticket é a do arquivo de aceite citado.
+    # A pasta do ticket (docs/harness.md, "Por que o aceite fica na pasta do ticket") é a do arquivo de aceite citado.
     drift="$(dirname "$file")/contract-drift.txt"
     for app in "${APPS[@]}"; do
       if declare -F "${app}_contract_drift" >/dev/null; then
@@ -379,7 +384,7 @@ run_full() {
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
     "confira se o repositório do Git está íntegro, com \`git status\`."
   # A visão do desvio também é desta execução: uma interrompida não deixa uma antiga para trás.
-  rm -f "$APPROVAL_FILE" "$TICKETS_DIR"/*/contract-drift.txt
+  rm -f "$APPROVAL_FILE" "$TICKETS_DIR"/*/*/contract-drift.txt
 
   for app in "${APPS[@]}"; do
     "${app}_full"
@@ -418,14 +423,14 @@ require_point() {
 # O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
 # valores é o AGENTS.md da raiz ("Plano do ticket", "Valores da skill de plano"); o atalho só os passa.
 # A lógica e as mensagens são do script.
-# run_plan <ticket> [<commit>]
+# run_plan <pai> <ticket> [<commit>]
 run_plan() {
   local args=(
-    --ticket "$1" --tickets "$TICKETS_DIR" --documentos docs
+    --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
     --node scripts/node-in-api.sh --contrato "scripts/verify.sh contract"
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
-  [[ -n "${2:-}" ]] && args+=(--commit "$2")
+  [[ -n "${3:-}" ]] && args+=(--commit "$3")
   "$PLAN_SKILL_SCRIPTS/plan-page.sh" "${args[@]}"
 }
 
@@ -501,7 +506,15 @@ case "$mode" in
     ;;
   plan)
     # A página não é verificação: não aprova nada.
-    [[ $# -ge 1 && $# -le 2 ]] || usage
+    plan_example='scripts/verify.sh plan LUI-162 LUI-171 [<commit>]'
+    [[ $# -ge 1 && $# -le 3 ]] || usage
+    [[ $# -ge 2 ]] ||
+      abort "falta o <pai> no \`plan\`: o comando é \`plan <pai> <ticket> [<commit>]\`, e só um argumento foi passado." \
+        "passe a issue pai e o ticket, como em \`$plan_example\`."
+    # A ordem de antes do <pai> (`plan <ticket> [<commit>]`) cai aqui: o primeiro não é issue, ou o segundo não é ticket.
+    [[ "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ && "$2" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
+      abort "os argumentos de \`plan\` não são <pai> e <ticket>: o comando agora é \`plan <pai> <ticket> [<commit>]\`, com a issue pai antes do ticket." \
+        "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$plan_example\`."
     run_plan "$@"
     exit $?
     ;;
