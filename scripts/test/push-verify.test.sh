@@ -100,7 +100,7 @@ expect 0 "libera o verify.sh com um CI= que é só texto entre aspas, como o pad
 expect 0 "libera o CI= dentro da mensagem de um commit antes do verify.sh" \
   "$(command_input "git commit -m 'set CI= in workflow' && scripts/verify.sh full")"
 expect 0 "libera o verify.sh sem as variáveis da CI, mesmo com outras na frente" \
-  "$(command_input 'ACCEPTANCE_BODY_FILE=docs/tickets/LUI-1/pr.md MY_CI=1 scripts/verify.sh full')"
+  "$(command_input 'ACCEPTANCE_BODY_FILE=docs/tickets/LUI-100/LUI-1/pr.md MY_CI=1 scripts/verify.sh full')"
 expect 0 "libera o CI= num comando que não roda o verify.sh" \
   "$(command_input 'CI=true npx playwright test')"
 expect 2 "nega a entrada ilegível que cita o verify.sh e o CI=" \

@@ -146,7 +146,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou num arquivo de aceite (`docs/tickets/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -156,10 +156,10 @@ Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Ac
 ```markdown
 ## Aceite
 
-docs/tickets/LUI-146/aceite.md
+docs/tickets/<issue>/<ticket>/aceite.md
 ```
 
-- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano. Os critérios e os testes não se repetem no PR.
+- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano: `docs/tickets/<issue>/<ticket>/aceite.md` (o desenho das pastas está no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket"). Os critérios e os testes não se repetem no PR.
 - **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
 - **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
 - **Critério sem teste:** escreva o teste, com o ID no título. Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
@@ -172,14 +172,14 @@ Quem escreveu o código não é quem o confere. Toda mudança que altera código
 
 No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit.
 
-1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<ticket>/`, onde `<ticket>` é o do ticket da branch, o mesmo do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, a pasta é `docs/tickets/sem-ticket/`. O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
+1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<issue>/<ticket>/`, a mesma do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, `docs/tickets/sem-ticket/<nome>/` (o desenho e a regra do `<nome>` estão no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket"). O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
 
    ```bash
    git add -N -- <arquivos novos da mudança>
-   git diff origin/main > docs/tickets/<ticket>/review.diff
-   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<ticket>/aceite.md)"
-   git show -s --format=%B "$plano" > docs/tickets/<ticket>/plano.txt
-   scripts/verify.sh contract "$plano" > docs/tickets/<ticket>/contract-drift.txt
+   git diff origin/main > docs/tickets/<issue>/<ticket>/review.diff
+   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<issue>/<ticket>/aceite.md)"
+   git show -s --format=%B "$plano" > docs/tickets/<issue>/<ticket>/plano.txt
+   scripts/verify.sh contract "$plano" > docs/tickets/<issue>/<ticket>/contract-drift.txt
    ```
 
    O `git add -N` só registra que os arquivos novos existem, para o diff trazê-los, sem prepará-los para o commit. Confira com o `git status --short` que nenhum arquivo da mudança ficou de fora: o que não está no diff fica fora da revisão, sem aviso. Sem commit de plano, não há mensagem nem visão do desvio. Os arquivos não aparecem no `git status`, porque o Git os ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
@@ -266,7 +266,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 - **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
-O atalho `scripts/verify.sh plan <ticket> [<commit de plano>]` chama o script da página da skill com esses valores; use-o nos passos de parada e de commit da skill.
+O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o script da página da skill com esses valores (a `<issue>` é a issue pai do ticket, que vai no `--pai` do script); use-o nos passos de parada e de commit da skill.
 
 **Neste projeto**
 

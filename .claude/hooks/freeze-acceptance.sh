@@ -2,7 +2,7 @@
 #
 # Hook de antes da edição do Claude Code (evento PreToolUse, ferramentas de edição de arquivo).
 # O arquivo de aceite de um ticket fica congelado depois do commit de plano: quando o agente vai
-# editar um docs/tickets/<ticket>/aceite.md que já está em commit, nega a edição. Criar um arquivo
+# editar um docs/tickets/<issue>/<ticket>/aceite.md que já está em commit, nega a edição. Criar um arquivo
 # de aceite novo e editar qualquer outro arquivo, inclusive os outros da pasta do ticket, continuam
 # liberados. O desenho está no docs/harness.md.
 #
@@ -17,9 +17,12 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 input="$(cat)"
 
 # O arquivo de aceite de um ticket, a partir da raiz do projeto.
-ACCEPTANCE='^docs/tickets/[^/]+/aceite\.md$'
+ACCEPTANCE='^docs/tickets/[^/]+/[^/]+/aceite\.md$'
 # O mesmo arquivo citado em qualquer ponto de um texto, para a entrada ilegível.
-MENTION='docs/tickets/[^/[:space:]"]+/aceite\.md'
+MENTION='docs/tickets/[^/[:space:]"]+/[^/[:space:]"]+/aceite\.md'
+# O de antes da pasta da issue pai, de um nível só: continua congelado, e a mensagem diz onde ele fica.
+OLD_ACCEPTANCE='^docs/tickets/[^/]+/aceite\.md$'
+OLD_MENTION='docs/tickets/[^/[:space:]"]+/aceite\.md'
 
 deny() {
   {
@@ -34,16 +37,21 @@ file="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"
 # Sem conseguir ler o arquivo, qualquer menção a um arquivo de aceite conta como edição de aceite
 # versionado, para a falha do `jq` não liberar a edição.
 if [[ -z "$file" ]]; then
-  [[ "$input" =~ $MENTION ]] && deny "o arquivo de aceite citado na entrada"
+  [[ "$input" =~ $MENTION || "$input" =~ $OLD_MENTION ]] && deny "o arquivo de aceite citado na entrada"
   exit 0
 fi
 
 # O caminho a partir da raiz do projeto, sem `..` nem caminho absoluto.
 # Se o caminho não pode ser normalizado, vale a mesma regra da entrada ilegível.
 relative="$(realpath -m --relative-to="$PWD" -- "$file" 2>/dev/null)" || {
-  [[ "$file" =~ $MENTION ]] && deny "o arquivo de aceite citado na entrada"
+  [[ "$file" =~ $MENTION || "$file" =~ $OLD_MENTION ]] && deny "o arquivo de aceite citado na entrada"
   exit 0
 }
+if [[ "$relative" =~ $OLD_ACCEPTANCE ]]; then
+  git cat-file -e "HEAD:$relative" 2>/dev/null &&
+    deny "$relative, no caminho antigo (mova-o para docs/tickets/<issue>/<ticket>/, com um commit do usuário)"
+  exit 0
+fi
 [[ "$relative" =~ $ACCEPTANCE ]] || exit 0
 
 # Só o que já está em commit está congelado: o arquivo novo do plano em andamento é liberado.

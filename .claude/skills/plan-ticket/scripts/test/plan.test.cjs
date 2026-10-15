@@ -63,7 +63,7 @@ test('as marcas são seis, e só as quatro de teste exigem teste', () => {
 });
 
 test('a mensagem sem um bloco o devolve nulo, e o texto antes do primeiro rótulo não é de nenhum bloco', () => {
-  const parsed = parseMessage('docs: plan x (PROJ-123)\n\nAcceptance file docs/tickets/PROJ-123/aceite.md.\n\nDecision: one.\n');
+  const parsed = parseMessage('docs: plan x (PROJ-123)\n\nAcceptance file docs/tickets/PROJ-1/PROJ-123/aceite.md.\n\nDecision: one.\n');
   assert.deepEqual(parsed.decisions, ['one.']);
   assert.equal(parsed.files, null);
   assert.equal(parsed.tests, null);

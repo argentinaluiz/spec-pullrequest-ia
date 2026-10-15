@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 type ButtonUtilityProps = Omit<ComponentProps<"button">, "className"> & {
   /** O ícone do Lucide, em 16px, à esquerda do rótulo. */
   icon?: ReactNode;
-  /** Mostra o spinner no lugar do conteúdo, sem mudar a largura, e bloqueia o clique. */
+  /** Mostra o spinner no lugar do conteúdo, sem mudar a largura, e bloqueia o clique. O rótulo fica na árvore de acessibilidade, só sem opacidade, para o botão manter o nome. */
   loading?: boolean;
 };
 
@@ -29,7 +29,7 @@ export function ButtonUtility({
       {...props}
     >
       <span
-        className={`inline-flex items-center gap-2 ${loading ? "invisible" : ""}`}
+        className={`inline-flex items-center gap-2 ${loading ? "opacity-0" : ""}`}
       >
         {icon}
         {children}

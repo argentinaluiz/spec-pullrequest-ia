@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
-# Monta a página de revisão do plano de um ticket e a grava em <tickets>/<ticket>/plano.html. Faz
+# Monta a página de revisão do plano de um ticket e a grava em <tickets>/<pai>/<ticket>/plano.html. Faz
 # parte da skill de plano (SKILL.md, passos 5 e 6), e os valores de cada argumento são do projeto,
-# que os declara no AGENTS.md, na lista da skill de plano.
+# que os declara no AGENTS.md, na lista da skill de plano. O <pai> é a issue pai do ticket no
+# gerenciador de issues, e vem da tarefa, como o ticket.
 #
-#   plan-page.sh --ticket <ticket> --tickets <pasta dos tickets>
+#   plan-page.sh --pai <issue pai> --ticket <ticket> --tickets <pasta dos tickets>
 #                --node <comando do Node> --contrato <comando do contrato, ou nenhum>
 #                [--contrato-arquivos "<arquivo>..."] [--documentos <pasta dos documentos>]
 #                [--commit <commit de plano>]
@@ -14,7 +15,7 @@
 # elas não batem, para dizendo o que acrescentar.
 #
 # Sem --commit, as fontes vão do HEAD até o que está preparado no índice, que é o que o commit de
-# plano vai levar, e a mensagem é a proposta, em <tickets>/<ticket>/plano.msg. Com ele, vão do pai do
+# plano vai levar, e a mensagem é a proposta, em <tickets>/<pai>/<ticket>/plano.msg. Com ele, vão do pai do
 # commit de plano até ele, e a mensagem é a dele. Os dois modos montam a mesma página, salvo a linha
 # que diz de onde ela foi montada.
 #
@@ -51,6 +52,7 @@ stop() {
 # também no bash 3 (o do macOS).
 describe() {
   case "$1" in
+    pai) echo 'o identificador da issue pai do ticket, como PROJ-1, que é a pasta do ticket dentro da pasta dos tickets' ;;
     ticket) echo 'o identificador do ticket, como PROJ-123' ;;
     tickets) echo 'a pasta dos tickets, com o arquivo de aceite de cada ticket, onde a página é gravada' ;;
     node) echo 'o comando do Node, chamado como `<comando> <script> -`, com as fontes na entrada padrão' ;;
@@ -60,13 +62,13 @@ describe() {
   esac
 }
 
-ticket='' tickets='' node='' contrato='' contrato_arquivos='' documentos='' commit=''
+pai='' ticket='' tickets='' node='' contrato='' contrato_arquivos='' documentos='' commit=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --ticket | --tickets | --node | --contrato | --contrato-arquivos | --documentos | --commit) ;;
+    --pai | --ticket | --tickets | --node | --contrato | --contrato-arquivos | --documentos | --commit) ;;
     *)
       stop 2 "O argumento \`$1\` não existe." \
-        "use só os argumentos do cabeçalho deste script (--ticket, --tickets, --node, --contrato, --contrato-arquivos, --documentos e --commit)."
+        "use só os argumentos do cabeçalho deste script (--pai, --ticket, --tickets, --node, --contrato, --contrato-arquivos, --documentos e --commit)."
       ;;
   esac
   [[ $# -ge 2 && -n "$2" ]] ||
@@ -76,8 +78,9 @@ while [[ $# -gt 0 ]]; do
   shift 2
 done
 
-# Os argumentos que faltam, todos de uma vez. O --ticket vem da tarefa; os outros, do projeto.
+# Os argumentos que faltam, todos de uma vez. O --pai e o --ticket vêm da tarefa; os outros, do projeto.
 missing=()
+[[ -n "$pai" ]] || missing+=(pai)
 [[ -n "$ticket" ]] || missing+=(ticket)
 for name in tickets node contrato; do
   [[ -n "${!name}" ]] || missing+=("$name")
@@ -87,14 +90,16 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   for name in "${missing[@]}"; do
     printf '\nFalta o argumento --%s: %s.\n' "$name" "$(describe "$name")" >&2
   done
-  if [[ "${missing[*]}" == ticket ]]; then
-    printf 'Como corrigir: passe o ticket do plano com --ticket.\n' >&2
+  if [[ "${missing[*]}" == pai || "${missing[*]}" == ticket || "${missing[*]}" == "pai ticket" ]]; then
+    printf 'Como corrigir: passe a issue pai e o ticket do plano com --pai e --ticket. A issue pai é a do ticket no gerenciador de issues, a mesma da spec que o passo 1 da skill lê.\n' >&2
   else
     printf 'Como corrigir: o projeto declara cada valor no AGENTS.md, na lista da skill de plano ("Plano do ticket"); passe-o com o argumento de mesmo nome. Se o AGENTS.md não o declara, pergunte ao usuário e ajude a defini-lo, como o SKILL.md da skill manda.\n' >&2
   fi
   exit 2
 fi
 
+[[ "$pai" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
+  stop 2 "\`$pai\` não é o identificador de uma issue pai." "passe o identificador da issue pai do ticket no gerenciador de issues, como \`PROJ-1\`."
 [[ "$ticket" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
   stop 2 "\`$ticket\` não é o identificador de um ticket." "passe o identificador do gerenciador de issues, como \`PROJ-123\`."
 
@@ -112,7 +117,7 @@ tickets="${tickets%/}"
 documentos="${documentos%/}"
 contract_files=()
 [[ -n "$contrato_arquivos" ]] && read -r -a contract_files <<<"$contrato_arquivos"
-dir="$tickets/$ticket"
+dir="$tickets/$pai/$ticket"
 msg="$dir/plano.msg"
 acceptance="$dir/aceite.md"
 
@@ -122,11 +127,11 @@ ignored=$'\n'"$(git -c core.quotePath=false check-ignore --no-index -- "$dir/pla
 for file in "$dir/plano.html" "$msg"; do
   [[ "$ignored" == *$'\n'"$file"$'\n'* ]] ||
     stop 2 "A pasta dos tickets, $tickets, não ignora o $file, e só o aceite.md de cada ticket é versionado." \
-      "acrescente ao .gitignore as linhas \`$tickets/*/*\` e \`!$tickets/*/aceite.md\`, e rode o script de novo."
+      "acrescente ao .gitignore as linhas \`$tickets/*/*/*\` e \`!$tickets/*/*/aceite.md\`, e rode o script de novo."
 done
 [[ "$ignored" == *$'\n'"$acceptance"$'\n'* ]] &&
   stop 2 "A pasta dos tickets, $tickets, ignora o $acceptance, e o arquivo de aceite entra no commit de plano." \
-    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\`) pelas linhas \`$tickets/*/*\` e \`!$tickets/*/aceite.md\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
+    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\` ou \`$tickets/*/*\`) pelas linhas \`$tickets/*/*/*\` e \`!$tickets/*/*/aceite.md\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
 
 # Roda um comando do projeto, que pode ter argumentos próprios, com os argumentos dados.
 # project <comando> <argumentos...>
