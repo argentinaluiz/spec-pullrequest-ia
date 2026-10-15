@@ -306,7 +306,7 @@ Todo erro sai com `Content-Type: application/problem+json` e este corpo:
 | Método e rota | Entrada | Saída |
 | --- | --- | --- |
 | `GET /items/{id}` | | O item e a trilha de pastas até a raiz |
-| `GET /items/{id}/children` | `limit`, `cursor` | Lista de itens ativos da pasta |
+| `GET /items/{id}/children` | `limit`, `cursor`, `type` (opcional, `folder`) | Lista de itens ativos da pasta |
 | `POST /folders` | `name`, `parentId` | 201, a pasta criada |
 | `PATCH /items/{id}` | `name` e/ou `parentId` | O item atualizado |
 | `DELETE /items/{id}` | | 204. Envia para a lixeira. |
@@ -318,7 +318,8 @@ Todo erro sai com `Content-Type: application/problem+json` e este corpo:
 
 O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez que ele é usado, a raiz nasce (seção 4.1).
 
-- **`GET /items/{id}/children` antes das pastas:** até a funcionalidade de pastas, a rota aceita só `root`, e qualquer outro id responde `not_found`. A data que a lista mostra é a de modificação (`updatedAt`). A forma da resposta está no snapshot da OpenAPI.
+- **`GET /items/{id}/children`:** aceita `root` ou qualquer pasta ativa do Usuário; outro valor (inexistente, de outro Usuário, arquivo, não-UUID, `pending` ou `deleting`) responde `not_found`. O parâmetro `type=folder` é opcional e filtra para só pastas, para o seletor de "Mover para…"; qualquer outro valor responde `validation_error`. A ordenação, o cursor e o limite não mudam. A data que a lista mostra é a de modificação (`updatedAt`). A forma da resposta está no snapshot da OpenAPI.
+- **`GET /items/{id}`:** devolve o Item e a trilha do topo (a Pasta raiz, "Meus arquivos") até ele; o atalho `root` devolve a trilha só com a raiz. Item inexistente, de outro Usuário, de id inválido ou não ativo responde `not_found`.
 
 ### 3.4 Upload e download
 
@@ -380,7 +381,9 @@ stateDiagram-v2
 - **Consequência para busca e links públicos:** como os descendentes não são marcados, essas consultas precisam conferir se algum ancestral está na lixeira. A conferência é feita com uma consulta recursiva sobre a página de resultados (até 200 itens, até 50 níveis).
 - **Restaurar** devolve o item à pasta de origem. Se ela não existir mais ou estiver na lixeira, o item volta para a raiz.
 - **Expurgo de uma pasta** remove todos os descendentes, de baixo para cima.
-- **Mover:** a API sobe pelos ancestrais do destino e rejeita o pedido se encontrar o próprio item (`invalid_move`) ou se a profundidade passar de 50 níveis.
+- **Profundidade:** conta as pastas do caminho, sem a Pasta raiz: uma pasta direto em "Meus arquivos" está no nível 1, e o 50º é o último que pode existir. Criar uma pasta no 50º nível responde `max_depth_exceeded`.
+- **Lock consultivo por Usuário:** a transação que grava mudando a árvore (criar pasta e, no ticket de mover, mover) toma `pg_advisory_xact_lock` sobre o id do dono antes de conferir e gravar, para duas verificações do mesmo Usuário nunca enxergarem a árvore antiga ao mesmo tempo. Só as gravações do mesmo Usuário esperam umas pelas outras, e o lock se solta no fim da transação.
+- **Mover:** a API sobe pelos ancestrais do destino e rejeita o pedido se encontrar o próprio item (`invalid_move`). O limite de 50 níveis vale para a árvore inteira: a profundidade do destino mais a altura da subárvore movida (consulta recursiva para baixo, só de pastas) não pode passar de 50 (`max_depth_exceeded`).
 - **Pasta raiz:** nasce sob demanda, na primeira vez que o usuário a usa (o atalho `root`), com `INSERT ... ON CONFLICT DO NOTHING` seguido da leitura. O índice único da raiz garante uma só, mesmo com chamadas simultâneas. Ela se chama "Meus arquivos", nunca aparece numa listagem e não pode ser renomeada, movida nem excluída.
 
 ### 4.2 Cota
@@ -667,7 +670,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
 | `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
-| `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
+| `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children`, `POST /folders` | Abrir uma pasta por duplo clique, breadcrumb, "Carregar mais", "Nova pasta" (Server Action) e "Enviar" para a pasta aberta. Id de arquivo, inexistente, de outro Usuário, não-UUID ou de Item não ativo mostra a página de não encontrado. Renomear, mover, excluir e compartilhar ficam para os tickets seguintes | Existe (renomear, mover e excluir a detalhar) |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
 | `/planos` | Protegida | `GET /plans`, `GET /billing/subscription` | `POST /billing/checkout`, `POST /billing/subscription/cancel` | A detalhar |
