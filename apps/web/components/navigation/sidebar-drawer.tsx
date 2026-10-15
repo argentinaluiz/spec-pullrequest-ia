@@ -18,6 +18,17 @@ export function SidebarDrawer({ children }: { children: ReactNode }) {
     dialogRef.current?.close();
   }, [pathname]);
 
+  // `lg:hidden` esconde a gaveta no desktop, mas não desfaz o `showModal()`: o resto da página
+  // ficaria inerte. Ao cruzar o breakpoint `lg` (docs/design-system.md), a gaveta é fechada.
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) dialogRef.current?.close();
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
   return (
     <>
       <div className="lg:hidden">
