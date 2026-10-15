@@ -44,85 +44,105 @@ describe('URL de download de um arquivo', () => {
     return itemId;
   };
 
-  it('devolve a URL assinada de um arquivo ativo, que entrega os bytes, com validade de 5 minutos @LUI-168-CA1', async () => {
-    const { accessToken } = await auth.signedInUser();
-    const itemId = await activeFile(accessToken, 'ola.txt', 'ola!!');
-    const requestedAt = Date.now();
+  it(
+    'devolve a URL assinada de um arquivo ativo, que entrega os bytes, com validade de 5 minutos',
+    { tags: ['@LUI-168-CA1'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
+      const itemId = await activeFile(accessToken, 'ola.txt', 'ola!!');
+      const requestedAt = Date.now();
 
-    const response = await items.downloadUrl(itemId, accessToken);
-    const { url, expiresAt } = response.body as {
-      url: string;
-      expiresAt: string;
-    };
-    const delivered = await getSignedUrlOnEmulator(emulatorHost, url);
+      const response = await items.downloadUrl(itemId, accessToken);
+      const { url, expiresAt } = response.body as {
+        url: string;
+        expiresAt: string;
+      };
+      const delivered = await getSignedUrlOnEmulator(emulatorHost, url);
 
-    expect(response.status).toBe(200);
-    expect(
-      Math.abs(Date.parse(expiresAt) - requestedAt - 5 * 60 * 1000),
-    ).toBeLessThan(10_000);
-    expect(new URL(url).origin).toBe(
-      app.get<{ publicUrl: string }>(storageConfig.KEY).publicUrl,
-    );
-    expect(new URL(url).searchParams.get('X-Goog-Expires')).toBe('300');
-    expect(delivered.status).toBe(200);
-    expect(delivered.body.toString()).toBe('ola!!');
-  });
+      expect(response.status).toBe(200);
+      expect(
+        Math.abs(Date.parse(expiresAt) - requestedAt - 5 * 60 * 1000),
+      ).toBeLessThan(10_000);
+      expect(new URL(url).origin).toBe(
+        app.get<{ publicUrl: string }>(storageConfig.KEY).publicUrl,
+      );
+      expect(new URL(url).searchParams.get('X-Goog-Expires')).toBe('300');
+      expect(delivered.status).toBe(200);
+      expect(delivered.body.toString()).toBe('ola!!');
+    },
+  );
 
-  it('leva o nome original, com acento e espaço, no Content-Disposition como anexo @LUI-168-CA2', async () => {
-    const { accessToken } = await auth.signedInUser();
-    const itemId = await activeFile(accessToken, 'relatório do mês.pdf', 'pdf');
-    const objectKey = await uploads.objectKeyOf(itemId);
-    const disposition =
-      "attachment; filename*=UTF-8''relat%C3%B3rio%20do%20m%C3%AAs.pdf";
+  it(
+    'leva o nome original, com acento e espaço, no Content-Disposition como anexo',
+    { tags: ['@LUI-168-CA2'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
+      const itemId = await activeFile(
+        accessToken,
+        'relatório do mês.pdf',
+        'pdf',
+      );
+      const objectKey = await uploads.objectKeyOf(itemId);
+      const disposition =
+        "attachment; filename*=UTF-8''relat%C3%B3rio%20do%20m%C3%AAs.pdf";
 
-    const response = await items.downloadUrl(itemId, accessToken);
-    const { url } = response.body as { url: string };
-    const delivered = await getSignedUrlOnEmulator(emulatorHost, url);
+      const response = await items.downloadUrl(itemId, accessToken);
+      const { url } = response.body as { url: string };
+      const delivered = await getSignedUrlOnEmulator(emulatorHost, url);
 
-    expect(delivered.headers['content-disposition']).toBe(disposition);
-    expect(new URL(url).searchParams.get('response-content-disposition')).toBe(
-      disposition,
-    );
-    expect(
-      new URL(url).searchParams.get('response-content-disposition'),
-    ).not.toContain(objectKey);
-    expect(delivered.headers['content-disposition']).not.toContain(objectKey);
-  });
+      expect(delivered.headers['content-disposition']).toBe(disposition);
+      expect(
+        new URL(url).searchParams.get('response-content-disposition'),
+      ).toBe(disposition);
+      expect(
+        new URL(url).searchParams.get('response-content-disposition'),
+      ).not.toContain(objectKey);
+      expect(delivered.headers['content-disposition']).not.toContain(objectKey);
+    },
+  );
 
-  it('responde not_found para pasta, item pendente, item de outro Usuário e item inexistente @LUI-168-CA3', async () => {
-    const owner = await auth.signedInUser();
-    const other = await auth.signedInUser();
-    const rootId = await items.rootId(owner.accessToken, owner.userId);
-    const [folderId] = await items.seed(owner.userId, rootId, [
-      { name: 'Pasta', type: 'folder' },
-    ]);
-    const { itemId: pendingId } = await uploads.start(owner.accessToken, {
-      name: 'pendente.txt',
-      sizeBytes: 5,
-    });
-    const activeId = await activeFile(owner.accessToken, 'ativo.txt', 'ola!!');
-    const othersId = await activeFile(other.accessToken, 'dele.txt', 'ola!!');
+  it(
+    'responde not_found para pasta, item pendente, item de outro Usuário e item inexistente',
+    { tags: ['@LUI-168-CA3'] },
+    async () => {
+      const owner = await auth.signedInUser();
+      const other = await auth.signedInUser();
+      const rootId = await items.rootId(owner.accessToken, owner.userId);
+      const [folderId] = await items.seed(owner.userId, rootId, [
+        { name: 'Pasta', type: 'folder' },
+      ]);
+      const { itemId: pendingId } = await uploads.start(owner.accessToken, {
+        name: 'pendente.txt',
+        sizeBytes: 5,
+      });
+      const activeId = await activeFile(
+        owner.accessToken,
+        'ativo.txt',
+        'ola!!',
+      );
+      const othersId = await activeFile(other.accessToken, 'dele.txt', 'ola!!');
 
-    const folder = await items.downloadUrl(folderId, owner.accessToken);
-    const pending = await items.downloadUrl(pendingId, owner.accessToken);
-    const others = await items.downloadUrl(othersId, owner.accessToken);
-    const missing = await items.downloadUrl(
-      '0198f5a0-0000-7000-8000-000000000000',
-      owner.accessToken,
-    );
-    const notUuid = await items.downloadUrl('nao-e-uuid', owner.accessToken);
-    const own = await items.downloadUrl(activeId, owner.accessToken);
-    const anonymous = await items.downloadUrl(activeId);
+      const folder = await items.downloadUrl(folderId, owner.accessToken);
+      const pending = await items.downloadUrl(pendingId, owner.accessToken);
+      const others = await items.downloadUrl(othersId, owner.accessToken);
+      const missing = await items.downloadUrl(
+        '0198f5a0-0000-7000-8000-000000000000',
+        owner.accessToken,
+      );
+      const notUuid = await items.downloadUrl('nao-e-uuid', owner.accessToken);
+      const own = await items.downloadUrl(activeId, owner.accessToken);
+      const anonymous = await items.downloadUrl(activeId);
 
-    for (const response of [folder, pending, others, missing, notUuid]) {
-      expectProblem(response, NOT_FOUND);
-    }
-    expect(own.status).toBe(200);
-    expectProblem(anonymous, {
-      title: 'Unauthorized',
-      status: 401,
-      code: 'unauthenticated',
-      detail: expect.any(String),
-    });
-  });
+      for (const response of [folder, pending, others, missing, notUuid]) {
+        expectProblem(response, NOT_FOUND);
+      }
+      expect(own.status).toBe(200);
+      expectProblem(anonymous, {
+        title: 'Unauthorized',
+        status: 401,
+        code: 'unauthenticated',
+        detail: expect.any(String),
+      });
+    },
+  );
 });

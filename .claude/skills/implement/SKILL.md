@@ -8,7 +8,7 @@ Implement the work described by the user in the spec or tickets.
 
 If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask.
 
-If the ticket has a plan commit, start from it and from its acceptance file (`docs/tickets/<issue>/<ticket>/aceite.md`), and put each criterion ID in the title of its acceptance test, as the root `AGENTS.md`, section "Plano do ticket", describes. If it has none, stop and ask for `/plan-ticket` first.
+If the ticket has a plan commit, start from it and from its acceptance file (`docs/tickets/<issue>/<ticket>/aceite.md`), and put each criterion ID in a tag of its acceptance test, as the root `AGENTS.md`, section "Plano do ticket", describes. If it has none, stop and ask for `/plan-ticket` first.
 
 Call the Skill tool with "tdd" where possible, at pre-agreed seams.
 

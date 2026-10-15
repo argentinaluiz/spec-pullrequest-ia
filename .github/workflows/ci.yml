@@ -1,7 +1,7 @@
 name: CI
 
 # O veredito do projeto: reexecuta a definição de pronto inteira, no mesmo Compose do
-# desenvolvimento. O desenho está no docs/harness.md.
+# desenvolvimento.
 
 on:
   pull_request:

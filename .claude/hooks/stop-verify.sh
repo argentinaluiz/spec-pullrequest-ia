@@ -4,8 +4,8 @@
 # o modo rápido do scripts/verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
 # arquivos, por sessão, é o record-touched.sh. Cada sessão só responde pelos arquivos dela: o erro
 # que outra sessão deixou no mesmo clone não bloqueia este turno, só avisa. Se falhar num arquivo da
-# sessão, devolve a saída ao agente, que continua o trabalho. O desenho, inclusive o limite da edição
-# por shell, que não é anotada, está no docs/harness.md, seção "Hook de fim de turno".
+# sessão, devolve a saída ao agente, que continua o trabalho. A edição por shell não é anotada,
+# então ela não entra nessa conta.
 #
 # Sai com 0 para deixar o turno encerrar e com 2 para bloquear. No 2, o que foi escrito na
 # saída de erro volta para o agente.

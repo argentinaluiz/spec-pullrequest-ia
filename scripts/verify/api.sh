@@ -1,6 +1,5 @@
 # Grupo de verificação da API. Quem chama estas funções é o scripts/verify.sh, que define os
-# auxiliares (`step`, `in_container`, `node_in_api`, `plain_diff`, `require_container`, `check_report`). O
-# desenho está no docs/harness.md.
+# auxiliares (`step`, `in_container`, `node_in_api`, `plain_diff`, `require_container`, `check_report`).
 
 # Relatórios que o aceite confere, no formato
 # <vitest|playwright>:<relatório, na pasta do projeto>
@@ -36,7 +35,7 @@ OASDIFF_IMAGE=tufin/oasdiff:v1.33.0
 
 # O contrato (a OpenAPI gerada do código) e o schema do banco, conferidos por máquina. O
 # snapshot versionado (apps/api/openapi.json) é o dono do contrato, e o schema do Prisma, o das
-# tabelas implementadas. O desenho está no docs/harness.md, etapa 8.
+# tabelas implementadas.
 api_contract() {
   step "API: contrato igual ao snapshot da OpenAPI" \
     "o código e apps/api/openapi.json divergem. Rode \`$EXEC api pnpm openapi:generate openapi.json\`, leia o diff e acerte o código ou o snapshot." \
@@ -150,7 +149,7 @@ api_contract_pairs() {
 # `api_contract_sources`, nas seções `# Contrato` e `# Schema` que a página do plano da skill lê. As
 # fontes nascem aqui, numa pasta temporária fora do repositório, e chegam ao contêiner pela entrada
 # padrão. A primeira linha, antes das seções, diz os dois pontos. Sem <to>, o segundo ponto é a pasta
-# de trabalho. Não é versionada. O desenho está no docs/harness.md, etapa 8.
+# de trabalho. Não é versionada.
 # api_contract_view <from> [<to>]
 api_contract_view() {
   local from="$1" to="${2:-}" dir code=0
@@ -166,7 +165,7 @@ api_contract_view() {
 # visão entre os dois, acrescenta-a ao <arquivo do desvio> e avisa no PR. Sem <para>, compara com a
 # pasta de trabalho. O contrato é comparado como no `api_openapi_matches`, então um snapshot
 # regenerado que só muda descrições, resumos, exemplos ou a ordem das chaves não é desvio. Não
-# bloqueia. O desenho está no docs/harness.md, etapa 8.
+# bloqueia.
 # api_contract_drift <commit de plano> <para, ou vazio> <arquivo do desvio>
 api_contract_drift() {
   local plan="$1" to="$2" drift="$3" short dir view warning contract=igual schema=igual

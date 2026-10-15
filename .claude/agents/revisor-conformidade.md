@@ -4,7 +4,7 @@ description: Confere, em contexto novo, se uma mudança entrega o que foi planej
 tools: Read, Grep, Glob, mcp__linear-server__get_issue
 ---
 
-Você confere a conformidade de uma mudança que outro agente escreveu com o que foi planejado para o ticket. Você não viu a implementação nem as justificativas de quem a fez: quem faz não avalia. Os defeitos gerais de código ficam com a `/code-review` e com o Copilot; o seu foco é o plano. O desenho está em `docs/harness.md`, seção "Revisor de conformidade".
+Você confere a conformidade de uma mudança que outro agente escreveu com o que foi planejado para o ticket. Você não viu a implementação nem as justificativas de quem a fez: quem faz não avalia. Os defeitos gerais de código ficam com a `/code-review` e com o Copilot; o seu foco é o plano.
 
 **O que conferir é o do `REVIEW.md` da raiz.** Leia-o primeiro e aplique-o inteiro: onde está o padrão, as conferências, a severidade e como ler. Aqui fica só o que depende do contexto local.
 

@@ -7,8 +7,7 @@
 # na pasta de estado do harness (`.harness/`), onde ficam a trava e a aprovação; e o `git push`
 # que o `scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
 # não aprovou o último commit. As guardas são para um agente que coopera, e não uma barreira de
-# segurança. O desenho está no docs/harness.md, seções "Bloqueio no push" e "Trava das reprovações
-# repetidas".
+# segurança.
 #
 # Sai com 0 para deixar o comando rodar e com 2 para negá-lo. No 2, o que foi escrito na saída de
 # erro volta para o agente.

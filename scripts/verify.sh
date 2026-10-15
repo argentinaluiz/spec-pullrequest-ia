@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Verificação do projeto. É a única definição de "passou": a CI chama o modo completo,
-# e os hooks chamam o modo rápido e o de antes do push. O desenho está no docs/harness.md.
+# e os hooks chamam o modo rápido e o de antes do push.
 #
 #   scripts/verify.sh fast [app...]                tipos e lint das apps citadas (todas, se nenhuma)
 #   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, os testes do
@@ -72,7 +72,7 @@ APPROVAL_FILE="$HARNESS_DIR/full-ok"
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
 source scripts/full-lock.sh
-# A pasta dos tickets. O que fica nela está no docs/harness.md, etapa 7.
+# A pasta dos tickets.
 TICKETS_DIR=docs/tickets
 
 failures=()
@@ -276,7 +276,7 @@ contract_drift() {
   elif [[ -z "$plan" ]]; then
     echo "Não há commit de plano para comparar: nenhum commit desta branch criou o $file, citado na seção \"Aceite\" do corpo do PR."
   else
-    # A pasta do ticket (docs/harness.md, "Por que o aceite fica na pasta do ticket") é a do arquivo de aceite citado.
+    # A pasta do ticket (docs/tickets/<issue>/<ticket>/) é a do arquivo de aceite citado.
     drift="$(dirname "$file")/contract-drift.txt"
     for app in "${APPS[@]}"; do
       if declare -F "${app}_contract_drift" >/dev/null; then
@@ -410,7 +410,7 @@ run_full() {
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
   # pull request: na CI, ou na máquina, com o corpo num arquivo apontado por ACCEPTANCE_BODY_FILE.
   step "Aceite" \
-    "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
+    "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID numa tag." \
     acceptance
 
   # Depois do "Aceite", que confere a seção que ele lê. Só avisa: nunca entra nas falhas.
@@ -522,7 +522,7 @@ case "$mode" in
     ;;
   plan)
     # A página não é verificação: não aprova nada.
-    plan_example='scripts/verify.sh plan LUI-162 LUI-171 [<commit>]'
+    plan_example='scripts/verify.sh plan PROJ-1 PROJ-123 [<commit>]'
     [[ $# -ge 1 && $# -le 3 ]] || usage
     [[ $# -ge 2 ]] ||
       abort "falta o <pai> no \`plan\`: o comando é \`plan <pai> <ticket> [<commit>]\`, e só um argumento foi passado." \

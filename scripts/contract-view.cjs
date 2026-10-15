@@ -1,8 +1,7 @@
 // Renderiza, em Markdown, o contrato completo de cada rota nova ou alterada entre dois snapshots da
 // OpenAPI, no formato de rota da skill de plano (formatos/contrato.md): uma seção por rota, com
 // tabelas de parâmetros, de cabeçalhos e de erros. É a parte da visão do contrato que o `oasdiff
-// changelog` não dá: numa rota nova, ele só diz que ela foi acrescentada. O desenho está no
-// docs/harness.md, etapa 8.
+// changelog` não dá: numa rota nova, ele só diz que ela foi acrescentada.
 //
 // `routeChanges` monta o modelo das rotas que mudaram, e `render` o escreve em Markdown. A visão
 // inteira (`view`) é a saída do comando do contrato deste projeto, no formato que a skill de plano

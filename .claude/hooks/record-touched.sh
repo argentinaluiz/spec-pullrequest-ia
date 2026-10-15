@@ -4,8 +4,7 @@
 # arquivos de apps/ que o agente editou, para o hook de fim de turno (stop-verify.sh) bloquear só
 # pelos erros desses arquivos. Um subagente traz o mesmo `session_id` da sessão que o chamou, então
 # as edições dele caem no arquivo dela. Edição por shell (sed, mv, gerador) não passa por aqui: é
-# um limite aceito, e o modo completo confere a árvore inteira. O desenho está no docs/harness.md,
-# seção "Hook de fim de turno".
+# um limite aceito, e o modo completo confere a árvore inteira.
 #
 # O `session_id` entra no nome do arquivo de estado, então só vale com letras, dígitos, `_` e `-`.
 # Com outro formato, ou sem `jq`, o hook não anota nada, e o hook de fim de turno avisa que não

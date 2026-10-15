@@ -213,7 +213,7 @@ test('gera a visão em Markdown, uma seção por rota, com as tabelas de parâme
 
   // A aba "Contrato" da página mostra esse Markdown, que vem do mesmo modelo: as mesmas rotas, com as
   // mesmas tabelas.
-  const tab = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', contract: cli.stdout }), 'contrato');
+  const tab = panel(build({ ticket: 'PROJ-900', origin: 'Montada da pasta de trabalho.', contract: cli.stdout }), 'contrato');
   const headings = [...tab.matchAll(/<h3>([^<]*)<\/h3>/g)].map((match) => match[1]);
   assert.deepEqual(headings, [
     'Rota alterada · GET /v1/items/{id}/children · protegida (bearer)',

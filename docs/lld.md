@@ -132,7 +132,7 @@ erDiagram
     subscriptions ||--o{ payment_events : recebe
 ```
 
-**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
+**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente. Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
 **Formato de uma tabela no schema:** toda tabela planejada ou alterada traz os itens do formato de tabela da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Tabela"). Neste projeto, o dono é o `schema.prisma`, e cada item se escreve assim:
 
@@ -201,7 +201,7 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 
 ## 3. Contrato da API
 
-**Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base (`docs/harness.md`, etapa 8). As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
+**Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base. As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
 
 **Formato de uma rota no snapshot:** toda rota planejada ou alterada traz, no snapshot, os itens do formato de rota da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Rota") que ela usa. Neste projeto, cada item é assim:
 
@@ -462,7 +462,7 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Conclusão simultânea ao expurgo:** a ativação (`UPDATE ... WHERE status = 'pending'`) não encontra um item `deleting`, e a conclusão responde `not_found` na hora, sem esperar o storage. Se a conclusão ativa antes, o expurgo não toma o item, e o cancelamento responde `not_found`, com o objeto intacto. Nunca fica um item ativo sem o objeto.
 - **Falha do storage no expurgo:** o item fica `deleting`, com o espaço já devolvido, e não volta a `pending`. O cancelamento responde `internal_error`; um novo cancelamento do mesmo item pelo dono refaz os passos 2 e 3 e responde 204. A limpeza conta a falha, segue com os demais e, nas próximas execuções, pega também os itens `deleting` tomados há mais que a carência da seção 5 e refaz os passos 2 e 3. Ela conta como removido só o item cuja linha ela mesma apagou: o que outro expurgo terminou no meio não entra na contagem.
 
-**Como o upload de um arquivo é executado (LUI-167)**
+**Como o upload de um arquivo é executado**
 
 - **Ordem do início:** (1) o destino é resolvido (`root` ou uma pasta `active` do usuário; qualquer outro valor, inclusive um texto que não é UUID, é `not_found`); (2) uma transação cria a linha da cota, reserva o tamanho e cria o item `pending`, com a chave do objeto (UUID aleatório) e sem a sessão; (3) fora da transação, a sessão é criada no storage; (4) o endereço dela é gravado no item. Chamar o storage dentro da transação a prenderia durante uma chamada de rede. Se o passo 3 falhar, uma transação de compensação apaga o item pendente e devolve o espaço, e o erro sobe (`internal_error`). Se a compensação também falhar, o item fica `pending` e a limpeza o remove.
 - **Validade da sessão:** `expiresAt` é a criação do item mais 24 horas, o prazo em que a limpeza remove um pendente (seção 5). O Cloud Storage guarda a sessão por mais tempo, e esse prazo não é o que o cliente vê.
@@ -489,10 +489,10 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **Dois endereços do emulador:** a API fala com ele por `STORAGE_EMULATOR_HOST` (`http://storage:4443`, o nome do serviço do Compose). O navegador não alcança esse host, e alcança `http://localhost:4443`, a porta que o Compose publica. Esse é o `STORAGE_PUBLIC_URL`, que só existe no ambiente local.
 - **Endereço da sessão:** o emulador monta o endereço da sessão com o `Host` da requisição que recebeu, então ele volta com `storage:4443`. Com `STORAGE_PUBLIC_URL` definido, a implementação troca a origem do endereço por ela antes de devolvê-lo. Sem a variável (staging e produção), o endereço sai como veio do Cloud Storage.
 - **URL assinada:** a implementação passa a origem de `STORAGE_PUBLIC_URL` como `host` da assinatura, e a URL já sai com o endereço que o navegador alcança. O emulador só serve a URL assinada (`/<bucket>/<objeto>`) quando o `Host` da requisição é igual ao `-public-host` dele, que o Compose define com o mesmo host e porta do `STORAGE_PUBLIC_URL`.
-- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`, como descrito no `docs/harness.md`, seção "Script de verificação").
+- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`).
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
 - **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
-- **Rota de apoio:** `/v1/dev/storage/*` existiu no LUI-165, para os testes no navegador alcançarem a interface de storage. As rotas da sessão e do tamanho saíram com o `POST /uploads` (LUI-167), e a de leitura, com o `GET /items/{id}/download-url` (LUI-168), que com ela tirou o módulo de apoio inteiro. Os testes no navegador criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
+- **Os testes no navegador não têm rota de apoio:** eles falam com o storage pelas rotas do produto. Criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
 
 **Resultado da validação contra o emulador (`fake-gcs-server` 1.56.1)**
 

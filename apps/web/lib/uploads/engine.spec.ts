@@ -113,7 +113,7 @@ function hang(request: PutRequest): Promise<PutResponse> {
 }
 
 describe("motor de envio", () => {
-  it("corta o arquivo em chunks de 8 MiB e envia o menor que um chunk num envio só @LUI-170-CA1", async () => {
+  it("corta o arquivo em chunks de 8 MiB e envia o menor que um chunk num envio só", { tags: ["@LUI-170-CA1"] }, async () => {
     const storage = new FakeStorage();
     const engine = createUploadEngine({
       transport: async (request) => storage.respond(request),
@@ -158,7 +158,7 @@ describe("motor de envio", () => {
     ]);
   });
 
-  it("calcula o próximo chunk pelo que o storage confirmou, e não pelo que enviou @LUI-170-CA2", async () => {
+  it("calcula o próximo chunk pelo que o storage confirmou, e não pelo que enviou", { tags: ["@LUI-170-CA2"] }, async () => {
     const storage = new FakeStorage();
     storage.confirmLimits = [4 * MiB];
     const engine = createUploadEngine({
@@ -181,7 +181,7 @@ describe("motor de envio", () => {
     expect(progress).not.toContain(40);
   });
 
-  it("repete o chunk que falhou depois de consultar o progresso, até 5 vezes com espera crescente, e falha o arquivo @LUI-170-CA3", async () => {
+  it("repete o chunk que falhou depois de consultar o progresso, até 5 vezes com espera crescente, e falha o arquivo", { tags: ["@LUI-170-CA3"] }, async () => {
     const storage = new FakeStorage();
     const secondChunk = "bytes 8388608-9437183/9437184";
     const outcomes: ("network" | 503 | "ok")[] = ["network", 503, "ok"];
@@ -239,7 +239,7 @@ describe("motor de envio", () => {
     );
   });
 
-  it("com a sessão expirada, cancela o upload e recomeça do zero numa sessão nova @LUI-170-CA4", async () => {
+  it("com a sessão expirada, cancela o upload e recomeça do zero numa sessão nova", { tags: ["@LUI-170-CA4"] }, async () => {
     for (const expiredStatus of [404, 410]) {
       // A primeira sessão confirma o primeiro chunk e expira no segundo.
       const firstSession = new FakeStorage();
@@ -270,7 +270,7 @@ describe("motor de envio", () => {
     }
   });
 
-  it("um upload_incomplete na conclusão faz o motor consultar o progresso e retomar @LUI-170-CA5", async () => {
+  it("um upload_incomplete na conclusão faz o motor consultar o progresso e retomar", { tags: ["@LUI-170-CA5"] }, async () => {
     const incomplete: CompleteUploadResult = {
       ok: false,
       message: "O envio ainda não terminou.",
@@ -510,7 +510,7 @@ describe("motor de envio", () => {
     ]);
   });
 
-  it("envia no máximo 3 arquivos ao mesmo tempo e começa o próximo da fila quando um termina @LUI-170-CA6", async () => {
+  it("envia no máximo 3 arquivos ao mesmo tempo e começa o próximo da fila quando um termina", { tags: ["@LUI-170-CA6"] }, async () => {
     const held: { url: string; release: () => void }[] = [];
     let inFlight = 0;
     let maxInFlight = 0;
@@ -556,7 +556,7 @@ describe("motor de envio", () => {
     expect(maxInFlight).toBe(3);
   });
 
-  it("pausar aborta o chunk em curso, e retomar continua do byte que o storage confirmou @LUI-170-CA7", async () => {
+  it("pausar aborta o chunk em curso, e retomar continua do byte que o storage confirmou", { tags: ["@LUI-170-CA7"] }, async () => {
     const storage = new FakeStorage();
     const secondChunk = "bytes 8388608-16777215/17825792";
     let secondChunkAborted = false;
@@ -909,7 +909,7 @@ const diskFile = (size: number, name = "grande.bin") =>
   new File([new Uint8Array(size)], name, { lastModified: LAST_MODIFIED });
 
 describe("motor de envio depois de fechar a aba", () => {
-  it("um incompleto que a retomada não acha sai do painel e do armazenamento, sem aviso @LUI-171-CA5", async () => {
+  it("um incompleto que a retomada não acha sai do painel e do armazenamento, sem aviso", { tags: ["@LUI-171-CA5"] }, async () => {
     const api = fakeApi();
     api.resume.mockResolvedValue({ ok: false, gone: true });
     const { store, ids } = memoryStore([

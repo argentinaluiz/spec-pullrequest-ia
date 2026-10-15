@@ -21,83 +21,107 @@ describe('Retomada do envio de um arquivo', () => {
     await app.close();
   });
 
-  it('devolve a sessão de um upload pendente @LUI-171-CA1', async () => {
-    const { accessToken } = await auth.signedInUser();
-    const created = await uploads.start(accessToken, {
-      name: 'retomado.txt',
-      sizeBytes: 5,
-    });
+  it(
+    'devolve a sessão de um upload pendente',
+    { tags: ['@LUI-171-CA1'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
+      const created = await uploads.start(accessToken, {
+        name: 'retomado.txt',
+        sizeBytes: 5,
+      });
 
-    const resumed = await uploads.resume(accessToken, created.itemId);
+      const resumed = await uploads.resume(accessToken, created.itemId);
 
-    expect(resumed.status).toBe(200);
-    expect(resumed.body).toEqual({
-      itemId: created.itemId,
-      uploadUrl: created.uploadUrl,
-      expiresAt: created.expiresAt,
-    });
-  });
+      expect(resumed.status).toBe(200);
+      expect(resumed.body).toEqual({
+        itemId: created.itemId,
+        uploadUrl: created.uploadUrl,
+        expiresAt: created.expiresAt,
+      });
+    },
+  );
 
-  it('não devolve a sessão de um upload concluído @LUI-171-CA2', async () => {
-    const { accessToken } = await auth.signedInUser();
-    const created = await uploads.start(accessToken, {
-      name: 'concluido.txt',
-      sizeBytes: 5,
-    });
-    await uploads.putBytes(created.uploadUrl, 'abcde');
-    await uploads.complete(accessToken, created.itemId).expect(200);
+  it(
+    'não devolve a sessão de um upload concluído',
+    { tags: ['@LUI-171-CA2'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
+      const created = await uploads.start(accessToken, {
+        name: 'concluido.txt',
+        sizeBytes: 5,
+      });
+      await uploads.putBytes(created.uploadUrl, 'abcde');
+      await uploads.complete(accessToken, created.itemId).expect(200);
 
-    const resumed = await uploads.resume(accessToken, created.itemId);
+      const resumed = await uploads.resume(accessToken, created.itemId);
 
-    expectProblem(resumed, NOT_FOUND);
-    expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
-  });
+      expectProblem(resumed, NOT_FOUND);
+      expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
+    },
+  );
 
-  it('não devolve a sessão de um upload cancelado @LUI-171-CA2', async () => {
-    const { accessToken } = await auth.signedInUser();
-    const created = await uploads.start(accessToken, {
-      name: 'cancelado.txt',
-      sizeBytes: 5,
-    });
-    await uploads.cancel(accessToken, created.itemId).expect(204);
+  it(
+    'não devolve a sessão de um upload cancelado',
+    { tags: ['@LUI-171-CA2'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
+      const created = await uploads.start(accessToken, {
+        name: 'cancelado.txt',
+        sizeBytes: 5,
+      });
+      await uploads.cancel(accessToken, created.itemId).expect(204);
 
-    const resumed = await uploads.resume(accessToken, created.itemId);
+      const resumed = await uploads.resume(accessToken, created.itemId);
 
-    expectProblem(resumed, NOT_FOUND);
-    expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
-  });
+      expectProblem(resumed, NOT_FOUND);
+      expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
+    },
+  );
 
-  it('não devolve a sessão do upload pendente de outro Usuário @LUI-171-CA2', async () => {
-    const owner = await auth.signedInUser();
-    const other = await auth.signedInUser();
-    const created = await uploads.start(owner.accessToken, {
-      name: 'alheio.txt',
-      sizeBytes: 5,
-    });
+  it(
+    'não devolve a sessão do upload pendente de outro Usuário',
+    { tags: ['@LUI-171-CA2'] },
+    async () => {
+      const owner = await auth.signedInUser();
+      const other = await auth.signedInUser();
+      const created = await uploads.start(owner.accessToken, {
+        name: 'alheio.txt',
+        sizeBytes: 5,
+      });
 
-    const resumed = await uploads.resume(other.accessToken, created.itemId);
+      const resumed = await uploads.resume(other.accessToken, created.itemId);
 
-    expectProblem(resumed, NOT_FOUND);
-    expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
-  });
+      expectProblem(resumed, NOT_FOUND);
+      expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
+    },
+  );
 
-  it('não devolve a sessão de um UUID que não existe @LUI-171-CA2', async () => {
-    const { accessToken } = await auth.signedInUser();
+  it(
+    'não devolve a sessão de um UUID que não existe',
+    { tags: ['@LUI-171-CA2'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
 
-    const resumed = await uploads.resume(accessToken, uuidv7());
+      const resumed = await uploads.resume(accessToken, uuidv7());
 
-    expectProblem(resumed, NOT_FOUND);
-    expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
-  });
+      expectProblem(resumed, NOT_FOUND);
+      expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
+    },
+  );
 
-  it('não devolve a sessão de um id que não é UUID @LUI-171-CA2', async () => {
-    const { accessToken } = await auth.signedInUser();
+  it(
+    'não devolve a sessão de um id que não é UUID',
+    { tags: ['@LUI-171-CA2'] },
+    async () => {
+      const { accessToken } = await auth.signedInUser();
 
-    const resumed = await uploads.resume(accessToken, 'nao-e-uuid');
+      const resumed = await uploads.resume(accessToken, 'nao-e-uuid');
 
-    expectProblem(resumed, NOT_FOUND);
-    expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
-  });
+      expectProblem(resumed, NOT_FOUND);
+      expect(JSON.stringify(resumed.body)).not.toContain('uploadUrl');
+    },
+  );
 });
 
 describe('Retomada de um upload com o prazo vencido', () => {
