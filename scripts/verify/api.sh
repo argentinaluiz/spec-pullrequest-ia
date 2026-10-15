@@ -189,7 +189,7 @@ api_contract_drift() {
     return 0
   fi
   if view="$(api_contract_view "$short" "$to" 2>&1)"; then
-    warning="O contrato da OpenAPI ou o schema do Prisma mudou depois do commit de plano $short. Confira se o desvio é pedido pelo ticket; a visão está no log, e na máquina em $drift, que o revisor recebe."
+    warning="O contrato da OpenAPI ou o schema do Prisma mudou depois do commit de plano $short. Confira se o desvio é pedido pelo ticket; a visão está no log, e na máquina em $drift."
   else
     view="A visão do desvio em relação ao commit de plano $short não pôde ser montada. O que segue é o erro dela, e não o desvio."$'\n\n'"$view"
     warning="O contrato ou o schema mudou depois do commit de plano $short, mas a visão do desvio não pôde ser montada (ver o log, ou $drift)."

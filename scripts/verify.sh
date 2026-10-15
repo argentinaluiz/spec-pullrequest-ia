@@ -378,7 +378,7 @@ run_full() {
   # para o que estiver na pasta quando a verificação terminar.
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
     "confira se o repositório do Git está íntegro, com \`git status\`."
-  # A visão do desvio também é desta execução: uma interrompida não deixa uma antiga para o revisor.
+  # A visão do desvio também é desta execução: uma interrompida não deixa uma antiga para trás.
   rm -f "$APPROVAL_FILE" "$TICKETS_DIR"/*/contract-drift.txt
 
   for app in "${APPS[@]}"; do

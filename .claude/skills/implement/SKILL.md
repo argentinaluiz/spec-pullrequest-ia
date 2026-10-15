@@ -14,6 +14,6 @@ Call the Skill tool with "tdd" where possible, at pre-agreed seams.
 
 While working, run only the tests tied to the files you changed, with the commands in the project's `AGENTS.md`; the stop hook already runs the type and lint checks.
 
-Once done, call the Skill tool with "simplify" and then with "code-review" to review the work. Then run the full verification once, before the commit that closes the work, as the root `AGENTS.md`, section "Definição de pronto", describes.
+Once done, call the Skill tool with "simplify" and then with "code-review" to review the work, then run the conformance review, as the root `AGENTS.md`, section "Revisão de conformidade", describes, and fix the findings you agree with. Then run the full verification once, before the commit that closes the work, as the root `AGENTS.md`, section "Definição de pronto", describes.
 
 Commit your work to the current branch.

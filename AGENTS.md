@@ -129,7 +129,7 @@ scripts/verify.sh full
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `scripts/verify.sh fast`. O `scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
-- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify` e da `/code-review`.
+- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade").
 - **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
 - **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava. O desenho está no `docs/harness.md`, seção "Trava das reprovações repetidas".
@@ -166,27 +166,30 @@ docs/tickets/LUI-146/aceite.md
 
 O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
 
-**Revisão em contexto novo**
+**Revisão de conformidade**
 
-Quem escreveu o código não é quem o revisa. Todo pull request que altera código em `apps/` passa pelo subagente `revisor`, que não viu a implementação. Ela é a revisão que vale para o PR; uma revisão feita na mesma sessão que escreveu o código não a substitui.
+Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR, e o que só ele confere, em `.claude/agents/revisor-conformidade.md`. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-1. **Gere o diff num arquivo,** com a implementação terminada, a verificação completa passando e tudo commitado. Ele vai para a pasta do ticket, `docs/tickets/<ticket>/`, onde `<ticket>` é o do arquivo de aceite citado na seção `## Aceite` do corpo do PR; num PR sem ticket (`nenhum`), a pasta é `docs/tickets/sem-ticket/`:
+No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit.
+
+1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<ticket>/`, onde `<ticket>` é o do ticket da branch, o mesmo do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, a pasta é `docs/tickets/sem-ticket/`. O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
 
    ```bash
-   git status --short
-   mkdir -p docs/tickets/<ticket>
-   git diff origin/main...HEAD > docs/tickets/<ticket>/review.diff
+   git add -N -- <arquivos novos da mudança>
+   git diff origin/main > docs/tickets/<ticket>/review.diff
+   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<ticket>/aceite.md)"
+   git show -s --format=%B "$plano" > docs/tickets/<ticket>/plano.txt
+   scripts/verify.sh contract "$plano" > docs/tickets/<ticket>/contract-drift.txt
    ```
 
-   O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso. O `review.diff` não aparece no `git status`, porque o Git o ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
+   O `git add -N` só registra que os arquivos novos existem, para o diff trazê-los, sem prepará-los para o commit. Confira com o `git status --short` que nenhum arquivo da mudança ficou de fora: o que não está no diff fica fora da revisão, sem aviso. Sem commit de plano, não há mensagem nem visão do desvio. Os arquivos não aparecem no `git status`, porque o Git os ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
 
-2. **Chame o subagente `revisor`** passando só o caminho desse arquivo, o identificador do ticket e o caminho do `docs/tickets/<ticket>/contract-drift.txt`, que o modo completo grava quando o contrato ou o schema mudou depois do commit de plano. Se esse arquivo não existe, diga isso ao revisor. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
-   O que o revisor confere, inclusive o aceite do ticket, está em `.claude/agents/revisor.md` e em `docs/harness.md`. Rode a revisão no checkout da branch do PR, porque ele lê o arquivo de aceite dessa branch.
-3. **Corrija os achados com que você concorda,** faça o commit das correções e rode a verificação de novo.
-4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
+2. **Chame o subagente `revisor-conformidade`** passando só o caminho do diff, o identificador do ticket e os caminhos da mensagem do plano e da visão do desvio, ou o aviso de que elas não existem. Numa mudança sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões. Rode a revisão no checkout da branch, porque ele lê o arquivo de aceite dela.
+3. **Corrija os achados com que você concorda** e siga para o `full` (ver "Definição de pronto").
+4. **Publique o resultado como comentário no PR,** quando ele for aberto, com o título `## Revisão de conformidade`, neste formato:
 
    ```markdown
-   ## Revisão em contexto novo
+   ## Revisão de conformidade
 
    | # | Severidade | Achado | Situação | Motivo |
    | --- | --- | --- | --- | --- |
@@ -204,9 +207,9 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
 - **Todo achado entra na tabela,** inclusive o que você considera errado. Nesse caso, a situação é "Não corrigido" e o motivo diz por quê. Não omita achado nem edite o relatório.
 - **A revisão não bloqueia.** O que fazer com um achado não corrigido é decisão do usuário no merge. A CI não lê esse comentário.
 - **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
-- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor.md`, e publique o comentário do mesmo jeito.
+- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor-conformidade.md`, e publique o comentário do mesmo jeito.
 
-O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor em contexto novo". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
+O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor de conformidade". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
