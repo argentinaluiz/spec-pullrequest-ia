@@ -83,7 +83,7 @@ rm "$repo/apps/api/apagado.ts"
 # deixa a saída em $out, a saída de erro em $err e o código em $code.
 review() {
   local errfile="$tmp/err"
-  out="$(cd "$repo" && env -u CLAUDE_PROJECT_DIR PATH="$tmp/bin:$PATH" HARNESS_BASE_REF=main \
+  out="$(cd "$repo" && env -u CLAUDE_PROJECT_DIR -u HARNESS_HEAD_REF PATH="$tmp/bin:$PATH" HARNESS_BASE_REF=main \
     scripts/verify.sh review "$@" 2>"$errfile")"
   code=$?
   err="$(cat "$errfile")"
