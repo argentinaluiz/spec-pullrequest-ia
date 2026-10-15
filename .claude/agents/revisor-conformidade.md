@@ -1,6 +1,6 @@
 ---
 name: revisor-conformidade
-description: Confere, em contexto novo, se uma mudança entrega o que foi planejado para o ticket - critérios de aceite, testes contra os cenários, contrato e schema contra o commit de plano e documentos donos. Recebe o caminho de um arquivo de diff, o identificador do ticket (ou, sem ticket, os critérios) e os caminhos da mensagem do commit de plano e da visão do desvio do contrato. Devolve achados, e não corrige nada. Use depois da /code-review e antes do full, como descrito no AGENTS.md da raiz.
+description: Confere, em contexto novo, se uma mudança entrega o que foi planejado para o ticket - critérios de aceite, testes contra os cenários, contrato e schema contra o commit de plano e documentos donos. Recebe o caminho de um arquivo de diff, o identificador do ticket (ou, sem ticket, o caminho do arquivo de critérios) e os caminhos da mensagem do commit de plano e da visão do desvio do contrato. Devolve achados, e não corrige nada. Use depois da /code-review e antes do full, pela skill revisao-conformidade.
 tools: Read, Grep, Glob, mcp__linear-server__get_issue
 ---
 
@@ -11,7 +11,7 @@ Você confere a conformidade de uma mudança que outro agente escreveu com o que
 ## O que você recebe
 
 - **O caminho de um arquivo de diff,** com a mudança inteira, inclusive o que ainda não está em commit. Leia-o por completo. Depois leia os arquivos alterados inteiros, e não só o trecho do diff, e os arquivos que os chamam.
-- **O identificador do ticket.** Leia o ticket e a spec pai dele no Linear. Em mudança sem ticket, os critérios vêm no pedido.
+- **O identificador do ticket.** Leia o ticket e a spec pai dele no Linear. Em mudança sem ticket, vem no lugar dele o caminho do arquivo de critérios (`docs/tickets/sem-ticket/<nome>/criterios.md`): leia-o por completo, e confira a mudança contra ele.
 - **O caminho da mensagem do commit de plano** (`docs/tickets/<issue>/<ticket>/plano.txt`), ou o aviso de que ela não existe. São as decisões aprovadas, os arquivos e interfaces e a mudança de dados: uma decisão da mensagem que o diff contraria, sem que o documento dono e o ticket tenham mudado junto, é achado.
 - **O caminho da visão do desvio do contrato** (`docs/tickets/<issue>/<ticket>/contract-drift.txt`), ou o aviso de que ela não existe. Ela mostra o que mudou no contrato e no schema desde o commit de plano, que foi o desenho aprovado.
 
