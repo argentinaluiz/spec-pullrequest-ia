@@ -13,6 +13,7 @@ import {
   ItemPosition,
   ItemType,
   NewPendingFile,
+  RenameResult,
   ROOT_FOLDER_NAME,
 } from './entities/item.entity.js';
 
@@ -181,6 +182,33 @@ export class ItemsRepository {
       });
       return { status: 'created', folder: toItem(row) };
     });
+  }
+
+  /**
+   * Troca o nome do Item ativo do Usuário e renova o `updatedAt`. A Pasta
+   * raiz, a única sem pai, fica de fora e é dita à parte.
+   */
+  async renameActive(
+    ownerId: string,
+    id: string,
+    name: string,
+  ): Promise<RenameResult> {
+    const found = await this.prisma.item.findFirst({
+      where: { id, ownerId, status: 'active' },
+      select: { parentId: true },
+    });
+    if (!found) {
+      return { status: 'not_found' };
+    }
+    if (found.parentId === null) {
+      return { status: 'root' };
+    }
+    const row = await this.prisma.item.update({
+      where: { id },
+      data: { name },
+      select: ITEM_FIELDS,
+    });
+    return { status: 'renamed', item: toItem(row) };
   }
 
   /** Cria o Item `pending` de um arquivo, invisível nas listagens. */

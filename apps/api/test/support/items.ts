@@ -59,6 +59,18 @@ export function itemRoutes(app: INestApplication<App>) {
     );
   };
 
+  /** `PATCH /items/{id}`, com o token de acesso no cabeçalho quando ele é passado. */
+  const rename = (
+    id: string,
+    accessToken: string | undefined,
+    body: object,
+  ) => {
+    return withAuth(
+      request(app.getHttpServer()).patch(`/v1/items/${id}`).send(body),
+      accessToken,
+    );
+  };
+
   /**
    * O id da Pasta raiz do Usuário. Ela nasce pelo caminho real, a primeira
    * listagem pelo atalho `root`, e só então é lida no banco.
@@ -107,5 +119,13 @@ export function itemRoutes(app: INestApplication<App>) {
     return rows.map((row) => row.id);
   };
 
-  return { listChildren, downloadUrl, get, createFolder, rootId, seed };
+  return {
+    listChildren,
+    downloadUrl,
+    get,
+    createFolder,
+    rename,
+    rootId,
+    seed,
+  };
 }

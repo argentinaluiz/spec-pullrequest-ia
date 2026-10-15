@@ -22,7 +22,11 @@ export function OpenableRow({ href, className, children }: OpenableRowProps) {
     <div
       role="row"
       tabIndex={0}
-      onDoubleClick={() => router.push(href)}
+      onDoubleClick={(event) => {
+        // O duplo clique no botão "Mais ações", no menu ou no diálogo que ele abre é deles.
+        if ((event.target as HTMLElement).closest('button, dialog, [role="menu"]')) return;
+        router.push(href);
+      }}
       onKeyDown={(event) => {
         // Enter num botão de dentro da linha é do botão, e não abre a pasta.
         if (event.key === "Enter" && event.target === event.currentTarget) {

@@ -122,6 +122,11 @@ export interface CreateFolderInput {
   parentId: string;
 }
 
+/** O que `PATCH /items/{id}` pede: só o nome, por ora. */
+export interface UpdateItemInput {
+  name: string;
+}
+
 /** Uma página da listagem. O cursor é opaco, e nulo na última página. */
 export interface ItemPage {
   items: Item[];

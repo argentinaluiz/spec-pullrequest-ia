@@ -16,6 +16,7 @@ import {
   ItemPage,
   NewPendingFile,
 } from './entities/item.entity.js';
+import { InputValidationError } from '../../common/errors/input-validation.error.js';
 import { ItemNotFoundError } from './errors/item-not-found.error.js';
 import { MaxDepthExceededError } from './errors/max-depth-exceeded.error.js';
 import { decodeItemCursor, encodeItemCursor } from './item-cursor.js';
@@ -114,6 +115,30 @@ export class ItemsService {
       case 'too_deep':
         throw new MaxDepthExceededError();
       case 'parent_not_found':
+        throw new ItemNotFoundError();
+    }
+  }
+
+  /**
+   * Troca o nome de um Item ativo do Usuário, que passa a ter a data de
+   * modificação de agora. A Pasta raiz, pelo id ou pelo atalho `root`, não se
+   * renomeia: é entrada inválida. Qualquer outro Item que o Usuário não vê
+   * (inexistente, de outro dono, `pending`, id que não é UUID) é `not_found`.
+   */
+  async rename(ownerId: string, id: string, name: string): Promise<Item> {
+    const result = await this.items.renameActive(
+      ownerId,
+      await this.folderIdOf(ownerId, id),
+      name,
+    );
+    switch (result.status) {
+      case 'renamed':
+        return result.item;
+      case 'root':
+        throw new InputValidationError([
+          { field: 'id', messages: ['A Pasta raiz não pode ser renomeada.'] },
+        ]);
+      case 'not_found':
         throw new ItemNotFoundError();
     }
   }

@@ -14,7 +14,7 @@ import type {
   StartUploadInput,
   StartUploadResult,
 } from "@/lib/uploads/types";
-import { createFolder as makeFolder, getFolderItems } from "@/lib/dal/items";
+import { createFolder as makeFolder, getFolderItems, renameItem as changeName } from "@/lib/dal/items";
 import {
   discardUpload,
   finishUpload,
@@ -79,17 +79,18 @@ export type CreateFolderResult =
   | { ok: false; message: string };
 
 /**
- * O nome de uma pasta: sem os espaços das pontas, de 1 a 255 caracteres. As outras regras (`/`,
+ * O nome de um Item: sem os espaços das pontas, de 1 a 255 caracteres. As outras regras (`/`,
  * caracteres de controle, "." e "..") são da API, e o `validation_error` dela vira a mensagem
- * de `INVALID_FOLDER_NAME`.
+ * de `INVALID_NAME`.
  */
-const folderNameSchema = z
-  .string()
-  .trim()
-  .min(1, "Informe um nome para a pasta.")
-  .max(255, "O nome pode ter até 255 caracteres.");
+const itemNameSchema = (emptyMessage: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, emptyMessage)
+    .max(255, "O nome pode ter até 255 caracteres.");
 
-const INVALID_FOLDER_NAME =
+const INVALID_NAME =
   "O nome não pode ter “/” nem caracteres de controle, nem ser “.” ou “..”.";
 
 /**
@@ -100,7 +101,7 @@ export async function createFolder(
   parentId: string,
   name: string,
 ): Promise<CreateFolderResult> {
-  const parsedName = folderNameSchema.safeParse(name);
+  const parsedName = itemNameSchema("Informe um nome para a pasta.").safeParse(name);
   const parsedParent = itemIdSchema.safeParse(parentId);
   if (!parsedName.success) {
     return { ok: false, message: parsedName.error.issues[0].message };
@@ -115,7 +116,39 @@ export async function createFolder(
   if (!result.ok) {
     const message =
       result.error.code === "validation_error"
-        ? INVALID_FOLDER_NAME
+        ? INVALID_NAME
+        : errorMessage(result.error.code);
+    return { ok: false, message };
+  }
+  return { ok: true, name: result.data.name };
+}
+
+/** O que o "Renomear" devolve ao diálogo: o nome novo, como a API o gravou, ou o erro, em português. */
+export type RenameItemResult =
+  | { ok: true; name: string }
+  | { ok: false; message: string };
+
+/**
+ * Renomeia um Item (pasta ou arquivo). É uma Server Action, um endpoint público: o nome é
+ * conferido aqui, e a Sessão, pela própria chamada à API.
+ */
+export async function renameItem(
+  id: string,
+  name: string,
+): Promise<RenameItemResult> {
+  const parsedName = itemNameSchema("Informe um nome.").safeParse(name);
+  const parsedId = itemIdSchema.safeParse(id);
+  if (!parsedName.success) {
+    return { ok: false, message: parsedName.error.issues[0].message };
+  }
+  if (!parsedId.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await changeName(parsedId.data, { name: parsedName.data });
+  if (!result.ok) {
+    const message =
+      result.error.code === "validation_error"
+        ? INVALID_NAME
         : errorMessage(result.error.code);
     return { ok: false, message };
   }
