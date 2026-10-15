@@ -3,3 +3,5 @@
 docs/tickets/*/*/*
 !docs/tickets/*/*/aceite.md
 .playwright-mcp/
+# O estado interno do harness: a trava e as aprovações (docs/harness.md, "Pasta de estado do harness").
+.harness/

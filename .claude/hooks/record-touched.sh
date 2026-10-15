@@ -14,15 +14,20 @@
 # Nunca bloqueia nem falha a ferramenta: sai sempre com 0.
 
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" 2>/dev/null || exit 0
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# Sem a pasta de estado do harness (a raiz do projeto não se alcança), não há onde anotar: sai com 0, e
+# o hook de fim de turno, que não acha a pasta também, avisa que nada foi verificado.
+# shellcheck source=../../scripts/harness-dir.sh
+source "${0%/*}/../../scripts/harness-dir.sh"
+[[ -n "$HARNESS_DIR" ]] || exit 0
+root="${HARNESS_DIR%/.harness}"
+cd "$root" 2>/dev/null || exit 0
 
 # A primeira linha é a sessão (vazia se não for válida), e as seguintes são os arquivos que a chamada editou.
 input="$(jq -r '((.session_id | select(type == "string" and test("\\A[A-Za-z0-9_-]+\\z"))) // ""), ([.tool_input.file_path, (.tool_input.edits[]?.file_path)] | map(select(type == "string")) | .[])' 2>/dev/null)" || exit 0
 session="${input%%$'\n'*}"
 [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$input" == *$'\n'* ]] || exit 0
 
-state_dir="$(git rev-parse --absolute-git-dir 2>/dev/null)/harness" || exit 0
+state_dir="$HARNESS_DIR"
 record="$state_dir/touched-$session"
 
 while IFS= read -r file; do

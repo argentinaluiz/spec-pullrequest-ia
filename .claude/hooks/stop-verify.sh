@@ -14,7 +14,20 @@
 # com a HARNESS_TEST=1, que os testes também definem.
 
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
+
+# Sem a pasta de estado do harness (a raiz do projeto não se alcança), nada pode ser anotado nem
+# conferido. Não bloqueia, mas não passa calado: o aviso diz que a verificação não rodou.
+STATE_UNAVAILABLE="Hook de fim de turno: a pasta de estado do harness não está disponível (a raiz do projeto não se alcança), então nada foi verificado. O modo completo do verify.sh confere a árvore inteira."
+state_unavailable() {
+  jq -n --arg message "$STATE_UNAVAILABLE" '{systemMessage: $message}' 2>/dev/null ||
+    printf '{"systemMessage": "%s"}\n' "$STATE_UNAVAILABLE"
+  exit 0
+}
+
+# shellcheck source=../../scripts/harness-dir.sh
+source "${0%/*}/../../scripts/harness-dir.sh"
+[[ -n "$HARNESS_DIR" ]] || state_unavailable
+cd "${HARNESS_DIR%/.harness}" || state_unavailable
 
 # Depois de tantos bloqueios seguidos, o hook deixa o turno encerrar e avisa o usuário,
 # para um erro que o agente não consegue corrigir não virar um laço sem fim.
@@ -37,7 +50,7 @@ command -v jq >/dev/null 2>&1 || unattributable
 session="$(jq -r '.session_id | select(type == "string" and test("\\A[A-Za-z0-9_-]+\\z"))' 2>/dev/null || true)"
 [[ "$session" =~ ^[A-Za-z0-9_-]+$ ]] || unattributable
 
-state_dir="$(git rev-parse --git-dir)/harness"
+state_dir="$HARNESS_DIR"
 mkdir -p "$state_dir"
 blocks_file="$state_dir/stop-blocks-$session"
 touched_file="$state_dir/touched-$session"

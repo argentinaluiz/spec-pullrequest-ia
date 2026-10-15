@@ -22,7 +22,7 @@ trap 'rm -rf "$work"' EXIT
 project="$work/repo"
 mkdir -p "$project/apps/api/src" "$project/apps/web/src"
 git -C "$project" init -q
-state_dir="$(git -C "$project" rev-parse --absolute-git-dir)/harness"
+state_dir="$(git -C "$project" rev-parse --show-toplevel)/.harness"
 
 # O verify.sh falso: `apps` lista as duas apps, e `fast` anota a chamada e imprime o conteúdo do
 # arquivo FAKE_OUTPUT, saindo com 1 se ele tem algo.
@@ -242,6 +242,15 @@ PATH="$nojq" "$HOOK" <<<'{"session_id":"A"}' >"$work/stdout" 2>"$work/stderr" ||
 out="$(cat "$work/stdout")"
 err="$(cat "$work/stderr")"
 expect_stop "sem o jq, o hook avisa que não conseguiu atribuir a sessão e não bloqueia" 0 "não roda" "não foi possível atribuir a sessão"
+
+# --- Sem a pasta de estado, a falha é visível e não bloqueia ---
+: >"$FAKE_LOG"
+code=0
+CLAUDE_PROJECT_DIR="$work/nao-existe" "$HOOK" <<<'{"session_id":"A"}' >"$work/stdout" 2>"$work/stderr" || code=$?
+out="$(cat "$work/stdout")"
+err="$(cat "$work/stderr")"
+expect_stop "sem a pasta de estado, o hook avisa que não conseguiu verificar e não bloqueia" 0 "não roda" "pasta de estado do harness"
+check "o aviso da pasta de estado é um systemMessage em JSON" jq -e '.systemMessage' >/dev/null <<<"$out"
 
 # --- HARNESS_VERIFY só vale com HARNESS_TEST=1 ---
 set_output ""

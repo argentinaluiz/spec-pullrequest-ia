@@ -61,9 +61,11 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts "$PLAN_SKILL_SCRIPTS" docs/tickets)
-# O estado interno da verificação (as aprovações e a trava) fica na pasta do Git, fora do
-# versionamento, onde ninguém precisa lê-lo.
-HARNESS_DIR="$(git rev-parse --absolute-git-dir)/harness"
+# O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
+# o scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
+# estado a exigem, com o `require_state`.
+# shellcheck source=harness-dir.sh
+source scripts/harness-dir.sh
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
 # A trava das reprovações repetidas do modo completo, com as funções do scripts/full-lock.sh.
@@ -99,6 +101,14 @@ abort() {
   printf '\nNÃO VERIFICADO: %s\n' "$1" >&2
   printf 'Como resolver: %s\n' "$2" >&2
   exit 2
+}
+
+# Aborta se a pasta de estado do harness não pôde ser definida. Só os modos que gravam estado a pedem
+# (o `full` sem apps, o `prepush` e o `unlock`); os outros não dependem dela.
+require_state() {
+  [[ -n "$HARNESS_DIR" ]] ||
+    abort "não foi possível definir a pasta de estado do harness: a raiz do checkout não é uma pasta que se alcança." \
+      "rode o scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
 }
 
 # Um comando que não verifica falhou: o erro e o que fazer, e devolve 1.
@@ -200,6 +210,7 @@ harness_tests() {
     # usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na máquina:
     # os testes deles rodam aqui.
     scripts/test/freeze-acceptance.test.sh &&
+    scripts/test/protect-harness-state.test.sh &&
     scripts/test/plan-page.test.sh &&
     scripts/test/verify-plan.test.sh &&
     scripts/test/harness-guard.test.sh &&
@@ -466,6 +477,7 @@ case "$mode" in
     if [[ ${#apps[@]} -eq 0 ]]; then
       # A trava vale só aqui, e fora da CI. Travado, recusa antes de tudo: rodar de novo não traz
       # informação nova.
+      require_state
       full_lock_enabled && lock=yes
       [[ $lock == yes ]] && full_lock_active &&
         abort "o modo completo está travado: reprovou $FULL_LOCK_LIMIT vezes seguidas nos mesmos passos." "$FULL_LOCK_ASK"
@@ -479,11 +491,13 @@ case "$mode" in
     ;;
   prepush)
     [[ $# -eq 0 ]] || usage
+    require_state
     run_prepush
     ;;
   unlock)
     # Do usuário, pelo `!` do prompt, que não passa pelos hooks: o hook do agente nega este modo.
     [[ $# -eq 0 ]] || usage
+    require_state
     full_lock_reset
     printf 'Trava do modo completo tirada, e a contagem zerada.\n'
     exit 0

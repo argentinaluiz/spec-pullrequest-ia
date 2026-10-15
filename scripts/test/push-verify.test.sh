@@ -75,15 +75,45 @@ expect 2 "nega a entrada ilegível que cita o verify.sh e o unlock" \
   "isto não é json scripts/verify.sh unlock" "só o usuário destrava"
 
 expect 2 "nega apagar a trava na pasta de estado do harness, e diz que o estado é da verificação" \
-  "$(command_input 'rm .git/harness/full-lock')" "o estado é da verificação"
+  "$(command_input 'rm .harness/full-lock')" "o estado é da verificação"
 expect 2 "nega mexer na aprovação do modo completo por outro caminho" \
-  "$(command_input 'cp /tmp/x "$(git rev-parse --show-toplevel)/.git/harness/full-ok"')" "o estado é da verificação"
-expect 2 "nega o arquivo da trava sem o .git no caminho" \
-  "$(command_input 'cd .git && rm harness/full-lock')" "o estado é da verificação"
-expect 2 "nega a pasta de estado pelo git rev-parse --git-dir" \
-  "$(command_input 'rm -rf "$(git rev-parse --git-dir)/harness"')" "o estado é da verificação"
+  "$(command_input 'cp /tmp/x "$(git rev-parse --show-toplevel)/.harness/full-ok"')" "o estado é da verificação"
+expect 2 "nega a pasta de estado montada pela raiz do repositório, em um trecho com espaços" \
+  "$(command_input 'cat "$(git rev-parse --show-toplevel)/.harness/full-lock"')" "o estado é da verificação"
+expect 2 "nega ler a aprovação do modo completo" \
+  "$(command_input 'cat .harness/full-ok')" "o estado é da verificação"
+expect 2 "nega apagar a pasta de estado inteira, sem barra no fim" \
+  "$(command_input 'rm -rf .harness')" "o estado é da verificação"
+expect 2 "nega a pasta de estado entre aspas" \
+  "$(command_input 'ls "./.harness"')" "o estado é da verificação"
+expect 2 "nega a pasta de estado seguida de um arquivo, escrita por redirecionamento" \
+  "$(command_input 'echo x > ./.harness/full-ok')" "o estado é da verificação"
+expect 2 "nega a pasta de estado entre aspas, sozinha" \
+  "$(command_input 'rm -rf ".harness"')" "o estado é da verificação"
+expect 2 "nega a pasta de estado montada pela raiz do repositório, fora das aspas" \
+  "$(command_input 'rm $(git rev-parse --show-toplevel)/.harness/full-lock')" "o estado é da verificação"
+expect 2 "nega a pasta de estado dentro do bash -c" \
+  "$(command_input "bash -c 'rm -rf .harness'")" "o estado é da verificação"
+expect 2 "nega a pasta de estado antiga, que também guardava a trava" \
+  "$(command_input 'rm .git/harness/full-lock')" "o estado é da verificação"
+expect 0 "libera um arquivo full- que não é da pasta de estado" \
+  "$(command_input 'cd somewhere && rm harness/full-lock')"
+expect 0 "libera a mensagem de commit que cita a pasta de estado" \
+  "$(command_input 'git commit -m "state moved to .harness/"')"
+expect 0 "libera a mensagem de commit em heredoc que cita a pasta de estado" \
+  "$(command_input $'git commit -m "$(cat <<\'EOF\'\nfix: o estado vai para .harness/full-ok\n\nmais texto sobre .harness\nEOF\n)"')"
+expect 0 "libera o corpo do PR, entre aspas simples, que cita a pasta de estado" \
+  "$(command_input "gh pr create --title 'x' --body 'a pasta .harness guarda a trava (.harness/full-lock)'")"
+expect 0 "libera o padrão de um grep que cita a pasta de estado" \
+  "$(command_input 'grep -rn "the .harness folder" docs')"
+expect 0 "libera o ponto escapado de um padrão de busca" \
+  "$(command_input 'grep -rn "\.harness" docs')"
 expect 2 "nega a entrada ilegível que cita a pasta de estado" \
-  "isto não é json rm .git/harness/full-lock" "o estado é da verificação"
+  "isto não é json rm .harness/full-lock" "o estado é da verificação"
+expect 0 "libera o ls -a, que não cita a pasta de estado" \
+  "$(command_input 'ls -a')"
+expect 0 "libera nomes parecidos, que não são a pasta de estado" \
+  "$(command_input 'ls docs/harness.md scripts/harness-guard.sh my.harness-x .harnessrc')"
 
 expect 2 "nega o verify.sh com CI= na frente, e diz que a variável desligaria a trava" \
   "$(command_input 'CI=true scripts/verify.sh full')" "desligariam a trava"

@@ -19,7 +19,7 @@ project="$(mktemp -d)"
 trap 'rm -rf "$project"' EXIT
 git -C "$project" init -q
 export CLAUDE_PROJECT_DIR="$project"
-state_dir="$(git -C "$project" rev-parse --absolute-git-dir)/harness"
+state_dir="$(git -C "$project" rev-parse --show-toplevel)/.harness"
 
 # touched <sessão>: o que a sessão anotou, ou nada.
 touched() {
@@ -95,6 +95,20 @@ check "o \`session_id\` inválido não grava arquivo nenhum, nem fora da pasta d
   test "$(ls "$state_dir" | tr '\n' ' ')" = "touched-n1 touched-s1 touched-s2 " -a ! -e "$state_dir/../x"
 run "{\"session_id\":\"Ab_c-9\",\"tool_input\":{\"file_path\":\"apps/api/src/a.ts\"}}"
 expect_touched "aceita letras, dígitos, \`_\` e \`-\`" Ab_c-9 "apps/api/src/a.ts"
+
+# --- Sem a pasta de estado: não anota, e nunca falha a ferramenta ---
+run_in() {
+  local code
+  CLAUDE_PROJECT_DIR="$1" "$HOOK" <<<"$2" >/dev/null 2>&1
+  code=$?
+  [[ $code -eq 0 ]] || { echo "FALHOU: o hook saiu com $code sem a pasta de estado"; failed=$((failed + 1)); }
+}
+run_in "$project/nao-existe" "{\"session_id\":\"x1\",\"tool_input\":{\"file_path\":\"$project/apps/api/src/a.ts\"}}"
+expect_touched "sem a raiz do projeto, o hook não anota e sai com 0" x1 ""
+
+# --- A pasta atual do hook não define a pasta de estado ---
+(cd / && run_in "$project" "{\"session_id\":\"cwd1\",\"tool_input\":{\"file_path\":\"$project/apps/api/src/a.ts\"}}")
+expect_touched "com a pasta atual fora do repositório, anota na pasta do projeto" cwd1 "apps/api/src/a.ts"
 
 finish "do hook que anota os arquivos da sessão"
 echo "Todos os testes do hook que anota os arquivos da sessão passaram."
