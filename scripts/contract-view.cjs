@@ -1,12 +1,32 @@
-// Renderiza, em texto, o contrato completo de cada rota nova ou alterada entre dois snapshots da
-// OpenAPI, no formato da seção 3 do docs/lld.md. É a parte da visão do contrato que o `oasdiff
-// changelog` não dá: numa rota nova, ele só diz que ela foi acrescentada. O desenho está no
-// docs/harness.md, etapa 8.
+// Renderiza, em Markdown, o contrato completo de cada rota nova ou alterada entre dois snapshots da
+// OpenAPI, no formato da seção 3 do docs/lld.md: uma seção por rota, com tabelas de parâmetros, de
+// cabeçalhos e de erros. É a parte da visão do contrato que o `oasdiff changelog` não dá: numa rota
+// nova, ele só diz que ela foi acrescentada. O desenho está no docs/harness.md, etapa 8.
 //
-// Roda dentro do contêiner `api` (ver scripts/verify/api.sh):
-//   node contract-view.cjs <snapshot da base> <snapshot novo>
+// `routeChanges` monta o modelo das rotas que mudaram, e `render` o escreve em Markdown. A aba
+// "Contrato" da página de revisão do plano (scripts/plan-page.cjs) escreve o mesmo modelo em HTML,
+// com o mesmo título de rota (`routeTitle`), o mesmo texto de campo (`fieldText`), as mesmas tabelas
+// (`parameterTable`, `headerTable` e `errorTable`), as mesmas frases e títulos de seção (`PHRASES`) e
+// o mesmo leitor da pasta das fontes (`reader`).
+//
+// Roda dentro do contêiner `api` (ver o `api_contract_view`, no scripts/verify/api.sh), sobre a
+// pasta das fontes que o `api_plan_sources` grava:
+//   node contract-view.cjs <pasta das fontes>
+// A pasta traz `base.json` e `novo.json` (os snapshots), `changelog.txt` (o `oasdiff changelog`,
+// só quando os snapshots diferem) e `schema.diff` (o diff do schema do Prisma).
 
 const fs = require('node:fs');
+const path = require('node:path');
+
+// As frases e os títulos de seção que a visão no terminal e a página de revisão do plano mostram.
+const PHRASES = {
+  sameSnapshot: 'O snapshot da OpenAPI é o mesmo nos dois pontos: o contrato não muda.',
+  unchanged: 'O contrato não muda.',
+  schemaUnchanged: 'O schema do Prisma não muda.',
+  changelog: 'O que mudou no contrato (oasdiff changelog)',
+  routes: 'Contrato completo das rotas novas ou alteradas',
+  schema: 'Schema do Prisma',
+};
 
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 const LOCATIONS = { path: 'caminho', query: 'consulta', cookie: 'cookie' };
@@ -149,36 +169,37 @@ function limits(schema) {
   return parts;
 }
 
-/** Uma linha de campo: `nome: tipo, obrigatório, limites`. O `extra` são as marcas do próprio parâmetro. */
-function line(doc, name, schema, required, extra = {}) {
+/** Um campo, um parâmetro ou um cabeçalho do modelo: nome, tipo, se é obrigatório e os limites. */
+function item(doc, name, schema, required, extra = {}) {
   const resolved = resolve(doc, schema);
-  return [
-    `${name}: ${typeOf(doc, schema)}`,
-    required ? 'obrigatório' : 'opcional',
-    ...limits({ ...resolved, deprecated: resolved.deprecated || extra.deprecated }),
-  ].join(', ');
+  return {
+    name,
+    type: typeOf(doc, schema),
+    required: Boolean(required),
+    limits: limits({ ...resolved, deprecated: resolved.deprecated || extra.deprecated }),
+  };
 }
 
 /**
- * Os campos de um objeto, um por linha, com os objetos aninhados e os itens das listas expandidos.
- * Numa união, os campos de cada opção vêm abaixo do nome dela.
+ * Os campos de um objeto, em ordem, com a profundidade de cada um: os objetos aninhados e os itens
+ * das listas expandidos. Numa união, os campos de cada opção vêm abaixo do nome dela (`option`).
  */
-function fields(doc, schema, indent, seen = new Set()) {
+function fields(doc, schema, depth = 0, seen = new Set()) {
   let resolved = resolve(doc, schema);
   if (resolved.type === 'array') resolved = resolve(doc, resolved.items);
   const union = variants(resolved);
   if (union) {
     return union.flatMap((option) => {
-      const own = fields(doc, option, `${indent}  `, seen);
-      return own.length ? [`${indent}Opção ${variantName(doc, option)}:`, ...own] : [];
+      const own = fields(doc, option, depth + 1, seen);
+      return own.length ? [{ depth, option: variantName(doc, option) }, ...own] : [];
     });
   }
   const required = new Set(resolved.required ?? []);
   return Object.entries(resolved.properties ?? {}).flatMap(([name, child]) => {
-    const own = `${indent}${line(doc, name, child, required.has(name))}`;
+    const own = { depth, ...item(doc, name, child, required.has(name)) };
     const key = JSON.stringify(child);
     if (seen.has(key)) return [own];
-    return [own, ...fields(doc, child, `${indent}  `, new Set([...seen, key]))];
+    return [own, ...fields(doc, child, depth + 1, new Set([...seen, key]))];
   });
 }
 
@@ -196,19 +217,12 @@ function contents(doc, body) {
   return [...groups.values()];
 }
 
-/** Os `code` de um erro no formato do `ApiProblem`, de todos os tipos de conteúdo dele. */
+/** Os `code` de um erro no formato do `ApiProblem`, de todos os tipos de conteúdo dele, sem repetir. */
 function codes(doc, response) {
   const values = contents(doc, response).flatMap(
     ({ schema }) => resolve(doc, schema).properties?.code?.enum ?? [],
   );
-  return values.length ? [...new Set(values)].join(', ') : 'sem code declarado';
-}
-
-function headers(doc, response, indent) {
-  return Object.entries(response.headers ?? {}).map(([name, header]) => {
-    const resolved = resolve(doc, header);
-    return `${indent}Cabeçalho ${line(doc, name, resolved.schema, resolved.required, resolved)}`;
-  });
+  return [...new Set(values)];
 }
 
 /** A ordem dos status: numérica, com as faixas (`4XX`) depois dos status delas e o `default` no fim. */
@@ -223,98 +237,211 @@ function isError(status) {
   return /^[45]/.test(status) || status === 'default';
 }
 
-/**
- * O contrato completo de uma operação, no formato da seção 3 do LLD. Só traz o que o formato
- * descreve, então descrições, resumos, exemplos, o operationId e as tags não mudam o texto.
- */
-function contract(doc, op) {
-  const out = [];
-  const schemes = op.security.flatMap((requirement) => Object.keys(requirement));
-  out.push(`  Autenticação: ${schemes.length ? `protegida (${[...new Set(schemes)].join(', ')})` : 'pública'}`);
-  if (op.deprecated) out.push('  Obsoleta (deprecated)');
-
-  const inputs = op.parameters.filter((param) => param.in !== 'header');
-  if (inputs.length) {
-    out.push('  Parâmetros:');
-    for (const param of inputs) {
-      out.push(`    ${line(doc, `${param.name} (${LOCATIONS[param.in] ?? param.in})`, param.schema, param.required, param)}`);
-    }
-  }
-  const inputHeaders = op.parameters.filter((param) => param.in === 'header');
-  if (inputHeaders.length) {
-    out.push('  Cabeçalhos de entrada:');
-    for (const param of inputHeaders) out.push(`    ${line(doc, param.name, param.schema, param.required, param)}`);
-  }
-
-  const requestBody = resolve(doc, op.requestBody);
-  for (const { types, schema } of contents(doc, requestBody)) {
-    out.push(`  Corpo (${types.join(', ')}), ${requestBody.required ? 'obrigatório' : 'opcional'}:`);
-    out.push(...fields(doc, schema, '    '));
-  }
-
-  const responses = Object.entries(op.responses ?? {})
-    .map(([status, response]) => [status, resolve(doc, response)])
-    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
-  const success = responses.filter(([status]) => !isError(status));
-  const errors = responses.filter(([status]) => isError(status));
-  if (success.length) {
-    out.push('  Sucesso:');
-    for (const [status, response] of success) {
-      const bodies = contents(doc, response);
-      if (!bodies.length) out.push(`    ${status} (sem corpo)`);
-      for (const { types, schema } of bodies) {
-        out.push(`    ${status} (${types.join(', ')})`);
-        out.push(...fields(doc, schema, '      '));
-      }
-      out.push(...headers(doc, response, '      '));
-    }
-  }
-  if (errors.length) {
-    out.push('  Erros:');
-    for (const [status, response] of errors) {
-      out.push(`    ${status}: ${codes(doc, response)}`);
-      out.push(...headers(doc, response, '      '));
-    }
-  }
-  return out.join('\n');
+function headers(doc, response) {
+  return Object.entries(response.headers ?? {}).map(([name, header]) => {
+    const resolved = resolve(doc, header);
+    return item(doc, name, resolved.schema, resolved.required, resolved);
+  });
 }
 
 /**
- * A visão das rotas novas, alteradas e removidas entre dois snapshots. Uma rota conta como alterada
- * quando a operação, sem o texto de documentação, muda, e não só quando o texto renderizado muda:
- * assim, uma mudança que o renderizador não mostra ainda aparece, e o changelog do `oasdiff` a
- * detalha.
+ * O contrato completo de uma operação, no formato da seção 3 do LLD. Só traz o que o formato
+ * descreve, então descrições, resumos, exemplos, o operationId e as tags não mudam o modelo.
  */
-function render(base, head) {
+function contract(doc, op) {
+  const schemes = [...new Set(op.security.flatMap((requirement) => Object.keys(requirement)))];
+  const requestBody = resolve(doc, op.requestBody);
+  const responses = Object.entries(op.responses ?? {})
+    .map(([status, response]) => [status, resolve(doc, response)])
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
+  return {
+    schemes,
+    deprecated: Boolean(op.deprecated),
+    parameters: op.parameters
+      .filter((param) => param.in !== 'header')
+      .map((param) => ({ ...item(doc, param.name, param.schema, param.required, param), location: LOCATIONS[param.in] ?? param.in })),
+    inputHeaders: op.parameters
+      .filter((param) => param.in === 'header')
+      .map((param) => item(doc, param.name, param.schema, param.required, param)),
+    bodies: contents(doc, requestBody).map(({ types, schema }) => ({
+      types,
+      required: Boolean(requestBody.required),
+      fields: fields(doc, schema),
+    })),
+    // Como na OpenAPI: os cabeçalhos são da resposta, e cada tipo de conteúdo tem o seu corpo.
+    success: responses
+      .filter(([status]) => !isError(status))
+      .map(([status, response]) => ({
+        status,
+        headers: headers(doc, response),
+        bodies: contents(doc, response).map(({ types, schema }) => ({ types, fields: fields(doc, schema) })),
+      })),
+    errors: responses
+      .filter(([status]) => isError(status))
+      .map(([status, response]) => ({ status, codes: codes(doc, response), headers: headers(doc, response) })),
+  };
+}
+
+/**
+ * O modelo das rotas novas, alteradas e removidas entre dois snapshots: `[{ change, method, path,
+ * ...contrato }]`, na ordem do snapshot novo, com as removidas no fim e sem o contrato. Uma rota conta
+ * como alterada quando a operação, sem o texto de documentação, muda, e não só quando o texto
+ * renderizado muda: assim, uma mudança que o renderizador não mostra ainda aparece, e o changelog do
+ * `oasdiff` a detalha.
+ */
+function routeChanges(base, head) {
   const before = operations(base);
   const after = operations(head);
   const same = (key) =>
     JSON.stringify(normalized(base, before.get(key))) === JSON.stringify(normalized(head, after.get(key)));
-  const blocks = [];
+  const route = (key) => {
+    const [method, ...rest] = key.split(' ');
+    return { method, path: rest.join(' ') };
+  };
+  const changes = [];
   for (const [key, op] of after) {
-    if (!before.has(key)) {
-      blocks.push(`Rota nova: ${key}\n${contract(head, op)}`);
-    } else if (!same(key)) {
-      blocks.push(`Rota alterada: ${key}\n${contract(head, op)}`);
-    }
+    if (!before.has(key)) changes.push({ change: 'nova', ...route(key), ...contract(head, op) });
+    else if (!same(key)) changes.push({ change: 'alterada', ...route(key), ...contract(head, op) });
   }
   for (const key of before.keys()) {
-    if (!after.has(key)) blocks.push(`Rota removida: ${key}`);
+    if (!after.has(key)) changes.push({ change: 'removida', ...route(key) });
   }
-  return `${blocks.length ? blocks.join('\n\n') : 'O contrato não muda.'}\n`;
+  return changes;
 }
 
-function read(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+/** `nome`: tipo, obrigatório, limites. */
+function described(entry) {
+  return [`\`${entry.name}\`: ${entry.type}`, entry.required ? 'obrigatório' : 'opcional', ...entry.limits].join(', ');
+}
+
+/** Um campo de um corpo, na lista aninhada: a descrição dele, ou o nome da opção da união. */
+function fieldText(entry) {
+  return entry.option ? `Opção ${entry.option}:` : described(entry);
+}
+
+// As tabelas da seção de uma rota: `{ head, rows }`, com o cabeçalho e as células em Markdown de uma
+// linha (o nome e o `code` entre crases). A visão no terminal e a página de revisão do plano montam as
+// células daqui, e só as escapam e formatam, cada uma no seu formato.
+
+function parameterTable(route) {
+  return {
+    head: ['Nome', 'Onde', 'Tipo', 'Obrigatório', 'Limites'],
+    rows: route.parameters.map((param) => [`\`${param.name}\``, param.location, param.type, param.required ? 'sim' : 'não', param.limits.join(', ')]),
+  };
+}
+
+/** Os cabeçalhos de entrada (`first` é `Nome`) ou os de uma resposta (`Cabeçalho de resposta`). */
+function headerTable(first, entries) {
+  return {
+    head: [first, 'Tipo', 'Obrigatório', 'Limites'],
+    rows: entries.map((entry) => [`\`${entry.name}\``, entry.type, entry.required ? 'sim' : 'não', entry.limits.join(', ')]),
+  };
+}
+
+/** Os erros: o status, os `code` e, se algum erro tem cabeçalhos, uma coluna com eles. */
+function errorTable(route) {
+  const withHeaders = route.errors.some((error) => error.headers.length);
+  return {
+    head: ['Status', '`code`', ...(withHeaders ? ['Cabeçalhos'] : [])],
+    rows: route.errors.map((error) => [
+      error.status,
+      error.codes.length ? error.codes.map((code) => `\`${code}\``).join(', ') : 'sem `code` declarado',
+      ...(withHeaders ? [error.headers.map(described).join('; ')] : []),
+    ]),
+  };
+}
+
+/** Uma célula de tabela do Markdown: a barra vertical escapada, e o traço no lugar do vazio. */
+function cell(value) {
+  return value === '' ? '—' : String(value).replaceAll('|', '\\|');
+}
+
+function table({ head, rows }) {
+  return [
+    `| ${head.join(' | ')} |`,
+    `| ${head.map(() => '---').join(' | ')} |`,
+    ...rows.map((row) => `| ${row.map(cell).join(' | ')} |`),
+  ].join('\n');
+}
+
+function list(entries) {
+  return entries.map((entry) => `${'  '.repeat(entry.depth)}- ${fieldText(entry)}`).join('\n');
+}
+
+/** O título de uma rota: se é nova, alterada ou removida, o método, o caminho e a autenticação. */
+function routeTitle(route) {
+  const parts = [`Rota ${route.change}`, `${route.method} ${route.path}`];
+  if (route.change !== 'removida') {
+    parts.push(route.schemes.length ? `protegida (${route.schemes.join(', ')})` : 'pública');
+  }
+  return parts.join(' · ');
+}
+
+/** A seção de uma rota, em blocos do Markdown separados por uma linha em branco. */
+function section(route) {
+  const blocks = [`### ${routeTitle(route)}`];
+  if (route.change === 'removida') return blocks;
+  if (route.deprecated) blocks.push('Obsoleta (deprecated).');
+  if (route.parameters.length) blocks.push('**Parâmetros**', table(parameterTable(route)));
+  if (route.inputHeaders.length) blocks.push('**Cabeçalhos de entrada**', table(headerTable('Nome', route.inputHeaders)));
+  for (const body of route.bodies) {
+    blocks.push(`**Corpo** (${body.types.join(', ')}), ${body.required ? 'obrigatório' : 'opcional'}`);
+    if (body.fields.length) blocks.push(list(body.fields));
+  }
+  for (const response of route.success) {
+    if (!response.bodies.length) blocks.push(`**Sucesso ${response.status}** (sem corpo)`);
+    for (const body of response.bodies) {
+      blocks.push(`**Sucesso ${response.status}** (${body.types.join(', ')})`);
+      if (body.fields.length) blocks.push(list(body.fields));
+    }
+    if (response.headers.length) blocks.push(table(headerTable('Cabeçalho de resposta', response.headers)));
+  }
+  if (route.errors.length) blocks.push('**Erros**', table(errorTable(route)));
+  return blocks;
+}
+
+/** O contrato das rotas que mudaram entre dois snapshots, em Markdown: uma seção por rota. */
+function render(base, head) {
+  const changes = routeChanges(base, head);
+  if (!changes.length) return `${PHRASES.unchanged}\n`;
+  return `${changes.map((route) => section(route).join('\n\n')).join('\n\n')}\n`;
+}
+
+/** O leitor da pasta das fontes: devolve o texto de uma fonte, ou `null` quando ela não está lá. */
+function reader(dir) {
+  return (name) => (fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : null);
+}
+
+/**
+ * A visão no terminal, a partir da pasta das fontes: o changelog e o contrato das rotas, ou a frase
+ * de que o snapshot é o mesmo, e o diff do schema.
+ */
+function view(dir) {
+  const read = reader(dir);
+  const changelog = read('changelog.txt');
+  const schemaDiff = read('schema.diff') ?? '';
+  const blocks = [];
+  if (changelog === null) {
+    blocks.push('## Contrato', PHRASES.sameSnapshot);
+  } else {
+    blocks.push(
+      `## ${PHRASES.changelog}`,
+      `\`\`\`text\n${changelog.trimEnd()}\n\`\`\``,
+      `## ${PHRASES.routes}`,
+      render(JSON.parse(read('base.json')), JSON.parse(read('novo.json'))).trimEnd(),
+    );
+  }
+  blocks.push(`## ${PHRASES.schema}`, schemaDiff.trim() ? `\`\`\`diff\n${schemaDiff.trimEnd()}\n\`\`\`` : PHRASES.schemaUnchanged);
+  return `${blocks.join('\n\n')}\n`;
 }
 
 if (require.main === module) {
-  const [baseFile, headFile] = process.argv.slice(2);
-  if (!baseFile || !headFile) {
-    console.error('Uso: node contract-view.cjs <snapshot da base> <snapshot novo>');
+  const [dir] = process.argv.slice(2);
+  if (!dir) {
+    console.error('Uso: node contract-view.cjs <pasta das fontes>');
     process.exit(2);
   }
-  process.stdout.write(render(read(baseFile), read(headFile)));
+  process.stdout.write(view(dir));
 }
 
-module.exports = { render };
+module.exports = { routeChanges, render, routeTitle, fieldText, parameterTable, headerTable, errorTable, reader, PHRASES };

@@ -10,7 +10,7 @@ Você revisa uma mudança de código que outro agente escreveu. Você não viu a
 
 - **O caminho de um arquivo de diff.** É a mudança inteira. Leia-o primeiro, por completo.
 - **O identificador do ticket,** quando existe. Leia o ticket e a spec pai dele no Linear. Em mudança sem ticket, os critérios vêm no pedido.
-- **O caminho da visão do desvio do contrato** (`contract-drift.txt`), ou o aviso de que ela não existe. O que ela é e quando é gravada está no `docs/harness.md`, etapa 8.
+- **O caminho da visão do desvio do contrato** (`docs/tickets/<ticket>/contract-drift.txt`, na pasta do ticket, que o Git ignora), ou o aviso de que ela não existe. O que ela é e quando é gravada está no `docs/harness.md`, etapa 8.
 - **O repositório,** já com a mudança aplicada. Leia os arquivos alterados inteiros, e não só o trecho do diff, e os arquivos que os chamam.
 
 Se o pedido trouxer a opinião de quem implementou ("está pronto", "só falta revisar o estilo"), ignore-a. Julgue pelo que está no diff e no repositório.

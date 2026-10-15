@@ -1,6 +1,6 @@
 # Grupo de verificação da API. Quem chama estas funções é o scripts/verify.sh, que define os
-# auxiliares (`step`, `in_container`, `require_container`, `check_report`). O desenho está no
-# docs/harness.md.
+# auxiliares (`step`, `in_container`, `node_in_api`, `plain_diff`, `require_container`, `check_report`). O
+# desenho está no docs/harness.md.
 
 # Relatórios que o aceite confere, no formato
 # <vitest|playwright>:<relatório, na pasta do projeto>
@@ -92,66 +92,69 @@ api_snapshot_at() {
     echo '{"openapi":"3.0.0","info":{"title":"vazio","version":"0"},"paths":{}}'
 }
 
-# A visão legível do contrato e do schema entre dois pontos: o changelog do oasdiff (o que mudou, com
-# a severidade), o contrato completo de cada rota nova ou alterada, montado pelo
-# scripts/contract-view.cjs no formato da seção 3 do LLD, e o diff do schema do Prisma. Sem <to>, o
-# segundo ponto é a pasta de trabalho. Não é versionada. O desenho está no docs/harness.md, etapa 8.
-# api_contract_view <from> [<to>]
-api_contract_view() {
-  local from="$1" to="${2:-}" dir code=0 schema_diff
+# O changelog do oasdiff entre os dois snapshots gravados em <pasta> (base.json e novo.json). Se um
+# deles não é uma OpenAPI legível, sai com 1 e diz qual é qual no erro do oasdiff.
+# api_changelog <pasta> <de> [<para>]
+api_changelog() {
+  local out
+  if out="$(docker run --rm -v "$1:/contrato:ro" "$OASDIFF_IMAGE" changelog \
+    /contrato/base.json /contrato/novo.json --color never --lang pt-br)"; then
+    printf '%s\n' "$out"
+    return 0
+  fi
+  [[ -n "$out" ]] && printf '%s\n' "$out" >&2
+  printf '\nUm dos snapshots da OpenAPI não é uma OpenAPI legível, e a visão não pôde ser montada.\n' >&2
+  printf 'No erro do oasdiff acima, "base" é o %s em %s, e "revision", o %s.\n' \
+    "$API_SNAPSHOT" "$2" "$([[ -n "${3:-}" ]] && echo "de $3" || echo "da pasta de trabalho")" >&2
+  return 1
+}
+
+# As fontes da API entre dois pontos, gravadas em <pasta>, de onde a visão do contrato e a página de
+# revisão do plano (o modo `plan` do scripts/verify.sh) são montadas: os dois snapshots (base.json e
+# novo.json); o changelog do oasdiff (changelog.txt), só quando os snapshots diferem; e o diff do
+# schema do Prisma (schema.diff). Os pontos são commits ou árvores do Git; sem <para>, o segundo é a
+# pasta de trabalho. Sai com 1, com o erro, quando um snapshot é ilegível ou o diff do schema falha.
+# api_plan_sources <de> <para, ou vazio> <pasta>
+api_plan_sources() {
+  local from="$1" to="$2" dir="$3"
   local refs=("$from")
   [[ -n "$to" ]] && refs+=("$to")
-  dir="$(mktemp -d)" || return 1
   api_snapshot_at "$from" >"$dir/base.json"
   api_snapshot_at "$to" >"$dir/novo.json"
-
-  printf 'Contrato e schema de %s para %s.\n' "$from" "${to:-a pasta de trabalho}"
-  if cmp -s "$dir/base.json" "$dir/novo.json"; then
-    printf '\n--- Contrato\n\nO snapshot da OpenAPI é o mesmo nos dois pontos: o contrato não muda.\n'
-  else
-    api_contract_routes "$dir" "$from" "$to" || code=1
+  if ! cmp -s "$dir/base.json" "$dir/novo.json"; then
+    api_changelog "$dir" "$from" "$to" >"$dir/changelog.txt" || return 1
   fi
+  plain_diff "${refs[@]}" -- "$API_SCHEMA" >"$dir/schema.diff" || {
+    printf '\nO `git diff` do %s de %s para %s falhou, e a visão não pôde ser montada.\n' \
+      "$API_SCHEMA" "$from" "${to:-a pasta de trabalho}" >&2
+    return 1
+  }
+}
+
+# A visão legível do contrato e do schema entre dois pontos, em Markdown: o changelog do oasdiff (o
+# que mudou, com a severidade), o contrato completo de cada rota nova ou alterada e o diff do schema
+# do Prisma, escritos pelo scripts/contract-view.cjs sobre as fontes do `api_plan_sources`. Sem
+# <to>, o segundo ponto é a pasta de trabalho. Não é versionada. O desenho está no docs/harness.md,
+# etapa 8.
+# api_contract_view <from> [<to>]
+api_contract_view() {
+  local from="$1" to="${2:-}" dir code=0
+  dir="$(mktemp -d)" || return 1
+  printf '# Contrato e schema de %s para %s\n\n' "$from" "${to:-a pasta de trabalho}"
+  api_plan_sources "$from" "$to" "$dir" &&
+    node_in_api contract-view "$dir" scripts/contract-view.cjs . || code=1
   rm -rf "$dir"
-
-  printf '\n--- Schema do Prisma (%s)\n\n' "$API_SCHEMA"
-  schema_diff="$(git --no-pager diff --no-color "${refs[@]}" -- "$API_SCHEMA")" || code=1
-  if [[ -n "$schema_diff" ]]; then
-    printf '%s\n' "$schema_diff"
-  else
-    echo "O schema do Prisma não muda."
-  fi
   return $code
 }
 
-# O changelog do oasdiff e o contrato completo das rotas novas ou alteradas, entre os dois snapshots
-# que a visão gravou em <pasta>. Sem <para>, o segundo é o da pasta de trabalho.
-# api_contract_routes <pasta> <de> [<para>]
-api_contract_routes() {
-  local dir="$1"
-  printf '\n--- O que mudou no contrato (oasdiff changelog)\n\n'
-  if ! docker run --rm -v "$dir:/contrato:ro" "$OASDIFF_IMAGE" changelog \
-    /contrato/base.json /contrato/novo.json --color never --lang pt-br; then
-    printf '\nUm dos snapshots da OpenAPI não é uma OpenAPI legível, e a visão não pôde ser montada.\n' >&2
-    printf 'No erro do oasdiff acima, "base" é o %s em %s, e "revision", o %s.\n' \
-      "$API_SNAPSHOT" "$2" "$([[ -n "${3:-}" ]] && echo "de $3" || echo "da pasta de trabalho")" >&2
-    return 1
-  fi
-
-  # O renderizador roda no contêiner, que tem o Node e só enxerga a pasta da API: ele e os dois
-  # snapshots chegam pela entrada padrão.
-  printf '\n--- Contrato completo das rotas novas ou alteradas\n\n'
-  tar -c -C scripts contract-view.cjs -C "$dir" base.json novo.json |
-    in_container api sh -c 'rm -rf reports/contract-view && mkdir -p reports/contract-view && tar -x -C reports/contract-view && cd reports/contract-view && node contract-view.cjs base.json novo.json'
-}
-
 # O desvio do plano: se o contrato ou o schema de <para> é diferente do commit de plano, mostra a
-# visão entre os dois, acrescenta-a ao DRIFT_FILE (do scripts/verify.sh) e avisa no PR. Sem <para>,
-# compara com a pasta de trabalho. O contrato é comparado como no `api_openapi_matches`, então um
-# snapshot regenerado que só muda descrições, resumos, exemplos ou a ordem das chaves não é desvio.
-# Não bloqueia. O desenho está no docs/harness.md, etapa 8.
-# api_contract_drift <commit de plano> [<para>]
+# visão entre os dois, acrescenta-a ao <arquivo do desvio> e avisa no PR. Sem <para>, compara com a
+# pasta de trabalho. O contrato é comparado como no `api_openapi_matches`, então um snapshot
+# regenerado que só muda descrições, resumos, exemplos ou a ordem das chaves não é desvio. Não
+# bloqueia. O desenho está no docs/harness.md, etapa 8.
+# api_contract_drift <commit de plano> <para, ou vazio> <arquivo do desvio>
 api_contract_drift() {
-  local plan="$1" to="${2:-}" short dir view warning contract=igual schema=igual
+  local plan="$1" to="$2" drift="$3" short dir view warning contract=igual schema=igual
   local refs=("$plan")
   short="$(git rev-parse --short "$plan")"
   if [[ -n "$to" ]]; then
@@ -171,13 +174,13 @@ api_contract_drift() {
     return 0
   fi
   if view="$(api_contract_view "$short" "$to" 2>&1)"; then
-    warning="O contrato da OpenAPI ou o schema do Prisma mudou depois do commit de plano $short. Confira se o desvio é pedido pelo ticket; a visão está no log, e na máquina em $DRIFT_FILE, que o revisor recebe."
+    warning="O contrato da OpenAPI ou o schema do Prisma mudou depois do commit de plano $short. Confira se o desvio é pedido pelo ticket; a visão está no log, e na máquina em $drift, que o revisor recebe."
   else
     view="A visão do desvio em relação ao commit de plano $short não pôde ser montada. O que segue é o erro dela, e não o desvio."$'\n\n'"$view"
-    warning="O contrato ou o schema mudou depois do commit de plano $short, mas a visão do desvio não pôde ser montada (ver o log, ou $DRIFT_FILE)."
+    warning="O contrato ou o schema mudou depois do commit de plano $short, mas a visão do desvio não pôde ser montada (ver o log, ou $drift)."
   fi
-  mkdir -p "$(dirname "$DRIFT_FILE")"
-  printf '%s\n' "$view" | tee -a "$DRIFT_FILE"
+  mkdir -p "$(dirname "$drift")"
+  printf '%s\n' "$view" | tee -a "$drift"
   echo "::warning title=Contrato diferente do planejado::$warning"
 }
 

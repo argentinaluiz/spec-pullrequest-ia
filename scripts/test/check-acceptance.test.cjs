@@ -10,6 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const CHECKER = path.join(__dirname, '..', 'check-acceptance.cjs');
+const { parseAcceptanceFile } = require(CHECKER);
 
 function acceptanceFile(criteria) {
   return criteria
@@ -184,6 +185,52 @@ test('aceita título de critério com texto depois do ID, marca com ponto final 
   const files = { 'LUI-1.md': '## LUI-1-CA1 · Bloqueio na sexta tentativa\n\n- **Marca:** Teste HTTP.\n' };
   const { code, out } = check({ files, body: '## Aceite\n\n**nenhum**: refatoração.\n', vitest: [['@LUI-1-CA1 ok', 'passed']] });
   assert.equal(code, 0, out);
+});
+
+test('um subtítulo dentro do critério não o encerra: a marca depois dele ainda é lida, e a introdução é só o texto antes do primeiro critério', () => {
+  const text = [
+    '# Aceite do LUI-1',
+    '',
+    'Introdução.',
+    '',
+    '## LUI-1-CA1',
+    '',
+    '### Contexto',
+    '',
+    '**Marca:** teste HTTP',
+    '',
+    '**Cenário:** Dado, Quando, Então.',
+    '',
+    '### Observação',
+    '',
+    'Texto do subtítulo, fora do cenário.',
+    '',
+    '**Teste previsto:** `x.e2e-spec.ts`.',
+    '',
+    '## LUI-1-CA2',
+    '',
+    '**Marca:** documento',
+    '',
+  ].join('\n');
+
+  const { intro, criteria } = parseAcceptanceFile('LUI-1.md', text);
+  assert.equal(intro, 'Introdução.');
+  assert.deepEqual(
+    criteria.map(({ id, check, scenario, plannedTest }) => ({ id, check, scenario, plannedTest })),
+    [
+      { id: 'LUI-1-CA1', check: 'teste http', scenario: 'Dado, Quando, Então.', plannedTest: '`x.e2e-spec.ts`.' },
+      { id: 'LUI-1-CA2', check: 'documento', scenario: null, plannedTest: null },
+    ],
+  );
+
+  // O conferidor que bloqueia lê a mesma marca: o critério exige teste, e não sai como marca ausente.
+  const files = { 'LUI-1.md': text };
+  const missing = check({ files });
+  assert.equal(missing.code, 1);
+  assert.match(missing.out, /LUI-1-CA1 \(docs\/aceite\/LUI-1.md\) não tem nenhum teste/);
+  assert.doesNotMatch(missing.out, /marca "ausente"/);
+  const covered = check({ files, vitest: [['@LUI-1-CA1 ok', 'passed']] });
+  assert.equal(covered.code, 0, covered.out);
 });
 
 test('sem corpo de PR, o modo opcional confere só a cobertura, e o obrigatório reprova', () => {

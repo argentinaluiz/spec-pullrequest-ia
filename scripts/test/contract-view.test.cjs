@@ -1,11 +1,17 @@
 // Testes do renderizador da visão do contrato, pela interface que o scripts/verify/api.sh usa: dois
-// snapshots da OpenAPI na entrada e o texto na saída. Rodam com o runner nativo do Node, dentro do
-// contêiner `api`.
+// snapshots da OpenAPI na entrada e o Markdown na saída, e o modelo das rotas que a página de
+// revisão do plano recebe. Rodam com o runner nativo do Node, dentro do contêiner `api`.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-const { render } = require('../contract-view.cjs');
+const { render, routeChanges } = require('../contract-view.cjs');
+const { build } = require('../plan-page.cjs');
+const { panel, snapshot } = require('./helpers.cjs');
 
 const PROBLEM = { $ref: '#/components/schemas/ProblemDetailsDto' };
 
@@ -16,26 +22,6 @@ function problem(...codes) {
     content: {
       'application/problem+json': {
         schema: { allOf: [PROBLEM], properties: { code: { type: 'string', enum: codes } } },
-      },
-    },
-  };
-}
-
-function snapshot(paths, schemas = {}) {
-  return {
-    openapi: '3.0.0',
-    info: { title: 'API', version: '1' },
-    paths,
-    components: {
-      securitySchemes: { bearer: { type: 'http', scheme: 'bearer' } },
-      schemas: {
-        ProblemDetailsDto: {
-          type: 'object',
-          properties: { type: { type: 'string' }, code: { type: 'string' } },
-          required: ['type', 'code'],
-        },
-        MeDto: { type: 'object', properties: { email: { type: 'string' } }, required: ['email'] },
-        ...schemas,
       },
     },
   };
@@ -104,64 +90,135 @@ const NEW_SCHEMAS = {
   },
 };
 
-/** O bloco de uma rota na saída: do título dela até a linha em branco seguinte. */
+/** A seção de uma rota na saída: do título dela até o título da seguinte. */
 function block(out, title) {
-  const start = out.indexOf(`${title}\n`);
+  const start = out.indexOf(`### ${title}\n`);
   assert.notEqual(start, -1, `a saída não traz "${title}":\n${out}`);
-  const end = out.indexOf('\n\n', start);
+  const end = out.indexOf('\n### ', start + 1);
   return out.slice(start, end === -1 ? undefined : end).trimEnd();
 }
 
-test('mostra o contrato completo da rota nova e da alterada, e omite a que não mudou @LUI-172-CA1', () => {
-  const base = snapshot({ '/v1/me': ME, '/v1/items/{id}/children': children({ 404: problem('not_found') }) });
-  const head = snapshot(
+/** As linhas de uma seção, juntadas: o texto esperado de uma rota. */
+function lines(...rows) {
+  return rows.join('\n');
+}
+
+const TWO_SNAPSHOTS = [
+  snapshot({ '/v1/me': ME, '/v1/items/{id}/children': children({ 404: problem('not_found') }) }),
+  snapshot(
     {
       '/v1/me': ME,
       '/v1/items/{id}/children': children({ 404: problem('not_found'), 403: problem('forbidden') }),
       '/v1/items/{id}/copies': COPIES,
     },
     NEW_SCHEMAS,
-  );
+  ),
+];
 
-  const out = render(base, head);
+const COPIES_SECTION = lines(
+  '### Rota nova · POST /v1/items/{id}/copies · protegida (bearer)',
+  '',
+  '**Parâmetros**',
+  '',
+  '| Nome | Onde | Tipo | Obrigatório | Limites |',
+  '| --- | --- | --- | --- | --- |',
+  '| `id` | caminho | string | sim | — |',
+  '',
+  '**Cabeçalhos de entrada**',
+  '',
+  '| Nome | Tipo | Obrigatório | Limites |',
+  '| --- | --- | --- | --- |',
+  '| `Idempotency-Key` | string | sim | — |',
+  '',
+  '**Corpo** (application/json), obrigatório',
+  '',
+  '- `name`: string, obrigatório, de 1 a 255 caracteres',
+  '- `parentId`: string, opcional',
+  '',
+  '**Sucesso 201** (application/json)',
+  '',
+  '- `id`: string, obrigatório',
+  '- `sizeBytes`: number, obrigatório',
+  '',
+  '| Cabeçalho de resposta | Tipo | Obrigatório | Limites |',
+  '| --- | --- | --- | --- |',
+  '| `Location` | string | sim | — |',
+  '',
+  '**Erros**',
+  '',
+  '| Status | `code` |',
+  '| --- | --- |',
+  '| 404 | `not_found` |',
+  '| 409 | `name_conflict`, `quota_exceeded` |',
+);
 
-  assert.equal(
-    block(out, 'Rota nova: POST /v1/items/{id}/copies'),
-    [
-      'Rota nova: POST /v1/items/{id}/copies',
-      '  Autenticação: protegida (bearer)',
-      '  Parâmetros:',
-      '    id (caminho): string, obrigatório',
-      '  Cabeçalhos de entrada:',
-      '    Idempotency-Key: string, obrigatório',
-      '  Corpo (application/json), obrigatório:',
-      '    name: string, obrigatório, de 1 a 255 caracteres',
-      '    parentId: string, opcional',
-      '  Sucesso:',
-      '    201 (application/json)',
-      '      id: string, obrigatório',
-      '      sizeBytes: number, obrigatório',
-      '      Cabeçalho Location: string, obrigatório',
-      '  Erros:',
-      '    404: not_found',
-      '    409: name_conflict, quota_exceeded',
-    ].join('\n'),
-  );
-  assert.equal(
-    block(out, 'Rota alterada: GET /v1/items/{id}/children'),
-    [
-      'Rota alterada: GET /v1/items/{id}/children',
-      '  Autenticação: protegida (bearer)',
-      '  Parâmetros:',
-      '    id (caminho): string, obrigatório',
-      '  Sucesso:',
-      '    200 (sem corpo)',
-      '  Erros:',
-      '    403: forbidden',
-      '    404: not_found',
-    ].join('\n'),
-  );
+const CHILDREN_SECTION = lines(
+  '### Rota alterada · GET /v1/items/{id}/children · protegida (bearer)',
+  '',
+  '**Parâmetros**',
+  '',
+  '| Nome | Onde | Tipo | Obrigatório | Limites |',
+  '| --- | --- | --- | --- | --- |',
+  '| `id` | caminho | string | sim | — |',
+  '',
+  '**Sucesso 200** (sem corpo)',
+  '',
+  '**Erros**',
+  '',
+  '| Status | `code` |',
+  '| --- | --- |',
+  '| 403 | `forbidden` |',
+  '| 404 | `not_found` |',
+);
+
+test('mostra o contrato completo da rota nova e da alterada, e omite a que não mudou @LUI-172-CA1', () => {
+  const out = render(...TWO_SNAPSHOTS);
+
+  assert.equal(block(out, 'Rota nova · POST /v1/items/{id}/copies · protegida (bearer)'), COPIES_SECTION);
+  assert.equal(block(out, 'Rota alterada · GET /v1/items/{id}/children · protegida (bearer)'), CHILDREN_SECTION);
   assert.doesNotMatch(out, /\/v1\/me\b/);
+});
+
+test('gera a visão em Markdown, uma seção por rota, com as tabelas de parâmetros, cabeçalhos e erros @LUI-173-CA2', () => {
+  const [base, head] = TWO_SNAPSHOTS;
+
+  // Uma seção por rota que mudou, na ordem do snapshot novo, e nada da que não mudou.
+  assert.equal(render(base, head), `${CHILDREN_SECTION}\n\n${COPIES_SECTION}\n`);
+
+  // O modo `contract` do script de verificação imprime o que a linha de comando do renderizador
+  // imprime sobre a pasta das fontes: o changelog, esse mesmo Markdown e o diff do schema.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'visao-'));
+  fs.writeFileSync(path.join(dir, 'base.json'), JSON.stringify(base));
+  fs.writeFileSync(path.join(dir, 'novo.json'), JSON.stringify(head));
+  fs.writeFileSync(path.join(dir, 'changelog.txt'), 'endpoint added POST /v1/items/{id}/copies\n');
+  fs.writeFileSync(path.join(dir, 'schema.diff'), '');
+  const cli = spawnSync(process.execPath, [path.join(__dirname, '..', 'contract-view.cjs'), dir], { encoding: 'utf8' });
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.equal(
+    cli.stdout,
+    [
+      '## O que mudou no contrato (oasdiff changelog)',
+      '```text\nendpoint added POST /v1/items/{id}/copies\n```',
+      '## Contrato completo das rotas novas ou alteradas',
+      render(base, head).trimEnd(),
+      '## Schema do Prisma',
+      'O schema do Prisma não muda.\n',
+    ].join('\n\n'),
+  );
+
+  // A aba "Contrato" da página é montada do mesmo modelo: as mesmas rotas, com as mesmas tabelas.
+  const tab = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', routes: routeChanges(base, head), changelog: '' }), 'contrato');
+  const headings = [...tab.matchAll(/<h3>([^<]*)<\/h3>/g)].map((match) => match[1]);
+  assert.deepEqual(headings, [
+    'Rota alterada · GET /v1/items/{id}/children · protegida (bearer)',
+    'Rota nova · POST /v1/items/{id}/copies · protegida (bearer)',
+  ]);
+  assert.match(tab, /<th>Nome<\/th><th>Onde<\/th><th>Tipo<\/th><th>Obrigatório<\/th><th>Limites<\/th>/);
+  assert.match(tab, /<td><code>Idempotency-Key<\/code><\/td><td>string<\/td><td>sim<\/td>/);
+  assert.match(tab, /<td><code>Location<\/code><\/td><td>string<\/td><td>sim<\/td>/);
+  assert.match(tab, /<td>409<\/td><td><code>name_conflict<\/code>, <code>quota_exceeded<\/code><\/td>/);
+  assert.doesNotMatch(tab, /\/v1\/me\b/);
 });
 
 test('diz que o contrato não muda quando os snapshots são iguais, inclusive se só o texto mudou @LUI-172-CA1', () => {
@@ -186,7 +243,7 @@ test('conta como alterada a rota cuja mudança o texto renderizado não mostra',
     snapshot({ '/v1/tags': body({ ...tags, minProperties: 1 }) }),
   );
 
-  assert.match(out, /^Rota alterada: POST \/v1\/tags$/m);
+  assert.match(out, /^### Rota alterada · POST \/v1\/tags · pública$/m);
 });
 
 test('conta um campo chamado description como contrato, e não como texto', () => {
@@ -204,7 +261,7 @@ test('conta um campo chamado description como contrato, e não como texto', () =
     snapshot({ '/v1/tag': route }, { TagDto: dto({ name: { type: 'string' } }) }),
   );
 
-  assert.match(out, /^Rota alterada: GET \/v1\/tag$/m);
+  assert.match(out, /^### Rota alterada · GET \/v1\/tag · pública$/m);
 });
 
 test('não conta como alterada a rota que só trocou o schema inline por um $ref igual, a ordem das chaves ou o texto de um componente', () => {
@@ -261,26 +318,37 @@ test('mostra a união, cada tipo de conteúdo e a rota e o campo obsoletos', () 
   const out = render(snapshot({}), snapshot({ '/v1/uploads': upload }));
 
   assert.equal(
-    block(out, 'Rota nova: PUT /v1/uploads'),
-    [
-      'Rota nova: PUT /v1/uploads',
-      '  Autenticação: pública',
-      '  Obsoleta (deprecated)',
-      '  Parâmetros:',
-      '    ref (consulta): string ou integer, obrigatório, obsoleto',
-      '  Corpo (application/json), obrigatório:',
-      '    name: string, opcional',
-      '  Corpo (multipart/form-data), obrigatório:',
-      '    file: string (binary), opcional',
-      '  Sucesso:',
-      '    200 (application/json)',
-      '      owner: MeDto ou string, opcional',
-      '        Opção MeDto:',
-      '          email: string, obrigatório',
-      '      size: integer, opcional, maior que 0, menor que 10',
-      '    200 (application/vnd.app+json)',
-      '      owner: string, opcional',
-    ].join('\n'),
+    block(out, 'Rota nova · PUT /v1/uploads · pública'),
+    lines(
+      '### Rota nova · PUT /v1/uploads · pública',
+      '',
+      'Obsoleta (deprecated).',
+      '',
+      '**Parâmetros**',
+      '',
+      '| Nome | Onde | Tipo | Obrigatório | Limites |',
+      '| --- | --- | --- | --- | --- |',
+      '| `ref` | consulta | string ou integer | sim | obsoleto |',
+      '',
+      '**Corpo** (application/json), obrigatório',
+      '',
+      '- `name`: string, opcional',
+      '',
+      '**Corpo** (multipart/form-data), obrigatório',
+      '',
+      '- `file`: string (binary), opcional',
+      '',
+      '**Sucesso 200** (application/json)',
+      '',
+      '- `owner`: MeDto ou string, opcional',
+      '  - Opção MeDto:',
+      '    - `email`: string, obrigatório',
+      '- `size`: integer, opcional, maior que 0, menor que 10',
+      '',
+      '**Sucesso 200** (application/vnd.app+json)',
+      '',
+      '- `owner`: string, opcional',
+    ),
   );
 });
 
@@ -295,7 +363,7 @@ test('junta os tipos de conteúdo com o mesmo schema numa linha só', () => {
 
   const out = render(snapshot({}), snapshot({ '/v1/names': route }));
 
-  assert.match(out, /^ {2}Corpo \(application\/json, application\/x-www-form-urlencoded\), opcional:\n {4}name: string, opcional$/m);
+  assert.match(out, /^\*\*Corpo\*\* \(application\/json, application\/x-www-form-urlencoded\), opcional\n\n- `name`: string, opcional$/m);
 });
 
 test('põe o default nos erros, depois dos status, com os status em ordem numérica', () => {
@@ -314,18 +382,21 @@ test('põe o default nos erros, depois dos status, com os status em ordem numér
   const out = render(snapshot({}), snapshot({ '/v1/ping': route }));
 
   assert.equal(
-    block(out, 'Rota nova: GET /v1/ping'),
-    [
-      'Rota nova: GET /v1/ping',
-      '  Autenticação: pública',
-      '  Sucesso:',
-      '    200 (sem corpo)',
-      '  Erros:',
-      '    404: not_found',
-      '    4XX: bad_request',
-      '    500: unavailable',
-      '    default: internal',
-    ].join('\n'),
+    block(out, 'Rota nova · GET /v1/ping · pública'),
+    lines(
+      '### Rota nova · GET /v1/ping · pública',
+      '',
+      '**Sucesso 200** (sem corpo)',
+      '',
+      '**Erros**',
+      '',
+      '| Status | `code` |',
+      '| --- | --- |',
+      '| 404 | `not_found` |',
+      '| 4XX | `bad_request` |',
+      '| 500 | `unavailable` |',
+      '| default | `internal` |',
+    ),
   );
 });
 
@@ -347,16 +418,19 @@ test('usa o parâmetro da operação no lugar do parâmetro do caminho com o mes
   );
 
   assert.equal(
-    block(out, 'Rota nova: GET /v1/items/{id}'),
-    [
-      'Rota nova: GET /v1/items/{id}',
-      '  Autenticação: pública',
-      '  Parâmetros:',
-      '    id (caminho): integer, obrigatório',
-      '    id (consulta): string, opcional',
-      '  Sucesso:',
-      '    204 (sem corpo)',
-    ].join('\n'),
+    block(out, 'Rota nova · GET /v1/items/{id} · pública'),
+    lines(
+      '### Rota nova · GET /v1/items/{id} · pública',
+      '',
+      '**Parâmetros**',
+      '',
+      '| Nome | Onde | Tipo | Obrigatório | Limites |',
+      '| --- | --- | --- | --- | --- |',
+      '| `id` | caminho | integer | sim | — |',
+      '| `id` | consulta | string | não | — |',
+      '',
+      '**Sucesso 204** (sem corpo)',
+    ),
   );
 });
 
@@ -379,13 +453,13 @@ test('lê o corpo obrigatório através do $ref do requestBody', () => {
 
   const out = render(snapshot({}), head);
 
-  assert.match(out, /^ {2}Corpo \(application\/json\), obrigatório:\n {4}name: string, obrigatório$/m);
+  assert.match(out, /^\*\*Corpo\*\* \(application\/json\), obrigatório\n\n- `name`: string, obrigatório$/m);
 });
 
 test('lista a rota removida, sem o contrato dela', () => {
   const out = render(snapshot({ '/v1/me': ME }), snapshot({}));
 
-  assert.equal(out.trim(), 'Rota removida: GET /v1/me');
+  assert.equal(out.trim(), '### Rota removida · GET /v1/me');
 });
 
 test('expande o objeto aninhado e a lista de objetos, com o tipo, o nulo e os limites', () => {
@@ -425,18 +499,39 @@ test('expande o objeto aninhado e a lista de objetos, com o tipo, o nulo e os li
   const out = render(snapshot({}), snapshot({ '/v1/items': list }, { ItemDto }));
 
   assert.equal(
-    block(out, 'Rota nova: GET /v1/items'),
-    [
-      'Rota nova: GET /v1/items',
-      '  Autenticação: pública',
-      '  Parâmetros:',
-      '    limit (consulta): number, opcional, mínimo 1, máximo 200, padrão 50',
-      '  Sucesso:',
-      '    200 (application/json)',
-      '      items: array de objeto, obrigatório',
-      '        type: string ("file" | "folder"), obrigatório',
-      '        updatedAt: string (date-time), opcional',
-      '      nextCursor: string, obrigatório, aceita null',
-    ].join('\n'),
+    block(out, 'Rota nova · GET /v1/items · pública'),
+    lines(
+      '### Rota nova · GET /v1/items · pública',
+      '',
+      '**Parâmetros**',
+      '',
+      '| Nome | Onde | Tipo | Obrigatório | Limites |',
+      '| --- | --- | --- | --- | --- |',
+      '| `limit` | consulta | number | não | mínimo 1, máximo 200, padrão 50 |',
+      '',
+      '**Sucesso 200** (application/json)',
+      '',
+      '- `items`: array de objeto, obrigatório',
+      '  - `type`: string ("file" | "folder"), obrigatório',
+      '  - `updatedAt`: string (date-time), opcional',
+      '- `nextCursor`: string, obrigatório, aceita null',
+    ),
   );
+});
+
+test('escapa a barra vertical do tipo dentro da tabela e mostra os cabeçalhos dos erros numa coluna', () => {
+  const route = {
+    get: {
+      parameters: [{ name: 'sort', in: 'query', schema: { type: 'string', enum: ['name', 'size'] } }],
+      responses: {
+        200: { description: '' },
+        429: { ...problem('rate_limited'), headers: { 'Retry-After': { required: true, schema: { type: 'integer' } } } },
+      },
+    },
+  };
+
+  const out = render(snapshot({}), snapshot({ '/v1/search': route }));
+
+  assert.match(out, /^\| `sort` \| consulta \| string \("name" \\\| "size"\) \| não \| — \|$/m);
+  assert.match(out, /^\| Status \| `code` \| Cabeçalhos \|\n\| --- \| --- \| --- \|\n\| 429 \| `rate_limited` \| `Retry-After`: integer, obrigatório \|$/m);
 });

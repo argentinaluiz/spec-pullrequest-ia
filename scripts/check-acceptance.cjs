@@ -3,31 +3,37 @@
 // e passado. Confere também a seção `## Aceite` do corpo do pull request. O desenho está no
 // docs/harness.md, e o formato do arquivo de aceite, no AGENTS.md da raiz.
 //
-// Roda dentro do contêiner `api`, lido pela entrada padrão (ver scripts/verify.sh):
-//   node - <--required|--optional> <corpo do PR> <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
-//   node - --cited <corpo do PR>
+// Roda dentro do contêiner `api` (ver o `node_in_api`, no scripts/verify.sh):
+//   node check-acceptance.cjs <--required|--optional> <corpo do PR> <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
+//   node check-acceptance.cjs --cited <corpo do PR>
 // O segundo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
-// plano, e nada quando a seção diz "nenhum", não existe ou não há corpo.
+// plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
+//
+// O parser do arquivo de aceite (`parseAcceptanceFile`) e as marcas (`CHECKS`) são exportados para
+// a página de revisão do plano (scripts/plan-page.cjs), que lê o aceite com as mesmas regras.
 
 const fs = require('node:fs');
 const path = require('node:path');
-
-const [mode, bodyFile, acceptDir, ...reportSpecs] = process.argv.slice(2);
 
 const HEADING = /^#{1,6}\s*aceite\s*$/i;
 const CRITERION_HEADING = /^#{1,6}\s*([A-Z][A-Z0-9]*-\d+-CA\d+)\b/;
 const TEST_TOKEN = /@([A-Z][A-Z0-9]*-\d+-CA\d+)/g;
 const ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]]+\.md)/;
 
-// As marcas de conferência. Só as quatro primeiras exigem teste.
+// As marcas de conferência, pela forma normalizada (em minúsculas): o nome como se escreve e se
+// exige teste. Só as quatro primeiras exigem.
 const CHECKS = new Map([
-  ['teste http', true],
-  ['teste no playwright', true],
-  ['teste de unidade', true],
-  ['teste de integração', true],
-  ['revisão humana', false],
-  ['documento', false],
+  ['teste http', { name: 'teste HTTP', test: true }],
+  ['teste no playwright', { name: 'teste no Playwright', test: true }],
+  ['teste de unidade', { name: 'teste de unidade', test: true }],
+  ['teste de integração', { name: 'teste de integração', test: true }],
+  ['revisão humana', { name: 'revisão humana', test: false }],
+  ['documento', { name: 'documento', test: false }],
 ]);
+// As linhas de um critério, no formato do AGENTS.md da raiz. O texto de cada uma vai até a próxima
+// linha rotulada ou o próximo título, e pode ter mais de um parágrafo.
+const FIELD = /^\s*[-*]?\s*\*\*(marca|cenário|teste previsto):\*\*\s*(.*)$/i;
+const FIELD_KEYS = { marca: 'check', cenário: 'scenario', 'teste previsto': 'plannedTest' };
 
 const errors = [];
 function error(message) {
@@ -88,29 +94,69 @@ function checkSection(section, files) {
   }
 }
 
-/** Os critérios de um arquivo de aceite: ID e marca, lidos dos títulos `## <ticket>-CA<n>`. */
+/**
+ * Um arquivo de aceite: a introdução (o texto antes do primeiro critério, sem os títulos) e os
+ * critérios, lidos dos títulos `## <ticket>-CA<n>`: o ID, o arquivo, a marca (normalizada, em
+ * minúsculas), o cenário e o teste previsto, nulo no critério que não o tem. Um critério só termina
+ * no título do próximo critério. O texto de cada linha rotulada fica como está no arquivo, com as
+ * quebras de linha. Não confere nada: a marca desconhecida é do `unknownChecks`.
+ */
 function parseAcceptanceFile(name, text) {
   const criteria = [];
+  const intro = [];
   let current = null;
+  let field = null;
+  let lines = [];
+  const close = () => {
+    if (current && field) current[field] = lines.join('\n').trim() || null;
+    field = null;
+    lines = [];
+  };
   for (const line of text.split(/\r?\n/)) {
     const heading = line.trim().match(CRITERION_HEADING);
     if (heading) {
-      current = { id: heading[1], file: name, check: null };
+      close();
+      current = { id: heading[1], file: name, check: null, scenario: null, plannedTest: null };
       criteria.push(current);
       continue;
     }
-    const check = current && line.match(/^\s*[-*]?\s*\*\*marca:\*\*\s*(.+)$/i);
-    if (check) current.check = normalize(check[1]).toLowerCase().replace(/[.;]+$/, '');
+    // Outro título encerra a linha rotulada em curso, e não o critério: uma linha rotulada depois de
+    // um subtítulo ainda é do critério.
+    if (/^#{1,6}\s/.test(line.trim())) {
+      close();
+      continue;
+    }
+    if (!criteria.length) intro.push(line);
+    const labeled = current && line.match(FIELD);
+    if (labeled) {
+      close();
+      field = FIELD_KEYS[labeled[1].toLowerCase()];
+      lines = [labeled[2]];
+      // A marca é só a própria linha.
+      if (field === 'check') close();
+    } else if (field) {
+      lines.push(line);
+    }
   }
+  close();
+  for (const criterion of criteria) {
+    if (criterion.check) criterion.check = normalize(criterion.check).toLowerCase().replace(/[.;]+$/, '');
+  }
+  return { intro: intro.join('\n').trim(), criteria };
+}
+
+/** Reprova os critérios com marca desconhecida, dizendo as marcas que valem. */
+function unknownChecks(criteria) {
+  const names = [...CHECKS.values()].map((check) => check.name);
+  const valid = `${names.slice(0, -1).join(', ')} ou ${names.at(-1)}`;
   for (const criterion of criteria) {
     if (!CHECKS.has(criterion.check)) {
       error(
-        `${criterion.id} em docs/aceite/${name}: marca "${criterion.check ?? 'ausente'}" desconhecida. ` +
-          'Use uma destas, na linha "**Marca:**": teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento.',
+        `${criterion.id} em docs/aceite/${criterion.file}: marca "${criterion.check ?? 'ausente'}" desconhecida. ` +
+          `Use uma destas, na linha "**Marca:**": ${valid}.`,
       );
     }
   }
-  return criteria;
 }
 
 /** Todos os testes de um relatório do Vitest: o título (só o do próprio teste, e não o dos `describe`) e o estado. */
@@ -153,104 +199,112 @@ function idsOf(test) {
   return new Set(ids);
 }
 
-if (mode === '--cited' && bodyFile) {
-  const cited = fs.existsSync(bodyFile) && acceptSection(fs.readFileSync(bodyFile, 'utf8'))?.match(ACCEPTANCE_PATH);
-  if (cited) console.log(`docs/aceite/${cited[1]}`);
-  process.exit(0);
-}
-
-if (!['--required', '--optional'].includes(mode) || !bodyFile || !acceptDir || reportSpecs.length === 0) {
-  console.error(
-    'Uso: node - <--required|--optional> <corpo do PR> <pasta de aceite> <tipo>:<relatório>...',
-  );
-  process.exit(2);
-}
-
-// Sem corpo de PR, só a cobertura é conferida. Onde a seção é exigida, a falta do corpo reprova.
-const bodyExists = fs.existsSync(bodyFile);
-if (!bodyExists && mode === '--required') {
-  fatal(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há seção "Aceite" para conferir.`);
-}
-
-// Os arquivos de aceite de todos os tickets.
-const files = new Map();
-if (fs.existsSync(acceptDir)) {
-  for (const name of fs.readdirSync(acceptDir).filter((entry) => entry.endsWith('.md'))) {
-    files.set(name, fs.readFileSync(path.join(acceptDir, name), 'utf8'));
+/** A linha de comando: os dois modos do cabeçalho. */
+function main([mode, bodyFile, acceptDir, ...reportSpecs]) {
+  if (mode === '--cited' && bodyFile) {
+    const cited = fs.existsSync(bodyFile) && acceptSection(fs.readFileSync(bodyFile, 'utf8'))?.match(ACCEPTANCE_PATH);
+    if (cited) console.log(`docs/aceite/${cited[1]}`);
+    process.exit(0);
   }
-}
 
-// A seção "Aceite" do PR.
-const section = acceptSection(bodyExists ? fs.readFileSync(bodyFile, 'utf8') : '');
-if (section === null) {
-  if (mode === '--required') {
-    error(
-      'o pull request altera código em apps/ e não tem a seção "Aceite". ' +
-        'Acrescente "## Aceite" ao corpo do PR, citando o arquivo de aceite do ticket ou "nenhum" com o motivo.',
+  if (!['--required', '--optional'].includes(mode) || !bodyFile || !acceptDir || reportSpecs.length === 0) {
+    console.error(
+      'Uso: node check-acceptance.cjs <--required|--optional> <corpo do PR> <pasta de aceite> <tipo>:<relatório>...',
     );
+    process.exit(2);
+  }
+
+  // Sem corpo de PR, só a cobertura é conferida. Onde a seção é exigida, a falta do corpo reprova.
+  const bodyExists = fs.existsSync(bodyFile);
+  if (!bodyExists && mode === '--required') {
+    fatal(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há seção "Aceite" para conferir.`);
+  }
+
+  // Os arquivos de aceite de todos os tickets.
+  const files = new Map();
+  if (fs.existsSync(acceptDir)) {
+    for (const name of fs.readdirSync(acceptDir).filter((entry) => entry.endsWith('.md'))) {
+      files.set(name, fs.readFileSync(path.join(acceptDir, name), 'utf8'));
+    }
+  }
+
+  // A seção "Aceite" do PR.
+  const section = acceptSection(bodyExists ? fs.readFileSync(bodyFile, 'utf8') : '');
+  if (section === null) {
+    if (mode === '--required') {
+      error(
+        'o pull request altera código em apps/ e não tem a seção "Aceite". ' +
+          'Acrescente "## Aceite" ao corpo do PR, citando o arquivo de aceite do ticket ou "nenhum" com o motivo.',
+      );
+    } else {
+      console.log('Aceite: seção não exigida, porque o pull request não altera nada em apps/.');
+    }
   } else {
-    console.log('Aceite: seção não exigida, porque o pull request não altera nada em apps/.');
+    checkSection(section, files);
   }
-} else {
-  checkSection(section, files);
-}
 
-// Os critérios, de todos os tickets.
-const criteria = [...files].flatMap(([name, text]) => parseAcceptanceFile(name, text));
-const known = new Set(criteria.map((criterion) => criterion.id));
-const duplicated = criteria.find((criterion, index) => criteria.findIndex((other) => other.id === criterion.id) !== index);
-if (duplicated) {
-  error(`o ID ${duplicated.id} aparece em mais de um critério de aceite. Cada ID é único: renumere o novo critério.`);
-}
-
-// Os testes das suítes. Relatório ausente ou ilegível reprova, sem aprovar critério.
-const tests = [];
-for (const spec of reportSpecs) {
-  const [, kind, file] = spec.match(/^(vitest|playwright):(.+)$/) ?? [];
-  try {
-    const report = JSON.parse(fs.readFileSync(file, 'utf8'));
-    tests.push(...(kind === 'vitest' ? vitestTests(report) : playwrightTests(report)));
-  } catch (cause) {
-    error(`o relatório ${spec} não pôde ser lido (${cause.message}). Sem ele, o aceite não pode ser conferido.`);
+  // Os critérios, de todos os tickets.
+  const criteria = [...files].flatMap(([name, text]) => parseAcceptanceFile(name, text).criteria);
+  unknownChecks(criteria);
+  const known = new Set(criteria.map((criterion) => criterion.id));
+  const duplicated = criteria.find((criterion, index) => criteria.findIndex((other) => other.id === criterion.id) !== index);
+  if (duplicated) {
+    error(`o ID ${duplicated.id} aparece em mais de um critério de aceite. Cada ID é único: renumere o novo critério.`);
   }
-}
-if (errors.length > 0) finish();
 
-// Estado dos testes por ID.
-const byId = new Map();
-for (const test of tests) {
-  for (const id of idsOf(test)) {
-    byId.set(id, [...(byId.get(id) ?? []), test.status]);
+  // Os testes das suítes. Relatório ausente ou ilegível reprova, sem aprovar critério.
+  const tests = [];
+  for (const spec of reportSpecs) {
+    const [, kind, file] = spec.match(/^(vitest|playwright):(.+)$/) ?? [];
+    try {
+      const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+      tests.push(...(kind === 'vitest' ? vitestTests(report) : playwrightTests(report)));
+    } catch (cause) {
+      error(`o relatório ${spec} não pôde ser lido (${cause.message}). Sem ele, o aceite não pode ser conferido.`);
+    }
   }
-}
+  if (errors.length > 0) finish();
 
-for (const id of byId.keys()) {
-  if (!known.has(id)) {
-    error(
-      `um teste cita @${id}, que não está em nenhum arquivo de aceite. ` +
-        'Confira o ID digitado ou acrescente o critério ao arquivo de aceite do ticket.',
-    );
+  // Estado dos testes por ID.
+  const byId = new Map();
+  for (const test of tests) {
+    for (const id of idsOf(test)) {
+      byId.set(id, [...(byId.get(id) ?? []), test.status]);
+    }
   }
-}
 
-let covered = 0;
-for (const criterion of criteria.filter((entry) => CHECKS.get(entry.check))) {
-  const statuses = byId.get(criterion.id) ?? [];
-  if (statuses.length === 0) {
-    error(
-      `${criterion.id} (docs/aceite/${criterion.file}) não tem nenhum teste. ` +
-        `Escreva o teste e ponha @${criterion.id} no título dele. Se um teste foi apagado, restaure-o.`,
-    );
-  } else if (statuses.some((status) => status !== 'passed')) {
-    const state = statuses.includes('failed') ? 'falhou' : 'foi pulado';
-    error(`${criterion.id}: um teste com o ID dele ${state}. Um critério só é coberto por teste que rodou e passou.`);
-  } else {
-    covered += 1;
-    console.log(`${criterion.id}: coberto por ${statuses.length} teste(s).`);
+  for (const id of byId.keys()) {
+    if (!known.has(id)) {
+      error(
+        `um teste cita @${id}, que não está em nenhum arquivo de aceite. ` +
+          'Confira o ID digitado ou acrescente o critério ao arquivo de aceite do ticket.',
+      );
+    }
   }
+
+  let covered = 0;
+  for (const criterion of criteria.filter((entry) => CHECKS.get(entry.check)?.test)) {
+    const statuses = byId.get(criterion.id) ?? [];
+    if (statuses.length === 0) {
+      error(
+        `${criterion.id} (docs/aceite/${criterion.file}) não tem nenhum teste. ` +
+          `Escreva o teste e ponha @${criterion.id} no título dele. Se um teste foi apagado, restaure-o.`,
+      );
+    } else if (statuses.some((status) => status !== 'passed')) {
+      const state = statuses.includes('failed') ? 'falhou' : 'foi pulado';
+      error(`${criterion.id}: um teste com o ID dele ${state}. Um critério só é coberto por teste que rodou e passou.`);
+    } else {
+      covered += 1;
+      console.log(`${criterion.id}: coberto por ${statuses.length} teste(s).`);
+    }
+  }
+
+  if (errors.length === 0) {
+    console.log(`\nAceite: ${covered} critério(s) com teste, todos cobertos por teste que passou.`);
+  }
+  finish();
 }
 
-if (errors.length === 0) {
-  console.log(`\nAceite: ${covered} critério(s) com teste, todos cobertos por teste que passou.`);
-}
-finish();
+if (require.main === module) main(process.argv.slice(2));
+
+module.exports = { parseAcceptanceFile, CHECKS };

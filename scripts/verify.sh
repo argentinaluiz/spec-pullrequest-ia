@@ -13,8 +13,13 @@
 #                                                  modo completo aprovou o que está no último commit
 #   scripts/verify.sh apps                         as apps registradas, uma por linha
 #   scripts/verify.sh contract [<de> [<para>]]     a visão legível do contrato e do schema entre dois
-#                                                  commits; sem <para>, até a pasta de trabalho, e
-#                                                  sem nenhum, do HEAD até ela (a parada do plano)
+#                                                  commits, em Markdown; sem <para>, até a pasta de
+#                                                  trabalho, e sem nenhum, do HEAD até ela
+#   scripts/verify.sh plan <ticket> [<commit>]     a página de revisão do plano do ticket, gravada em
+#                                                  docs/tickets/<ticket>/plano.html; sem <commit>, do
+#                                                  HEAD até o que está preparado no índice, com a
+#                                                  mensagem proposta em docs/tickets/<ticket>/plano.msg
+#                                                  (a parada do plano), e com ele, do commit de plano
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
@@ -48,19 +53,19 @@ BASE_REF="${HARNESS_BASE_REF:-origin/main}"
 HEAD_REF="${HARNESS_HEAD_REF:-}"
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/aceite)
-# O que o modo completo grava fica na pasta do Git, fora do versionamento. O caminho é absoluto,
-# para o aviso do desvio apontá-lo.
+# O estado interno da verificação (as aprovações) fica na pasta do Git, fora do versionamento, onde
+# ninguém precisa lê-lo.
 HARNESS_DIR="$(git rev-parse --absolute-git-dir)/harness"
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
-# Onde o modo completo grava a visão do desvio do contrato em relação ao commit de plano, para o
-# revisor ler.
-DRIFT_FILE="$HARNESS_DIR/contract-drift.txt"
+# A pasta de cada ticket, fora do versionamento. O que fica nela está no docs/harness.md, etapa 7.
+TICKETS_DIR=docs/tickets
 
 failures=()
 
 usage() {
-  sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
+  # O cabeçalho deste arquivo, até a primeira linha em branco.
+  sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -82,6 +87,14 @@ abort() {
   printf '\nNÃO VERIFICADO: %s\n' "$1" >&2
   printf 'Como resolver: %s\n' "$2" >&2
   exit 2
+}
+
+# Um comando que não verifica falhou: o erro e o que fazer, e devolve 1.
+# fail <erro> <como corrigir>
+fail() {
+  printf '\n%s\n' "$1" >&2
+  printf 'Como corrigir: %s\n' "$2" >&2
+  return 1
 }
 
 # step <nome> <como corrigir> <comando...>
@@ -128,24 +141,63 @@ wait_for() {
   return 1
 }
 
-# Roda os testes do harness: os do conferidor e do renderizador do contrato no contêiner `api`, que
-# tem o Node, e os do hook de congelamento na máquina. Os scripts e os testes deles chegam ao
-# contêiner pela entrada padrão, como o resto, porque o contêiner só enxerga a pasta da própria app.
+# Roda o Node no contêiner `api`, que o tem e só enxerga a pasta da própria app. Os scripts do
+# harness (scripts/*.cjs e scripts/test/*.cjs) e o conteúdo da <pasta de dados> chegam pela entrada
+# padrão, num tar, em reports/<subpasta>/ da API, que começa vazia; o Node roda de lá, com os
+# <argumentos> (o script como arquivo, como `scripts/plan-page.cjs`, e os dele).
+# node_in_api <subpasta> <pasta de dados, ou vazio> <argumentos do node...>
+node_in_api() {
+  local subdir="$1" data="$2"
+  shift 2
+  local files=(scripts/*.cjs scripts/test/*.cjs)
+  [[ -n "$data" ]] && files+=(-C "$data" .)
+  tar -c "${files[@]}" |
+    in_container api sh -c 'dir="reports/$1" && shift && rm -rf "$dir" && mkdir -p "$dir" && tar -x -C "$dir" && cd "$dir" && exec node "$@"' \
+      sh "$subdir" "$@"
+}
+
+# Roda os testes do harness: os do conferidor, do renderizador do contrato e da página do plano no
+# contêiner `api`, e os do hook de congelamento na máquina.
 harness_tests() {
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
-  # lerem; o repórter `spec` segue na saída, para quem lê o log.
-  tar -c scripts/check-acceptance.cjs scripts/contract-view.cjs scripts/test |
-    in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination=node-tests.json scripts/test/*.test.cjs' &&
+  # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
+  # relativos aqui e no contêiner, então a lista sai daqui.
+  node_in_api harness "" --test --test-reporter=spec --test-reporter-destination=stdout \
+    --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination=node-tests.json \
+    scripts/test/*.test.cjs &&
     check_report api vitest reports/harness/node-tests.json &&
     # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
     scripts/test/freeze-acceptance.test.sh
 }
 
-# O arquivo de aceite citado na seção "Aceite" do corpo do pull request. Lê o corpo que o
-# `acceptance` já entregou ao contêiner `api`, com o mesmo conferidor. Não imprime nada quando não
-# há corpo e quando a seção diz "nenhum".
+# O arquivo de aceite citado na seção "Aceite" do corpo do pull request, lido pelo mesmo conferidor,
+# do corpo que o `acceptance` já entregou ao contêiner `api` (em reports/acceptance/). Não imprime
+# nada quando não há corpo e quando a seção diz "nenhum".
 cited_acceptance() {
-  in_container api node - --cited reports/acceptance/pr-body.md <scripts/check-acceptance.cjs
+  node_in_api cited "" scripts/check-acceptance.cjs --cited ../acceptance/pr-body.md
+}
+
+# ticket_dir <ticket>
+ticket_dir() {
+  printf '%s/%s' "$TICKETS_DIR" "$1"
+}
+
+# O `git diff` que a página do plano e a visão do contrato leem: sem cor nem diff externo, com os
+# prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for a configuração do Git
+# de quem roda (`diff.noprefix`, `diff.mnemonicPrefix`, `core.quotePath`), para o scripts/plan-page.cjs
+# achar o arquivo de cada trecho.
+# plain_diff <argumentos do git diff...>
+plain_diff() {
+  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
+}
+
+# O commit mais recente de <commits> (um intervalo ou um ponto, como no `git log`) que criou o
+# <arquivo>. Não imprime nada quando nenhum o criou, e falha quando o `git log` não lê o histórico.
+# added_by <commits> <arquivo>
+added_by() {
+  local commits
+  commits="$(git log --diff-filter=A --format=%H "$1" -- "$2")" || return 1
+  printf '%s' "${commits%%$'\n'*}"
 }
 
 # O commit de plano: o mais recente da branch que criou o arquivo de aceite, que é o plano em
@@ -153,15 +205,14 @@ cited_acceptance() {
 # sem commit). Falha quando o `git log` não lê o histórico da branch.
 # plan_commit <arquivo de aceite>
 plan_commit() {
-  local commits
-  commits="$(git log --diff-filter=A --format=%H "$BASE_REF..${HEAD_REF:-HEAD}" -- "$1")" || return 1
-  printf '%s' "${commits%%$'\n'*}"
+  added_by "$BASE_REF..${HEAD_REF:-HEAD}" "$1"
 }
 
 # O desvio do plano, comparado pelo grupo de cada app que declara <app>_contract_drift. Cada uma
-# acrescenta a própria visão ao DRIFT_FILE, que o `run_full` limpa no começo. Só avisa: nunca falha.
+# acrescenta a própria visão ao contract-drift.txt da pasta do ticket, que o `run_full` apaga no
+# começo. Depois do `acceptance`, que entrega o corpo do PR ao contêiner. Só avisa: nunca falha.
 contract_drift() {
-  local file plan app
+  local file plan app drift
   if [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
     echo "HARNESS_HEAD_REF aponta \`$HEAD_REF\`, que não é um commit deste clone, e o desvio não foi conferido. Aponte o commit da branch, ou deixe a variável vazia para comparar com a pasta de trabalho."
   elif ! file="$(cited_acceptance)"; then
@@ -173,9 +224,10 @@ contract_drift() {
   elif [[ -z "$plan" ]]; then
     echo "Não há commit de plano para comparar: nenhum commit desta branch criou o $file, citado na seção \"Aceite\" do corpo do PR."
   else
+    drift="$(ticket_dir "$(basename "$file" .md)")/contract-drift.txt"
     for app in "${APPS[@]}"; do
       if declare -F "${app}_contract_drift" >/dev/null; then
-        "${app}_contract_drift" "$plan" "$HEAD_REF"
+        "${app}_contract_drift" "$plan" "$HEAD_REF" "$drift"
       fi
     done
   fi
@@ -186,7 +238,7 @@ contract_drift() {
 # pull request e a cobertura dos critérios de todos os tickets. A seção só é exigida quando a
 # branch altera código em apps/.
 acceptance() {
-  local mode=--optional app ref spec report target body="${ACCEPTANCE_BODY_FILE:-}" specs=()
+  local mode=--optional app ref spec report name dir code error body="${ACCEPTANCE_BODY_FILE:-}" specs=()
   # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
   # do commit, e a tabela não pode passar como "não exigida" só por isso.
   if [[ -n "$body" ]] && [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
@@ -194,27 +246,33 @@ acceptance() {
     mode=--required
   fi
 
-  # O conferidor roda no contêiner `api`, que só enxerga a própria pasta. O corpo do PR e os
-  # relatórios de cada app chegam a ele pela entrada padrão, sem depender da permissão da pasta.
-  in_container api sh -c 'mkdir -p reports/acceptance && cat >reports/acceptance/pr-body.md' \
-    <"${body:-/dev/null}" || return 1
-  tar -c -C docs aceite |
-    in_container api sh -c 'rm -rf reports/acceptance/aceite && tar -x -C reports/acceptance' || return 1
-  # O relatório dos testes do harness fica no contêiner `api`, onde o conferidor também roda.
-  specs+=(vitest:reports/harness/node-tests.json)
+  # O conferidor roda no contêiner `api` (`node_in_api`), sobre uma pasta com o corpo do PR, os
+  # arquivos de aceite e os relatórios de cada app. Um relatório que não pôde ser copiado fica de
+  # fora, com o erro da cópia e o que fazer, e o conferidor reprova dizendo qual. O corpo fica em
+  # reports/acceptance/ para o `contract_drift`.
+  dir="$(mktemp -d)" || return 1
+  cp "${body:-/dev/null}" "$dir/pr-body.md" && cp -R docs/aceite "$dir/aceite" || { rm -rf "$dir"; return 1; }
+  # O relatório dos testes do harness já está no contêiner `api`, em reports/harness/.
+  specs+=(vitest:../harness/node-tests.json)
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
     for spec in "${!ref}"; do
       report="${spec#*:}"
-      target="reports/acceptance/$app-$(basename "$report")"
-      in_container "$app" cat "$report" |
-        in_container api sh -c "cat >'$target'" || return 1
-      specs+=("${spec%%:*}:$target")
+      name="$app-$(basename "$report")"
+      # O relatório vai para o arquivo, e o erro do `docker` ou do `cat`, para a variável.
+      if ! error="$(in_container "$app" cat "$report" 2>&1 >"$dir/$name")"; then
+        rm -f "$dir/$name"
+        printf '\nO relatório %s não pôde ser copiado do contêiner `%s`: %s\n' "$report" "$app" "${error:-sem mensagem de erro.}" >&2
+        printf 'Como corrigir: se o contêiner não está no ar, suba o ambiente com `%s up -d --build --wait`; se o relatório não existe, a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `scripts/verify.sh full` de novo.\n' "${COMPOSE[*]}" >&2
+      fi
+      specs+=("${spec%%:*}:$name")
     done
   done
 
-  in_container api node - "$mode" reports/acceptance/pr-body.md reports/acceptance/aceite "${specs[@]}" \
-    <scripts/check-acceptance.cjs
+  node_in_api acceptance "$dir" scripts/check-acceptance.cjs "$mode" pr-body.md aceite "${specs[@]}"
+  code=$?
+  rm -rf "$dir"
+  return $code
 }
 
 require_base() {
@@ -292,7 +350,7 @@ run_full() {
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
     "confira se o repositório do Git está íntegro, com \`git status\`."
   # A visão do desvio também é desta execução: uma interrompida não deixa uma antiga para o revisor.
-  rm -f "$APPROVAL_FILE" "$DRIFT_FILE"
+  rm -f "$APPROVAL_FILE" "$TICKETS_DIR"/*/contract-drift.txt
 
   for app in "${APPS[@]}"; do
     "${app}_full"
@@ -323,6 +381,90 @@ require_commit() {
   git rev-parse --verify --quiet "$1^{commit}" >/dev/null ||
     abort "\`$1\` não é um commit deste repositório." \
       "passe um commit, uma branch ou uma tag existente, como \`HEAD\` ou \`origin/main\`."
+}
+
+# Monta a página de revisão do plano de <ticket> e a grava na pasta dele. Sem <commit>, as fontes vão
+# do HEAD até o que está preparado no índice, que é o que o commit de plano vai levar, e a mensagem é
+# a proposta, em plano.msg; com ele, vão do pai do commit de plano até ele, e a mensagem é a dele. As
+# fontes são juntadas aqui, onde estão o `git` e o `oasdiff`, e o scripts/plan-page.cjs monta a
+# página no contêiner `api`, que tem o Node. O desenho está no docs/harness.md, etapa 7.
+# run_plan <ticket> [<commit>]
+run_plan() {
+  local ticket="$1" commit="${2:-}" dir page msg work sources from to origin pending found
+  [[ "$ticket" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
+    abort "\`$ticket\` não é o identificador de um ticket." "passe o identificador do Linear, como \`LUI-146\`."
+  dir="$(ticket_dir "$ticket")"
+  page="$dir/plano.html"
+  msg="$dir/plano.msg"
+  require_container api
+  work="$(mktemp -d)" || abort "não deu para criar uma pasta temporária." "confira o espaço em disco e as permissões do diretório temporário."
+  # shellcheck disable=SC2064 # o caminho é fixado agora, e não quando o trap roda.
+  trap "rm -rf '$work'" EXIT
+  sources="$work/fontes"
+  mkdir "$sources"
+
+  if [[ -z "$commit" ]]; then
+    [[ -f "$msg" ]] ||
+      fail "Falta a mensagem proposta do commit de plano, em $msg." \
+        "escreva a mensagem nesse caminho, no formato do AGENTS.md da raiz (seção \"Arquivo de aceite\"), e rode \`scripts/verify.sh plan $ticket\` de novo." ||
+      return
+    # O `git commit -F` limpa a mensagem como o `git stripspace`: ela é regravada já limpa, para a
+    # página mostrar o que vai entrar no commit.
+    git stripspace <"$msg" >"$sources/plano.msg" && cp "$sources/plano.msg" "$msg" ||
+      abort "não deu para limpar a mensagem proposta em $msg." "confira se o arquivo pode ser lido e escrito."
+    from=HEAD
+    to="$(git write-tree)" ||
+      abort "não deu para ler o que está preparado no índice." "termine o merge ou o rebase em andamento e confira o índice com \`git status\`."
+    origin="Montada do índice, sobre o HEAD $(git rev-parse --short HEAD), com a mensagem proposta em $msg."
+    # A página e o commit de plano leem só o índice: o que está só na pasta de trabalho, nos caminhos
+    # do plano, fica de fora dos dois. Avisa, aqui e no topo da página, sem falhar.
+    pending="$(git -c core.quotePath=false status --porcelain=v1 --untracked-files=all -- \
+      docs "$API_SNAPSHOT" "$API_SCHEMA" ":(exclude)$TICKETS_DIR" | grep '^.[^ ]')"
+    if [[ -n "$pending" ]]; then
+      printf '%s\n' "$pending" >"$sources/pendentes.txt"
+      printf '\nAVISO: há mudanças fora do índice nos caminhos do plano, e a página e o commit de plano leem só o índice:\n%s\n' "$pending" >&2
+      printf 'Prepare-as com `git add`, ou desfaça-as, e rode `scripts/verify.sh plan %s` de novo.\n\n' "$ticket" >&2
+    fi
+  else
+    require_commit "$commit"
+    git rev-parse --verify --quiet "$commit^" >/dev/null ||
+      abort "o commit \`$commit\` não tem pai, e a página compara o commit de plano com o anterior a ele." "passe o commit de plano do ticket."
+    # O commit de plano é o que criou o arquivo de aceite do ticket.
+    if [[ -z "$(git diff-tree -r --name-only --diff-filter=A "$commit^" "$commit" -- "docs/aceite/$ticket.md")" ]]; then
+      found="$(added_by HEAD "docs/aceite/$ticket.md")"
+      if [[ -n "$found" ]]; then
+        abort "o commit \`$commit\` não é o commit de plano do $ticket: ele não cria o docs/aceite/$ticket.md." \
+          "passe o commit que o criou: \`scripts/verify.sh plan $ticket $(git rev-parse --short "$found")\`."
+      fi
+      abort "o commit \`$commit\` não é o commit de plano do $ticket: ele não cria o docs/aceite/$ticket.md, e nenhum commit do HEAD o cria." \
+        "passe o commit de plano do ticket, que cria o arquivo de aceite; antes do commit de plano, rode \`scripts/verify.sh plan $ticket\`, sem o commit."
+    fi
+    from="$(git rev-parse --short "$commit^")"
+    to="$(git rev-parse --short "$commit")"
+    origin="Montada do commit de plano $to."
+    # A mensagem do commit, byte a byte: o que vem depois do cabeçalho do objeto.
+    git cat-file commit "$commit" | sed '1,/^$/d' >"$sources/plano.msg"
+  fi
+
+  printf '%s\n' "$ticket" >"$sources/ticket"
+  printf '%s\n' "$origin" >"$sources/origem"
+  git show "$to:docs/aceite/$ticket.md" >"$sources/aceite.md" 2>/dev/null || rm -f "$sources/aceite.md"
+  api_plan_sources "$from" "$to" "$sources" ||
+    fail "As fontes da API não puderam ser juntadas: o erro está acima." \
+      "corrija o que ele aponta (num snapshot ilegível, o JSON de $API_SNAPSHOT, no ponto que o oasdiff mostra) e rode \`scripts/verify.sh plan $ticket\` de novo." ||
+    return
+  # Os documentos: tudo o que o plano muda fora do próprio aceite, do snapshot e do schema, que têm
+  # aba própria. O aceite de outro ticket aparece aqui.
+  plain_diff "$from" "$to" -- . ":(exclude)docs/aceite/$ticket.md" \
+    ":(exclude)$API_SNAPSHOT" ":(exclude)$API_SCHEMA" >"$sources/documentos.diff"
+
+  node_in_api plan-page "$sources" scripts/plan-page.cjs . >"$work/plano.html" ||
+    fail "A página do plano não pôde ser montada: o erro do scripts/plan-page.cjs está acima." \
+      "corrija o scripts/plan-page.cjs, ou a fonte que ele aponta, e rode \`scripts/verify.sh plan $ticket\` de novo." ||
+    return
+  mkdir -p "$dir"
+  mv "$work/plano.html" "$page"
+  printf 'Página do plano do %s gravada em %s.\n%s\n' "$ticket" "$page" "$origin"
 }
 
 mode="${1:-}"
@@ -376,11 +518,16 @@ case "$mode" in
     require_commit "$from"
     [[ -z "$to" ]] || require_commit "$to"
     require_container api
-    if ! api_contract_view "$from" "$to"; then
-      printf '\nComo corrigir: corrija o JSON de apps/api/openapi.json no ponto que o oasdiff aponta acima e rode `scripts/verify.sh contract` de novo.\n' >&2
-      exit 1
-    fi
-    exit 0
+    api_contract_view "$from" "$to" ||
+      fail "A visão do contrato não pôde ser montada: o erro está acima." \
+        "corrija o que ele aponta (num snapshot ilegível, o JSON de $API_SNAPSHOT, no ponto que o oasdiff mostra) e rode \`scripts/verify.sh contract\` de novo."
+    exit $?
+    ;;
+  plan)
+    # A página não é verificação: não aprova nada. Como a visão, ela é a do contrato da API.
+    [[ $# -ge 1 && $# -le 2 ]] || usage
+    run_plan "$@"
+    exit $?
     ;;
   *) usage ;;
 esac
