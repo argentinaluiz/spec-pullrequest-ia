@@ -119,7 +119,7 @@ test('lê cada bloco da mensagem do rótulo até o próximo rótulo ou as linhas
   const message = [
     'docs: plan the item copy (PROJ-123)',
     '',
-    'Acceptance file docs/tickets/PROJ-123/aceite.md (CA1-CA2).',
+    'Acceptance file docs/tickets/PROJ-1/PROJ-123/aceite.md (CA1-CA2).',
     '',
     'Decision: the copy reserves quota before writing.',
     '',
@@ -245,11 +245,11 @@ test('a linha de comando lê as fontes em pares terminados por NUL na entrada pa
   const sources = {
     ticket: 'PROJ-123',
     origin: ORIGIN,
-    acceptancePath: 'docs/tickets/PROJ-123/aceite.md',
+    acceptancePath: 'docs/tickets/PROJ-1/PROJ-123/aceite.md',
     acceptance: ACCEPTANCE,
     docsDiff: '',
     message: 'docs: plan (PROJ-123)\n\nDecision: a cópia reserva a cota.\n',
-    pending: ' M docs/lld.md\n?? docs/tickets/PROJ-124/aceite.md',
+    pending: ' M docs/lld.md\n?? docs/tickets/PROJ-1/PROJ-124/aceite.md',
   };
 
   const result = cli(['-'], pairs(sources));
@@ -257,7 +257,7 @@ test('a linha de comando lê as fontes em pares terminados por NUL na entrada pa
   const { pending, ...rest } = sources;
   assert.equal(result.stdout, build({ ...rest, pending: pending.split('\n') }));
   assert.match(text(panel(result.stdout, 'aceite')), /PROJ-123-CA1 documento Dado o LLD/);
-  assert.match(result.stdout, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/tickets\/PROJ-124\/aceite\.md<\/code><\/li>/);
+  assert.match(result.stdout, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/tickets\/PROJ-1\/PROJ-124\/aceite\.md<\/code><\/li>/);
   assert.match(text(panel(result.stdout, 'contrato')), /^O projeto não declara contrato\.$/);
 
   // Uma entrada que não termina num par completo é recusada.
