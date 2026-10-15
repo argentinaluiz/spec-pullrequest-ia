@@ -43,6 +43,26 @@ test("abrir uma página protegida sem Sessão leva à tela de entrar e, depois d
   await expectSignedInAs(page, email);
 });
 
+test("o campo do destino já está no formulário de entrar quando o botão aparece, e não chega depois", async ({
+  page,
+}) => {
+  await page.goto("/entrar?destino=%2F%3Forigem%3Dteste", {
+    waitUntil: "commit",
+  });
+  const form = page.locator("form", {
+    has: page.getByRole("button", { name: "Entrar" }),
+  });
+  await expect(form).toBeVisible();
+
+  // Lido na hora, sem esperar: um envio rápido leva o que está no formulário agora.
+  const hidden = await form.evaluate(
+    (element) =>
+      (element.querySelector('input[name="destino"]') as HTMLInputElement | null)
+        ?.value ?? null,
+  );
+  expect(hidden).toBe("/?origem=teste");
+});
+
 for (const destination of [
   "https://example.com/roubo",
   "//example.com/roubo",
