@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 #
-# Hook de fim de turno do Claude Code (evento Stop). Quando o agente tenta encerrar o turno com
-# código alterado numa das apps registradas no scripts/verify.sh, roda o modo rápido dele nas apps
-# alteradas. Se falhar, devolve a saída ao agente, que continua o trabalho. O desenho está no
-# docs/harness.md.
+# Hook de fim de turno do Claude Code (evento Stop). Quando o agente tenta encerrar o turno, roda
+# o modo rápido do scripts/verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
+# arquivos, por sessão, é o record-touched.sh. Cada sessão só responde pelos arquivos dela: o erro
+# que outra sessão deixou no mesmo clone não bloqueia este turno, só avisa. Se falhar num arquivo da
+# sessão, devolve a saída ao agente, que continua o trabalho. O desenho, inclusive o limite da edição
+# por shell, que não é anotada, está no docs/harness.md, seção "Hook de fim de turno".
 #
 # Sai com 0 para deixar o turno encerrar e com 2 para bloquear. No 2, o que foi escrito na
 # saída de erro volta para o agente.
+#
+# A variável HARNESS_VERIFY troca o scripts/verify.sh, e só os testes do hook a usam: ela só vale
+# com a HARNESS_TEST=1, que os testes também definem.
 
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
@@ -14,15 +19,40 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 # Depois de tantos bloqueios seguidos, o hook deixa o turno encerrar e avisa o usuário,
 # para um erro que o agente não consegue corrigir não virar um laço sem fim.
 MAX_BLOCKS=3
-BASE_REF="${HARNESS_BASE_REF:-origin/main}"
+VERIFY="scripts/verify.sh"
+[[ "${HARNESS_TEST:-}" == 1 && -n "${HARNESS_VERIFY:-}" ]] && VERIFY="$HARNESS_VERIFY"
 
-# O hook recebe um JSON pela entrada padrão. Só o identificador da sessão interessa.
-session="$(jq -r '.session_id // empty' 2>/dev/null || true)"
-session="${session:-sem-sessao}"
+# Sem a sessão, ou sem o `jq` para lê-la, nada foi anotado nem pode ser conferido. Não bloqueia, mas
+# também não passa calado: o aviso diz que a verificação não rodou.
+UNATTRIBUTABLE="Hook de fim de turno: não foi possível atribuir a sessão (identificador ausente, inválido ou sem o jq na máquina), então nada foi verificado. O modo completo do verify.sh confere a árvore inteira."
+unattributable() {
+  jq -n --arg message "$UNATTRIBUTABLE" '{systemMessage: $message}' 2>/dev/null ||
+    printf '{"systemMessage": "%s"}\n' "$UNATTRIBUTABLE"
+  exit 0
+}
+
+# O hook recebe um JSON pela entrada padrão. Só o identificador da sessão interessa, e ele entra no
+# nome dos arquivos de estado, então só vale com letras, dígitos, `_` e `-`.
+command -v jq >/dev/null 2>&1 || unattributable
+session="$(jq -r '.session_id | select(type == "string" and test("\\A[A-Za-z0-9_-]+\\z"))' 2>/dev/null || true)"
+[[ "$session" =~ ^[A-Za-z0-9_-]+$ ]] || unattributable
 
 state_dir="$(git rev-parse --git-dir)/harness"
 mkdir -p "$state_dir"
 blocks_file="$state_dir/stop-blocks-$session"
+touched_file="$state_dir/touched-$session"
+
+# A data do registro é a do último uso: a sessão em uso não some na limpeza.
+[[ -s "$touched_file" ]] && touch "$touched_file"
+
+# Os estados com mais de sete dias são de sessões que acabaram.
+find "$state_dir" -maxdepth 1 -type f \( -name 'touched-*' -o -name 'fast-ok-*' -o -name 'stop-blocks-*' \) -mtime +7 -delete 2>/dev/null
+
+# Sem arquivo anotado pela sessão, não há o que verificar: o turno encerra sem rodar nada.
+if [[ ! -s "$touched_file" ]]; then
+  rm -f "$blocks_file"
+  exit 0
+fi
 
 # Bloqueia o encerramento e devolve a mensagem ao agente, até o limite de MAX_BLOCKS.
 #   block <resumo de uma linha> <como resolver, em uma linha> <detalhe para o agente>
@@ -49,39 +79,32 @@ block() {
   exit 2
 }
 
-# "Alterado" é a diferença entre a base da branch e a pasta de trabalho, mais os arquivos novos.
-# Assim, o código que o agente já commitou no mesmo turno também conta.
-# Sem a base, só o que não foi commitado apareceria, e o código já commitado na branch ficaria
-# sem verificação. Por isso a falta dela bloqueia, em vez de cair para o HEAD.
-base="$(git merge-base HEAD "$BASE_REF" 2>/dev/null)" ||
-  block "não deu para achar a base da branch em relação a \`$BASE_REF\`" \
-    "Rode \`git fetch origin\`. Se a referência tem outro nome neste clone, defina a variável HARNESS_BASE_REF." \
-    ""
-
-changed_files() {
-  git diff --name-only "$base" -- "apps/$1"
-  git ls-files --others --exclude-standard -- "apps/$1"
+# Os arquivos que a sessão anotou nesta app, só os que ainda existem, ordenados e sem repetição.
+touched_in() {
+  local file
+  [[ -f "$touched_file" ]] || return 0
+  while IFS= read -r file; do
+    [[ -f "$file" ]] && printf '%s\n' "$file"
+  done < <(awk -v prefix="apps/$1/" 'index($0, prefix) == 1' "$touched_file" | sort -u)
 }
 
-# Resumo do estado do projeto. Se ele é o mesmo da última verificação aprovada, não há o que
-# verificar de novo, e um turno que só mexeu em documento não paga o custo.
+# Resumo do conteúdo dos arquivos que a sessão anotou na app. Se ele é o mesmo da última verificação
+# aprovada, não há o que verificar de novo.
 fingerprint() {
-  {
-    git diff "$base" -- "apps/$1"
-    git ls-files --others --exclude-standard -z -- "apps/$1" | xargs -0 -r sha256sum
-  } | sha256sum | cut -d' ' -f1
+  touched_in "$1" | xargs -d '\n' -r sha256sum | sha256sum | cut -d' ' -f1
 }
+
 
 # Sem a lista, nenhuma app seria verificada e o turno passaria calado. Por isso a falha bloqueia.
-apps="$(scripts/verify.sh apps)" ||
+apps="$("$VERIFY" apps)" ||
   block "não deu para ler a lista de apps do scripts/verify.sh" \
     "Rode \`scripts/verify.sh apps\` e corrija o erro." \
     ""
 
 projects=()
 for project in $apps; do
-  [[ -z "$(changed_files "$project")" ]] && continue
-  [[ "$(cat "$state_dir/fast-ok-$project" 2>/dev/null)" == "$(fingerprint "$project")" ]] && continue
+  [[ -z "$(touched_in "$project")" ]] && continue
+  [[ "$(cat "$state_dir/fast-ok-$session-$project" 2>/dev/null)" == "$(fingerprint "$project")" ]] && continue
   projects+=("$project")
 done
 
@@ -90,20 +113,89 @@ if [[ ${#projects[@]} -eq 0 ]]; then
   exit 0
 fi
 
-output="$(scripts/verify.sh fast "${projects[@]}" 2>&1)"
+output="$("$VERIFY" fast "${projects[@]}" 2>&1)"
 status=$?
 
 if [[ $status -eq 0 ]]; then
   for project in "${projects[@]}"; do
-    fingerprint "$project" >"$state_dir/fast-ok-$project"
+    fingerprint "$project" >"$state_dir/fast-ok-$session-$project"
   done
   rm -f "$blocks_file"
   exit 0
 fi
 
-# O fim da saída traz o resumo do que falhou e como corrigir.
-block "a verificação rápida de ${projects[*]} não passou" \
-  "Rode \`scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
-  "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
+# Os caminhos dos ERROS (avisos não contam) de um trecho da saída, como a ferramenta os escreve, só
+# para os passos de formato conhecido. Os demais (testes, build, tipos de rota) não dão caminho, e a
+# falha deles bloqueia. Relativos à pasta da app, ou absolutos no contêiner, onde a app fica em /app.
+#   error_paths <nome do passo> <trecho da saída>
+# - `tipos` (tsc): `caminho(linha,coluna): error TS...`
+# - `lint` (oxlint): um bloco que começa com `x ` é erro, e `!` é aviso; o caminho vem em `,-[caminho:linha:coluna]`
+# - `lint` (eslint): o caminho sozinho na linha, e depois os problemas dele, `linha:coluna  error` ou `warning`
+# Limite: caminho com espaço não é reconhecido, e a falha dele bloqueia por não ter atribuição.
+error_paths() {
+  case "${1#*: }" in
+    tipos) sed -nE 's/^([^ (]+)\([0-9]+,[0-9]+\): error TS.*/\1/p' <<<"$2" ;;
+    lint)
+      awk '
+        /^ +x /  { err = 1; next }
+        /^ +! /  { err = 0; next }
+        /^ *,-\[/ {
+          if (err) { path = $0; sub(/^ *,-\[/, "", path); sub(/:[0-9]+:[0-9]+\].*$/, "", path); print path }
+          next
+        }
+        /^\/?[^ ]+\.(ts|tsx|js|jsx|mjs|cjs)$/ { file = $0; next }
+        /^ +[0-9]+:[0-9]+ +error / { if (file != "") print file }
+      ' <<<"$2"
+      ;;
+  esac | sed -E 's#^/app/##; s#^\./##' | sort -u
+}
+
+# Os nomes dos passos que falharam, do resumo `REPROVADO` no fim da saída.
+failed_steps() {
+  sed -n '/^REPROVADO/,$p' <<<"$output" | sed -n 's/^- //p'
+}
+
+# O trecho da saída de um passo, do `=== nome` até o próximo.
+step_output() {
+  awk -v header="=== $1" '/^=== /{ on = ($0 == header) } on' <<<"$output"
+}
+
+# Diz se algum erro está num arquivo que a sessão anotou, ou se uma falha não tem arquivo a que
+# atribuí-la. Um passo que falhou sem caminho de erro conta como bloqueio, para não passar uma falha
+# que ninguém sabe de quem é. Imprime o motivo e sai com 0 quando é para bloquear.
+blocking_reason() {
+  local step path project steps paths
+  steps="$(failed_steps)"
+  [[ -z "$steps" ]] && { echo "não deu para atribuir a falha a um arquivo, porque a saída não traz o resumo dos passos que falharam"; return 0; }
+  while IFS= read -r step; do
+    # O prefixo do nome do passo (`API:`, `Web:`) diz de qual app é o erro, e o caminho só vale nela.
+    project="${step%%:*}"
+    project="${project,,}"
+    [[ " ${projects[*]} " == *" $project "* ]] || { echo "não deu para atribuir o passo \"$step\" a uma app verificada"; return 0; }
+    paths="$(error_paths "$step" "$(step_output "$step")")"
+    [[ -z "$paths" ]] && { echo "não deu para atribuir a falha do passo \"$step\" a um arquivo"; return 0; }
+    while IFS= read -r path; do
+      grep -qxF -- "apps/$project/$path" "$touched_file" && { echo "há erro em arquivo que a sessão editou"; return 0; }
+    done <<<"$paths"
+  done <<<"$steps"
+  return 1
+}
+
+if reason="$(blocking_reason)"; then
+  # O fim da saída traz o resumo do que falhou e como corrigir.
+  block "a verificação rápida de ${projects[*]} não passou" \
+    "Rode \`scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
+    "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
+Motivo do bloqueio: $reason.
 
 $(echo "$output" | tail -n 80)"
+fi
+
+# Todos os erros estão em arquivos que a sessão não editou: de outra sessão no mesmo clone, ou de um
+# arquivo que depende do que esta sessão mudou. Não bloqueia, e a aprovação não é gravada.
+rm -f "$blocks_file"
+jq -n \
+  --arg message "Hook de fim de turno: a verificação rápida de ${projects[*]} falhou só em arquivos que esta sessão não tocou. Podem ser de outra sessão no mesmo clone, ou de um arquivo que depende do que você mudou. O turno encerrou, e o modo completo do verify.sh confere esses arquivos." \
+  '{systemMessage: $message}' ||
+  printf '{"systemMessage": "Hook de fim de turno: a verificação rápida falhou só em arquivos que esta sessão não tocou. O modo completo confere esses arquivos."}\n'
+exit 0

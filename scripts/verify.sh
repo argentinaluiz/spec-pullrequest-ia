@@ -196,14 +196,17 @@ harness_tests() {
     --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     scripts/test/*.test.cjs "$PLAN_SKILL_SCRIPTS"/test/*.test.cjs &&
     check_report api vitest "$HARNESS_REPORT" &&
-    # Os hooks usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na
-    # máquina: os testes deles rodam aqui.
+    # Os hooks (o do congelamento, o do push, o que anota os arquivos da sessão e o de fim de turno)
+    # usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na máquina:
+    # os testes deles rodam aqui.
     scripts/test/freeze-acceptance.test.sh &&
     scripts/test/plan-page.test.sh &&
     scripts/test/verify-plan.test.sh &&
     scripts/test/harness-guard.test.sh &&
     scripts/test/push-verify.test.sh &&
-    scripts/test/full-lock.test.sh
+    scripts/test/full-lock.test.sh &&
+    scripts/test/record-touched.test.sh &&
+    scripts/test/stop-verify.test.sh
 }
 
 # Falha, dizendo por quê, quando o ACCEPTANCE_BODY_FILE aponta para um arquivo que não existe. Sem

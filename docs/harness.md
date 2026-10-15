@@ -170,27 +170,36 @@ A regra não cobre o que o agente faz por comando de shell: um redirecionamento 
 
 A CI dá o veredito, mas leva minutos. O hook traz os checks rápidos para dentro do laço do agente, sem depender de ele lembrar da definição de pronto.
 
-O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `Stop` do Claude Code, que dispara quando o agente tenta encerrar o turno.
+O `.claude/settings.json` registra o `.claude/hooks/stop-verify.sh` no evento `Stop` do Claude Code, que dispara quando o agente tenta encerrar o turno. Ele só responde pelos arquivos que a própria sessão editou, anotados por um segundo hook, o `.claude/hooks/record-touched.sh`, registrado no evento `PostToolUse` das ferramentas `Edit`, `Write` e `MultiEdit`.
 
 | Situação ao encerrar o turno | O que o hook faz |
 | --- | --- |
-| Nenhum código alterado nas apps registradas | Nada |
-| Código alterado, igual ao da última verificação aprovada | Nada |
-| Código alterado e ainda não verificado | Roda `scripts/verify.sh fast` nas apps alteradas |
+| A sessão não editou arquivo em `apps/` | Nada, sem rodar verificação |
+| Os arquivos que a sessão editou na app têm o conteúdo da última verificação aprovada | Nada |
+| Arquivos editados pela sessão, ainda não verificados | Roda `scripts/verify.sh fast` nas apps desses arquivos |
 | A verificação passa | Deixa o turno encerrar e guarda o estado aprovado |
-| A verificação falha | Bloqueia o encerramento e devolve a saída ao agente, que continua |
+| A verificação falha em arquivo que a sessão editou | Bloqueia o encerramento e devolve a saída ao agente, que continua |
+| A verificação falha só em arquivos que a sessão não editou | Deixa o turno encerrar e mostra um aviso ao usuário, sem guardar o estado aprovado |
+| Uma falha não tem arquivo a que atribuí-la (um passo sem caminho de erro, ou uma saída sem o resumo dos passos) | Bloqueia, e diz que não deu para atribuí-la |
+| A sessão não pode ser atribuída (`session_id` ausente ou inválido, ou o `jq` ausente) | Não bloqueia, mas mostra um aviso ao usuário de que nada foi verificado |
 | Os contêineres estão fora do ar | Bloqueia, com a instrução de subir o ambiente |
-| A base da branch não é encontrada (falta a `origin/main` no clone) | Bloqueia, com a instrução de buscar a referência |
 | A lista de apps não pode ser lida do script | Bloqueia |
 | Três bloqueios seguidos na mesma sessão | Deixa o turno encerrar e mostra um aviso ao usuário |
 
 - **Quais apps:** as do registro `APPS`, que o hook lê com `scripts/verify.sh apps`. Uma app nova entra no hook sem mexer nele.
-- **O que conta como alterado:** a diferença entre a base da branch (o ponto em que ela saiu da `origin/main`) e a pasta de trabalho, mais os arquivos novos. Assim, o código que o agente commitou no mesmo turno também é verificado.
-- **Por que guardar o estado aprovado:** numa branch com código alterado, um turno que só mexe em documento fora das apps não precisa pagar a verificação de novo. Um documento dentro da pasta de uma app, como o `AGENTS.md` dela, conta como mudança na app. O hook guarda um resumo do estado de cada projeto na pasta `.git`, fora do versionamento.
-- **Falha fechada:** com código alterado e os contêineres fora do ar, o hook bloqueia, em vez de passar calado.
-- **Limite de três bloqueios:** um erro que o agente não consegue corrigir viraria um laço sem fim. Depois do terceiro bloqueio seguido, o turno encerra e o usuário vê um aviso de que a verificação continua falhando. É o único ponto em que o hook deixa passar uma falha, e ela continua sendo pega pela CI.
+- **Por que por sessão:** vários agentes podem trabalhar no mesmo clone, e o erro de tipo ou de lint que um deixa na pasta de trabalho bloquearia o turno de outro que não tem relação com ele. Cada sessão responde só pelo que editou.
+- **O registro:** o `record-touched.sh` grava, em `harness/touched-<sessão>` na pasta `.git`, o caminho de cada arquivo de `apps/` que a sessão editou, relativo à raiz, uma linha por arquivo e sem repetição. O caminho é normalizado para a forma que as ferramentas imprimem (sem `./`, `/./` nem o prefixo absoluto da raiz, que vem do `git rev-parse --show-toplevel`). Arquivo fora de `apps/` não entra, e um segmento `..` (travessia) também não; `foo..bar.ts` é um nome válido. O `session_id` entra no nome do arquivo, então só vale com letras, dígitos, `_` e `-` nos dois hooks: com outro formato, o registro não anota nada. Um subagente traz o mesmo `session_id` da sessão que o chamou, mais o `agent_id`, então as edições dele vão para o arquivo da sessão. O hook lê o `file_path` da entrada, e os `file_path` de cada edição do `MultiEdit`; nunca bloqueia nem falha a ferramenta (sai sempre com 0) e é rápido, porque roda a cada edição.
+- **Limite aceito:** edição por comando de shell (`sed`, `mv`, um gerador) não é anotada, e o hook de fim de turno não a vê. O modo completo confere a árvore inteira e pega o que ficou de fora.
+- **O que bloqueia:** o hook lê o caminho de cada erro na saída do `fast`, só nos passos de formato conhecido: os passos `tipos` (linhas `caminho(linha,coluna): error TS` do `tsc`) e `lint` (blocos do `oxlint` na API, que começam com `x ` quando são erro e com `!` quando são aviso, e os do `eslint` na web, com a linha `error` ou `warning`). Só erro conta: um aviso num arquivo da sessão nunca bloqueia. Os caminhos são relativos à pasta da app ou absolutos no contêiner. O prefixo do nome do passo (`API:`, `Web:`) diz a qual app o erro pertence, e o caminho só se compara com os arquivos que a sessão registrou nessa app. Um passo de outro formato (testes, build, tipos de rota) que falha não dá caminho nenhum e bloqueia, porque a falha não tem arquivo a que atribuí-la. Limite: caminho com espaço não é reconhecido, e a falha dele bloqueia pelo mesmo motivo. Um erro em arquivo registrado bloqueia, na mesma mensagem de antes. Se todos estão em outros arquivos, o turno encerra com um aviso: o erro é de outra sessão, ou de um arquivo que depende do que a sessão mudou, e o modo completo o confere. O aviso não grava a aprovação.
+- **Por que guardar o estado aprovado:** um turno que não mudou o conteúdo dos arquivos da sessão não precisa pagar a verificação de novo. O hook guarda, em `harness/fast-ok-<sessão>-<app>`, o resumo do conteúdo dos arquivos da sessão na app; o arquivo registrado que deixou de existir sai da conta, e uma app sem arquivo existente não é verificada. O código que o agente commitou no mesmo turno também conta, porque o resumo é do conteúdo, e não do que está em commit.
+- **Sessão que não dá para atribuir:** sem `session_id` válido, ou sem o `jq`, o hook não tem o que conferir. Ele não bloqueia nem falha calado: mostra um `systemMessage` dizendo que a sessão não foi atribuída e que nada foi verificado.
+- **Limpeza:** a cada execução, o hook apaga da pasta `harness` os `touched-*`, os `fast-ok-*` e os `stop-blocks-*` com mais de sete dias, de sessões que acabaram. Em cada execução que usa o registro da sessão, ele dá `touch` no `touched-<sessão>`, então a data do arquivo é a do último uso e o registro de uma sessão ativa não some.
+- **A trava do modo completo continua do clone inteiro, de propósito:** a reprovação repetida do `full` é do conjunto da árvore, e não de uma sessão ("Trava das reprovações repetidas").
+- **Falha fechada:** com arquivo editado e os contêineres fora do ar, o hook bloqueia, em vez de passar calado.
+- **Limite de três bloqueios:** um erro que o agente não consegue corrigir viraria um laço sem fim. Depois do terceiro bloqueio seguido, o turno encerra e o usuário vê um aviso de que a verificação continua falhando. É um dos pontos em que o hook deixa passar uma falha, e ela continua sendo pega pela CI.
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
-- **Fora:** hook a cada edição de arquivo (o código fica quebrado no meio de uma mudança, e o hook viraria ruído), suítes de teste no hook (lentas) e hook de Git (redundante com a CI e contornável com `--no-verify`).
+- **Testes:** `scripts/test/record-touched.test.sh` testa o registro (o que entra e o que não, a normalização do caminho, o `session_id` inválido, a ausência de repetição, o `MultiEdit`, o subagente e a saída sempre 0). `scripts/test/stop-verify.test.sh` testa o hook de fim de turno em dois ou mais cenários de sessão, num repositório temporário, com o `scripts/verify.sh` trocado por um falso, pela variável `HARNESS_VERIFY` do hook, que só os testes usam: o hook só a honra com `HARNESS_TEST=1`, que os testes também definem, e a ignora sem ela. As duas rodam na máquina, como as demais suítes em shell, no passo "Testes do harness".
+- **Fora:** hook de verificação a cada edição de arquivo (o código fica quebrado no meio de uma mudança, e a verificação viraria ruído; o `record-touched.sh` só anota, sem verificar), suítes de teste no hook (lentas) e hook de Git (redundante com a CI e contornável com `--no-verify`).
 
 ## Aceite
 
@@ -284,7 +293,7 @@ O passo a passo que o agente segue está no `AGENTS.md` da raiz, seção "Antes 
 - **Limite:** o hook reconhece o `git push` pelo texto do comando, quando ele está no começo de uma linha ou depois de `;`, `&`, `|` ou `(`. Um push embrulhado em outro programa, como `sh -c`, não é reconhecido. No sentido contrário, um texto que tenha `git push` no começo de uma linha, como o corpo de um PR, é conferido como se fosse um push.
 - **Limite:** o hook confere o último commit da pasta do projeto. Um push de outra branch ou de outro repositório, feito no mesmo comando, é conferido contra esse commit.
 - **Limite:** a aprovação fica na máquina. Em outro clone, ou depois de apagar a pasta `.git/harness`, o modo completo precisa rodar de novo.
-- **A pasta `.git/harness` é só do estado interno:** as aprovações do modo completo (`full-ok`) e do hook de fim de turno (`fast-ok-*`), o contador de bloqueios do hook enquanto ele bloqueia e a trava do modo completo (`full-lock`, "Trava das reprovações repetidas"), que ninguém precisa ler. O hook nega ao agente o comando que cite essa pasta ("Trava das reprovações repetidas"). O que o humano e o revisor leem fica na pasta do ticket (etapa 7, "Página de revisão do plano").
+- **A pasta `.git/harness` é só do estado interno:** as aprovações do modo completo (`full-ok`) e do hook de fim de turno (`fast-ok-*`), o registro de arquivos por sessão (`touched-*`), o contador de bloqueios do hook enquanto ele bloqueia e a trava do modo completo (`full-lock`, "Trava das reprovações repetidas"), que ninguém precisa ler. O hook nega ao agente o comando que cite essa pasta ("Trava das reprovações repetidas"). O que o humano e o revisor leem fica na pasta do ticket (etapa 7, "Página de revisão do plano").
 - **Limite:** o hook confere o arquivo do corpo do PR que o agente apontou, e não o corpo que ele publica depois. Se os dois divergirem, a CI reprova.
 - **Só o Claude Code:** outro agente não dispara este hook. Para ele, valem a instrução do `AGENTS.md` e a CI.
 
