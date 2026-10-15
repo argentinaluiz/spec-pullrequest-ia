@@ -100,7 +100,8 @@ test("a lista mostra nome, tipo, tamanho e data, e \"Carregar mais\" acrescenta 
   await expect(rows).toHaveCount(50);
   // O texto que está na tela: a segunda linha sob o nome só aparece no celular.
   await expect(rows.first().getByRole("cell")).toHaveText(
-    ["Contrato de locação.pdf", "PDF", "2,4 MB", "12 out. 2026"],
+    // A última célula é a do botão "Mais ações", que só tem ícone.
+    ["Contrato de locação.pdf", "PDF", "2,4 MB", "12 out. 2026", ""],
     { useInnerText: true },
   );
   await expect(rows.last()).toContainText("relatorio-049.txt");

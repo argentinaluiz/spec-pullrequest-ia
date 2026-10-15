@@ -72,7 +72,7 @@ services:
       # O banco da API que a web usa, para os testes gravarem Itens como preparação até o
       # upload existir (apps/web/AGENTS.md, "Testes no navegador").
       DATABASE_URL: postgresql://app:app@postgres:5432/app
-      # A API, para os testes alcançarem a rota de apoio do storage (/v1/dev/storage).
+      # A API, para os testes criarem o envio e pedirem a URL de leitura (POST /uploads e GET /items/{id}/download-url).
       API_URL: http://api:3000
     depends_on:
       # Usa a `node_modules` que o contêiner `web` instala.

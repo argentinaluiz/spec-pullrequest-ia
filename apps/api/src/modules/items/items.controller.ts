@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/auth/auth.guard.js';
 import { CurrentUserId } from '../../common/auth/current-user-id.decorator.js';
 import { ApiProblem } from '../../common/openapi/api-problem.decorator.js';
+import { DownloadUrlDto } from './dto/download-url.dto.js';
 import { ItemListDto } from './dto/item-list.dto.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -31,5 +32,16 @@ export class ItemsController {
       limit: query.limit ?? DEFAULT_PAGE_SIZE,
       cursor: query.cursor,
     });
+  }
+
+  @Get(':id/download-url')
+  @ApiOkResponse({ type: DownloadUrlDto })
+  @ApiProblem(401, 'unauthenticated')
+  @ApiProblem(404, 'not_found')
+  downloadUrl(
+    @Param('id') id: string,
+    @CurrentUserId() userId: string,
+  ): Promise<DownloadUrlDto> {
+    return this.items.downloadUrl(userId, id);
   }
 }

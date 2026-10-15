@@ -6,10 +6,9 @@ import {
   CreateUploadSessionInput,
   FileStorage,
   SignReadUrlInput,
+  SignedReadUrl,
   StorageUnavailableError,
 } from './file-storage.js';
-
-const DEFAULT_READ_URL_TTL_SECONDS = 5 * 60;
 
 /** O erro do SDK que diz que o objeto não existe. */
 function isNotFound(error: unknown): boolean {
@@ -87,19 +86,24 @@ export class GcsFileStorage implements FileStorage {
     }
   }
 
-  async signReadUrl(input: SignReadUrlInput): Promise<string> {
-    const expiresInSeconds =
-      input.expiresInSeconds ?? DEFAULT_READ_URL_TTL_SECONDS;
+  async signReadUrl(input: SignReadUrlInput): Promise<SignedReadUrl> {
+    // O mesmo instante abre e conta a validade: sem ele, o SDK lê o relógio de novo, e o
+    // `X-Goog-Expires` pode sair um segundo menor que o pedido.
+    const signedAt = new Date();
+    const expiresAt = new Date(
+      signedAt.getTime() + input.expiresInSeconds * 1000,
+    );
     try {
       const [url] = await this.bucket.file(input.objectName).getSignedUrl({
         version: 'v4',
         action: 'read',
-        expires: Date.now() + expiresInSeconds * 1000,
+        accessibleAt: signedAt,
+        expires: expiresAt,
         responseDisposition: attachmentDisposition(input.fileName),
         // Com o emulador, a URL já sai com a origem que o navegador alcança.
         host: this.config.publicUrl,
       });
-      return url;
+      return { url, expiresAt };
     } catch (error) {
       throw new StorageUnavailableError({ cause: error });
     }

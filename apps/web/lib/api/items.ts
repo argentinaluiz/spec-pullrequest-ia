@@ -1,6 +1,6 @@
 import "server-only";
 import { apiRequest } from "@/lib/api/client";
-import type { ApiResult, ItemPage } from "@/lib/api/types";
+import type { ApiResult, DownloadUrl, ItemPage } from "@/lib/api/types";
 
 /* As rotas de Itens (docs/lld.md, seção 3.3). */
 
@@ -11,4 +11,14 @@ export function listRootChildren(
 ): Promise<ApiResult<ItemPage>> {
   const search = cursor ? `?${new URLSearchParams({ cursor })}` : "";
   return apiRequest(`/items/root/children${search}`, { accessToken });
+}
+
+/** A URL assinada de leitura de um arquivo ativo do Usuário, com o nome original no download. */
+export function getItemDownloadUrl(
+  accessToken: string,
+  id: string,
+): Promise<ApiResult<DownloadUrl>> {
+  return apiRequest(`/items/${encodeURIComponent(id)}/download-url`, {
+    accessToken,
+  });
 }

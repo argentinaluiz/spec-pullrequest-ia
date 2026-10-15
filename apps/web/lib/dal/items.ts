@@ -1,6 +1,6 @@
 import "server-only";
-import { listRootChildren } from "@/lib/api/items";
-import type { ApiResult, ItemPage } from "@/lib/api/types";
+import { getItemDownloadUrl, listRootChildren } from "@/lib/api/items";
+import type { ApiResult, DownloadUrl, ItemPage } from "@/lib/api/types";
 import { withSession } from "@/lib/dal/session";
 
 /**
@@ -10,4 +10,9 @@ import { withSession } from "@/lib/dal/session";
  */
 export function getRootItems(cursor?: string): Promise<ApiResult<ItemPage>> {
   return withSession((token) => listRootChildren(token, cursor));
+}
+
+/** A URL assinada de download de um arquivo do Usuário da Sessão. */
+export function getDownloadUrl(id: string): Promise<ApiResult<DownloadUrl>> {
+  return withSession((token) => getItemDownloadUrl(token, id));
 }

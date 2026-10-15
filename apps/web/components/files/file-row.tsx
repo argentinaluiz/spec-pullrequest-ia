@@ -1,4 +1,6 @@
 import {
+  Download,
+  EllipsisVertical,
   File,
   FileMusic,
   FileText,
@@ -8,6 +10,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { FileKind, FileRowData } from "@/components/files/format";
+import { buttonIconClassName } from "@/components/ui/button-icon";
+import { Menu, MenuLink } from "@/components/ui/menu";
 
 /** O ícone de cada tipo, que é como os tipos se distinguem. */
 export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
@@ -23,7 +27,8 @@ export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
 /**
  * O `{component.file-row}`: ícone do tipo, nome, tipo, tamanho e data. As colunas saem da
  * direita para a esquerda conforme a largura diminui, e o tamanho e a data vão para uma
- * segunda linha, sob o nome. Seleção e o menu de ações entram com as funcionalidades donas.
+ * segunda linha, sob o nome. Uma linha de arquivo tem o menu "Mais ações", só com "Baixar"; a de
+ * pasta não tem, porque ainda não há ação de pasta. A seleção entra com a funcionalidade dela.
  */
 export function FileRow({ row }: { row: FileRowData }) {
   const Icon = FILE_KIND_ICONS[row.kind];
@@ -59,6 +64,22 @@ export function FileRow({ row }: { row: FileRowData }) {
         className="hidden w-35 shrink-0 text-right font-mono text-mono text-ink-muted tabular-nums md:block"
       >
         {row.modifiedAt}
+      </div>
+      <div role="cell" className="flex size-11 shrink-0 items-center justify-center lg:size-9">
+        {row.kind !== "folder" && (
+          // O menu é de cliente, e a linha continua no servidor: os ícones atravessam a
+          // fronteira como elementos, já renderizados.
+          <Menu
+            label="Mais ações"
+            triggerClassName={buttonIconClassName(36)}
+            trigger={<EllipsisVertical className="size-5" />}
+            widthClassName="w-55"
+          >
+            <MenuLink icon={<Download />} href={`/arquivos/${row.id}/baixar`}>
+              Baixar
+            </MenuLink>
+          </Menu>
+        )}
       </div>
     </div>
   );

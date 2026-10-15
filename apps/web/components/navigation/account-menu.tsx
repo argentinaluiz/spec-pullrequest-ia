@@ -28,7 +28,7 @@ export function AccountMenu({ email, logout }: AccountMenuProps) {
       </MenuHeader>
       <MenuSeparator />
       <form action={logout}>
-        <MenuItem type="submit" icon={LogOut}>
+        <MenuItem type="submit" icon={<LogOut />}>
           Sair
         </MenuItem>
       </form>

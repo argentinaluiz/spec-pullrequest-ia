@@ -45,3 +45,9 @@ export interface NewPendingFile {
   mimeType: string;
   objectKey: string;
 }
+
+/** A URL assinada de leitura de um arquivo e o instante em que ela vence. */
+export interface DownloadUrl {
+  url: string;
+  expiresAt: Date;
+}

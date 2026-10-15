@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { signIn } from "./support/account";
 import { uniqueEmail } from "./support/mailpit";
 import { accessTokenOf } from "./support/session";
-import { completeUpload, createUpload, signReadUrl } from "./support/storage";
+import { completeUpload, createUpload, downloadUrlOf } from "./support/storage";
 
 const CHUNK = 256 * 1024;
 
@@ -78,6 +78,7 @@ test.describe("Emulador de storage", () => {
     const { itemId, uploadUrl } = await createUpload(accessToken, {
       sizeBytes: content.length,
       mimeType: "application/pdf",
+      name: "relatório.pdf",
     });
     const status = await page.evaluate(
       async ({ url, body }) =>
@@ -85,7 +86,7 @@ test.describe("Emulador de storage", () => {
       { url: uploadUrl, body: content },
     );
     await completeUpload(accessToken, itemId);
-    const readUrl = await signReadUrl(itemId, "relatório.pdf");
+    const readUrl = await downloadUrlOf(accessToken, itemId);
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),

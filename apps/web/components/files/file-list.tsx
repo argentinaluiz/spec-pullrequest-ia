@@ -31,6 +31,11 @@ export function FileList({ label, children }: FileListProps) {
           <div role="columnheader" className="hidden w-35 shrink-0 text-right md:block">
             Modificado em
           </div>
+          {/* A coluna do "Mais ações": sem texto na tela, mas com nome, para o cabeçalho ter
+              tantas colunas quanto as linhas. */}
+          <div role="columnheader" className="size-11 shrink-0 lg:size-9">
+            <span className="sr-only">Ações</span>
+          </div>
         </div>
       </div>
       {children}

@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { v7 as uuidv7 } from 'uuid';
 import { Prisma } from '../../generated/prisma/client.js';
 import {
+  FILE_STORAGE,
+  type FileStorage,
+} from '../../infra/storage/file-storage.js';
+import {
+  DownloadUrl,
   FileUpload,
   ItemPage,
   NewPendingFile,
@@ -14,12 +19,18 @@ import { ItemsRepository } from './items.repository.js';
 /** O atalho da Pasta raiz do Usuário, aceito no lugar do id de uma pasta. */
 const ROOT_ALIAS = 'root';
 
+/** Validade da URL de download: 5 minutos (seção 3.4 do docs/lld.md). */
+const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
+
 /**
  * Service público do módulo de itens, dono dos Itens e da Pasta raiz.
  */
 @Injectable()
 export class ItemsService {
-  constructor(private readonly items: ItemsRepository) {}
+  constructor(
+    private readonly items: ItemsRepository,
+    @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+  ) {}
 
   /**
    * Uma página dos filhos ativos da pasta, pastas primeiro e depois por nome.
@@ -80,6 +91,24 @@ export class ItemsService {
     db: Prisma.TransactionClient,
   ): Promise<{ createdAt: Date }> {
     return this.items.createPendingFile(file, db);
+  }
+
+  /**
+   * A URL assinada de leitura de um arquivo ativo do Usuário, com o nome do
+   * arquivo no `Content-Disposition`. Pasta, item `pending`, de outro Usuário,
+   * inexistente ou com id que não é UUID é `not_found`.
+   */
+  async downloadUrl(ownerId: string, id: string): Promise<DownloadUrl> {
+    const file = await this.findFile(ownerId, id);
+    if (file?.status !== 'active') {
+      throw new ItemNotFoundError();
+    }
+    const signed = await this.storage.signReadUrl({
+      objectName: file.objectKey,
+      fileName: file.name,
+      expiresInSeconds: DOWNLOAD_URL_TTL_SECONDS,
+    });
+    return { url: signed.url, expiresAt: signed.expiresAt };
   }
 
   /** O arquivo `pending` ou `active` do Usuário, ou `null` (outro dono, inexistente ou id que não é UUID). */

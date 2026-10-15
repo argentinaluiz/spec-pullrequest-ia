@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { getSignedUrlOnEmulator } from '../../../test/support/storage-emulator.js';
 import { AppConfigModule } from '../../config/config.module.js';
 import { storageConfig } from '../../config/storage.config.js';
 import { FILE_STORAGE, FileStorage } from './file-storage.js';
@@ -60,50 +60,26 @@ describe('Storage de arquivos no emulador', () => {
     expect(await storage.getObjectSize(`ca2/${randomUUID()}`)).toBeNull();
   });
 
-  /** GET com o `Host` do endereço público, que o `fetch` não deixa definir. */
-  function getFromEmulator(signedUrl: string) {
-    const url = new URL(signedUrl);
-    const emulator = new URL(config.emulatorHost!);
-    return new Promise<{
-      status: number;
-      headers: Record<string, string | string[] | undefined>;
-      body: Buffer;
-    }>((resolve, reject) => {
-      const req = request(
-        {
-          hostname: emulator.hostname,
-          port: emulator.port,
-          path: `${url.pathname}${url.search}`,
-          headers: { Host: url.host },
-        },
-        (res) => {
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () =>
-            resolve({
-              status: res.statusCode ?? 0,
-              headers: res.headers,
-              body: Buffer.concat(chunks),
-            }),
-          );
-        },
-      );
-      req.on('error', reject);
-      req.end();
-    });
-  }
-
   it('assina uma URL de leitura que devolve os bytes do objeto, com o nome do arquivo @LUI-165-CA3', async () => {
     const objectName = `ca3/${randomUUID()}`;
     await putObject(objectName, 'ola!!');
+    const signedAt = Date.now();
 
-    const signedUrl = await storage.signReadUrl({
+    const { url: signedUrl, expiresAt } = await storage.signReadUrl({
       objectName,
       fileName: 'relatório.pdf',
+      expiresInSeconds: 120,
     });
-    const response = await getFromEmulator(signedUrl);
+    const response = await getSignedUrlOnEmulator(
+      config.emulatorHost,
+      signedUrl,
+    );
 
     expect(new URL(signedUrl).origin).toBe(config.publicUrl);
+    expect(new URL(signedUrl).searchParams.get('X-Goog-Expires')).toBe('120');
+    expect(Math.abs(expiresAt.getTime() - signedAt - 120 * 1000)).toBeLessThan(
+      5_000,
+    );
     expect(response.status).toBe(200);
     expect(response.body.toString()).toBe('ola!!');
     expect(response.headers['content-disposition']).toBe(

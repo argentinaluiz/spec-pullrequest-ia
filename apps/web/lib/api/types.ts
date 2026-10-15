@@ -124,3 +124,10 @@ export interface Upload {
   /** ISO 8601. */
   expiresAt: string;
 }
+
+/** A URL assinada de leitura de um arquivo. Vale 5 minutos e nunca entra no HTML. */
+export interface DownloadUrl {
+  url: string;
+  /** ISO 8601. */
+  expiresAt: string;
+}

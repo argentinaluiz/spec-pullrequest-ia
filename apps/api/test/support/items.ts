@@ -30,6 +30,16 @@ export function itemRoutes(app: INestApplication<App>) {
       : call;
   };
 
+  /** `GET /items/{id}/download-url`, com o token de acesso no cabeçalho quando ele é passado. */
+  const downloadUrl = (id: string, accessToken?: string) => {
+    const call = request(app.getHttpServer()).get(
+      `/v1/items/${id}/download-url`,
+    );
+    return accessToken
+      ? call.set('Authorization', `Bearer ${accessToken}`)
+      : call;
+  };
+
   /**
    * O id da Pasta raiz do Usuário. Ela nasce pelo caminho real, a primeira
    * listagem pelo atalho `root`, e só então é lida no banco.
@@ -78,5 +88,5 @@ export function itemRoutes(app: INestApplication<App>) {
     return rows.map((row) => row.id);
   };
 
-  return { listChildren, rootId, seed };
+  return { listChildren, downloadUrl, rootId, seed };
 }

@@ -326,7 +326,7 @@ O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez
 | `GET /uploads/{itemId}` | | `itemId`, `uploadUrl`, `expiresAt`, para retomar um upload `pending` |
 | `POST /uploads/{itemId}/complete` | | O item, já `active` |
 | `DELETE /uploads/{itemId}` | | 204. Cancela e devolve o espaço. |
-| `GET /items/{id}/download-url` | `disposition` (`attachment` ou `inline`), opcional, com padrão `attachment` | `url`, `expiresAt` |
+| `GET /items/{id}/download-url` | | `url`, `expiresAt` |
 | `GET /items/{id}/thumbnail-url` | | `url`, `expiresAt`, ou 404 se não houver miniatura |
 
 - **Entrada do upload:** `name` de 1 a 255 caracteres, sem `/` nem caracteres de controle. `sizeBytes` de 0 a 5 GB: acima disso, `file_too_large`, antes de reservar a cota. `mimeType` vazio é gravado como `application/octet-stream`. `parentId` é uma pasta `active` do usuário, e aceita `root`.
@@ -469,7 +469,7 @@ A interface `FileStorage` (`src/infra/storage/`, token `FILE_STORAGE`) é a úni
 | Operação | O que faz |
 | --- | --- |
 | `createUploadSession` | Recebe o nome do objeto, o tipo MIME e a origem do frontend (`WEB_ORIGIN`), cria a sessão de upload retomável e devolve o endereço dela. A origem vai na criação porque o Cloud Storage amarra a sessão ao CORS dessa origem. |
-| `signReadUrl` | Recebe o nome do objeto, o nome do arquivo e a validade (padrão de 5 minutos). Devolve uma URL assinada (V4) de leitura, com o nome do arquivo no `response-content-disposition` (`attachment; filename*=UTF-8''…`). |
+| `signReadUrl` | Recebe o nome do objeto, o nome do arquivo e a validade, obrigatória: a interface não tem prazo padrão, e quem chama decide (o download usa 5 minutos, seção 3.4). Devolve uma URL assinada (V4) de leitura, com o nome do arquivo no `response-content-disposition` (`attachment; filename*=UTF-8''…`), e o `expiresAt`, contado do instante da assinatura. |
 | `getObjectSize` | Devolve o tamanho em bytes, ou `null` se o objeto não existe. O objeto só passa a existir quando o envio termina. |
 | `deleteObject` | Apaga o objeto. Um objeto que não existe não é erro. |
 | `cancelUploadSession` | Cancela uma sessão pelo endereço dela (`DELETE`, que o Cloud Storage responde com 499). Uma sessão que já terminou ou expirou não é erro. |
@@ -764,7 +764,7 @@ A API devolve uma URL assinada e com prazo por item (seção 3.4). Buscá-la na 
 - **O que cada uma faz:** confere a Sessão por `lib/dal`, pede a URL à API com os cookies e responde `302` para o Cloud Storage, com `Cache-Control: private, no-store`. Os bytes vão direto do Storage ao navegador, sem passar pela web.
 - **Miniatura:** a imagem da lista usa `loading="lazy"`, e a miniatura só é pedida quando entra na tela. Um item sem miniatura (404 da API) mostra o ícone do tipo de arquivo.
 - **A URL assinada nunca entra no HTML.** Só o caminho da web entra, e por isso não vence.
-- **Hoje existe só `/arquivos/[id]/baixar`.** Sem Sessão, o Proxy leva à tela de entrar, com a rota como destino. Com Sessão, a rota pede a URL à API e responde `302`. `not_found` da API (Item que não baixa) responde `404`; qualquer outro erro, `502`, e a Sessão não é encerrada. O link do menu da linha é `<a href="/arquivos/{id}/baixar">`, sem `target`: o `Content-Disposition: attachment` mantém a pessoa na lista.
+- **Hoje existe só `/arquivos/[id]/baixar`.** Sem Sessão, o Proxy leva à tela de entrar, com a rota como destino. Com Sessão, a rota pede a URL à API e responde `302`. `not_found` da API (Item que não baixa) responde `404`; qualquer outro erro, `502`, e a Sessão não é encerrada. Os dois levam uma frase curta em `text/plain`, para a página não ficar em branco. O link do menu da linha é `<a href="/arquivos/{id}/baixar">`, sem `target`: o `Content-Disposition: attachment` mantém a pessoa na lista.
 
 ### 7.6 Página pública do link
 

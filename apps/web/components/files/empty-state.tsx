@@ -13,7 +13,7 @@ type EmptyStateProps = {
  */
 export function EmptyState({ icon, title, children }: EmptyStateProps) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center">
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
       <div className="flex w-100 max-w-full flex-col items-center gap-4 px-4 py-12 text-center">
         <span className="text-ink-muted">{icon}</span>
         <div className="flex flex-col gap-2">

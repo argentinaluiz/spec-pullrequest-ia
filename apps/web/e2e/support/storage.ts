@@ -1,9 +1,8 @@
 import { requiredEnv } from "./env";
-import { withDatabase } from "./items";
 
 /*
  * As chamadas diretas à API que os testes do emulador de storage precisam: criam a sessão de
- * envio por `POST /uploads`, o mesmo caminho da tela, e conferem o tamanho pela conclusão.
+ * envio por `POST /uploads`, o mesmo caminho da tela, conferem o tamanho pela conclusão e pedem a URL de leitura.
  */
 
 async function api(
@@ -53,25 +52,14 @@ export async function completeUpload(
   };
 }
 
-/** A URL assinada de leitura do arquivo do Item, com o nome para o download. */
-export async function signReadUrl(
+/** A URL assinada de leitura do arquivo do Item, pedida à API como a rota de download faz. */
+export async function downloadUrlOf(
+  accessToken: string,
   itemId: string,
-  fileName: string,
 ): Promise<string> {
-  const objectName = await withDatabase(async (client) => {
-    const { rows } = await client.query<{ object_key: string }>(
-      "SELECT object_key FROM items WHERE id = $1",
-      [itemId],
-    );
-    return rows[0].object_key;
-  });
-  const query = new URLSearchParams({ objectName, fileName });
-  // Até o download existir (LUI-168), nenhuma rota entrega a URL: a rota de apoio a assina.
-  const response = await fetch(
-    `${requiredEnv("API_URL")}/v1/dev/storage/read-url?${query}`,
-  );
+  const response = await api(`/items/${itemId}/download-url`, accessToken);
   if (!response.ok) {
-    throw new Error(`A rota de apoio respondeu ${response.status}`);
+    throw new Error(`GET /items/{id}/download-url respondeu ${response.status}`);
   }
   return ((await response.json()) as { url: string }).url;
 }

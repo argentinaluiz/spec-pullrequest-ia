@@ -17,8 +17,14 @@ export interface SignReadUrlInput {
   objectName: string;
   /** Nome que o navegador sugere ao baixar o arquivo. */
   fileName: string;
-  /** Validade da URL, em segundos. O padrão é de 5 minutos. */
-  expiresInSeconds?: number;
+  /** Validade da URL, em segundos, contada do instante da assinatura. */
+  expiresInSeconds: number;
+}
+
+/** Uma URL assinada de leitura e o instante em que ela vence. */
+export interface SignedReadUrl {
+  url: string;
+  expiresAt: Date;
 }
 
 /**
@@ -28,8 +34,8 @@ export interface SignReadUrlInput {
 export interface FileStorage {
   /** Cria a sessão de upload retomável e devolve o endereço dela, que o navegador alcança. */
   createUploadSession(input: CreateUploadSessionInput): Promise<string>;
-  /** Devolve uma URL assinada de leitura, que baixa o objeto com o nome do arquivo. */
-  signReadUrl(input: SignReadUrlInput): Promise<string>;
+  /** Devolve uma URL assinada de leitura, que baixa o objeto com o nome do arquivo, e o vencimento dela. */
+  signReadUrl(input: SignReadUrlInput): Promise<SignedReadUrl>;
   /** Tamanho em bytes, ou `null` se o objeto não existe (o envio ainda não terminou). */
   getObjectSize(objectName: string): Promise<number | null>;
   /** Apaga o objeto. Um objeto que não existe não é erro. */
