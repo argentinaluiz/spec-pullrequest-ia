@@ -9,14 +9,17 @@
 // lê (formatos/contrato.md, "Saída do comando do contrato"): as seções `# Contrato` e `# Schema`, que
 // viram as abas de mesmo nome da página de revisão do plano.
 //
-// Roda dentro do contêiner `api` (ver o `api_contract_view`, no scripts/verify/api.sh), sobre a
-// pasta das fontes que o `api_contract_sources` grava:
-//   node contract-view.cjs <pasta das fontes>
-// A pasta traz `base.json` e `novo.json` (os snapshots), `changelog.txt` (o `oasdiff changelog`,
-// só quando os snapshots diferem) e `schema.diff` (o diff do schema do Prisma).
+// Roda dentro do contêiner `api` (ver o `api_contract_view`, no scripts/verify/api.sh), sobre as
+// fontes que o `api_contract_sources` junta na máquina e entrega pela entrada padrão:
+//   node contract-view.cjs -
+// A entrada tem o formato da entrada do construtor da página da skill de plano (o cabeçalho do
+// page.cjs dela, que a lê pelo mesmo `readSources`), com as fontes `base` e `novo` (o texto dos dois
+// snapshots), `changelog` (o `oasdiff changelog`, só quando os snapshots diferem) e `schemaDiff` (o
+// diff do schema do Prisma).
 
 const fs = require('node:fs');
-const path = require('node:path');
+
+const { readSources } = require('../.claude/skills/plan-ticket/scripts/page.cjs');
 
 // As frases e os títulos de seção da visão.
 const PHRASES = {
@@ -409,25 +412,17 @@ function render(base, head) {
   return `${changes.map((route) => section(route).join('\n\n')).join('\n\n')}\n`;
 }
 
-/** O leitor da pasta das fontes: devolve o texto de uma fonte, ou `null` quando ela não está lá. */
-function reader(dir) {
-  return (name) => (fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : null);
-}
-
 /** Uma nota de vazio, no formato da skill de plano: um parágrafo todo em itálico. */
 function note(text) {
   return `*${text}*`;
 }
 
 /**
- * A visão, a partir da pasta das fontes, no formato de saída do comando do contrato da skill de plano:
- * a seção `# Contrato`, com o changelog e o contrato das rotas, ou a nota de que o snapshot é o
- * mesmo, e a seção `# Schema`, com o diff do schema, ou a nota de que ele não muda.
+ * A visão, a partir das fontes, no formato de saída do comando do contrato da skill de plano: a seção
+ * `# Contrato`, com o changelog e o contrato das rotas, ou a nota de que o snapshot é o mesmo, e a
+ * seção `# Schema`, com o diff do schema, ou a nota de que ele não muda.
  */
-function view(dir) {
-  const read = reader(dir);
-  const changelog = read('changelog.txt');
-  const schemaDiff = read('schema.diff') ?? '';
+function view({ base, novo, changelog = null, schemaDiff = '' }) {
   const blocks = ['# Contrato'];
   if (changelog === null) {
     blocks.push(note(PHRASES.sameSnapshot));
@@ -436,22 +431,25 @@ function view(dir) {
       `## ${PHRASES.changelog}`,
       changelog.trim() ? `\`\`\`text\n${changelog.trimEnd()}\n\`\`\`` : note(PHRASES.emptyChangelog),
       `## ${PHRASES.routes}`,
-      render(JSON.parse(read('base.json')), JSON.parse(read('novo.json'))).trimEnd(),
+      render(JSON.parse(base), JSON.parse(novo)).trimEnd(),
     );
   }
   // O diff vai inteiro, só sem a quebra de linha do fim: uma linha de contexto em branco no fim dele
   // continua lá.
-  blocks.push('# Schema', schemaDiff.trim() ? `\`\`\`diff\n${schemaDiff.replace(/\n$/, '')}\n\`\`\`` : note(PHRASES.schemaUnchanged));
+  blocks.push(
+    '# Schema',
+    schemaDiff.trim() ? `\`\`\`diff\n${schemaDiff.replace(/\n$/, '')}\n\`\`\`` : note(PHRASES.schemaUnchanged),
+  );
   return `${blocks.join('\n\n')}\n`;
 }
 
 if (require.main === module) {
-  const [dir] = process.argv.slice(2);
-  if (!dir) {
-    console.error('Uso: node contract-view.cjs <pasta das fontes>');
+  const args = process.argv.slice(2);
+  if (args.length !== 1 || args[0] !== '-') {
+    console.error('Uso: node contract-view.cjs -  (as fontes, em pares nome e valor terminados por NUL, na entrada padrão)');
     process.exit(2);
   }
-  process.stdout.write(view(dir));
+  process.stdout.write(view(readSources(fs.readFileSync(0, 'utf8'))));
 }
 
 module.exports = { routeChanges, render };

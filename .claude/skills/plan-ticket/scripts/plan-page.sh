@@ -22,12 +22,13 @@
 # documentos do projeto. A pasta dos tickets fica sempre de fora. O resto da pasta de trabalho (um
 # arquivo solto na raiz, o trabalho em andamento fora desses caminhos) não entra no aviso.
 #
-# O comando do Node é chamado como `<comando> <script> <argumentos>`, da raiz do repositório e com os
-# caminhos relativos a ela (o do script vai absoluto quando a skill está fora do repositório), e
-# imprime o HTML na saída padrão. O comando do contrato é chamado como
-# `<comando> <de> <até>`, com dois pontos do Git (um commit, ou a árvore do índice), e imprime o
-# Markdown do contrato (formatos/contrato.md). Os arquivos do contrato são os donos dele (as rotas e
-# as tabelas), que têm aba própria e ficam fora da aba Documentos.
+# O comando do Node é chamado como `<comando> <script> -`, da raiz do repositório, com o caminho do
+# script relativo a ela (absoluto quando a skill está fora do repositório), e recebe as fontes da
+# página pela entrada padrão, no formato do cabeçalho do page.cjs; imprime o HTML na saída padrão.
+# Nenhuma fonte é gravada em arquivo, então o comando do Node só precisa enxergar o script. O comando
+# do contrato é chamado como `<comando> <de> <até>`, com dois pontos do Git (um commit, ou a árvore
+# do índice), e imprime o Markdown do contrato (formatos/contrato.md). Os arquivos do contrato são os
+# donos dele (as rotas e as tabelas), que têm aba própria e ficam fora da aba Documentos.
 #
 # Precisa só do `git` e do `bash`. Sai com 0 quando grava a página, 1 quando uma fonte falta ou um
 # comando do projeto falha e 2 quando um argumento falta ou não vale.
@@ -49,7 +50,7 @@ describe() {
     ticket) echo 'o identificador do ticket, como LUI-146' ;;
     aceite) echo 'a pasta dos arquivos de aceite' ;;
     tickets) echo 'a pasta dos tickets, fora do versionamento, onde a página é gravada' ;;
-    node) echo 'o comando do Node, chamado como `<comando> <script> <argumentos>`' ;;
+    node) echo 'o comando do Node, chamado como `<comando> <script> -`, com as fontes na entrada padrão' ;;
     contrato) echo 'o comando do contrato, chamado como `<comando> <de> <até>`, ou `nenhum`' ;;
     contrato-arquivos) echo 'os arquivos do contrato (os donos das rotas e das tabelas), separados por espaço' ;;
     documentos) echo 'a pasta dos documentos do projeto, cujas mudanças fora do índice entram no aviso' ;;
@@ -128,6 +129,12 @@ plain_diff() {
   git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
 }
 
+# A mensagem de um commit, byte a byte: o que vem depois do cabeçalho do objeto.
+# commit_message <commit>
+commit_message() {
+  git cat-file commit "$1" | sed '1,/^$/d'
+}
+
 # O `git status` curto, sem aspas nos caminhos com acento, de todos os arquivos, nos caminhos dados.
 # status <caminhos...>
 status() {
@@ -149,24 +156,36 @@ pending_changes() {
   status . ":(exclude)$tickets" | grep -Fx -f <(printf '%s\n' "$wanted")
 }
 
-# As fontes ficam numa pasta dentro da pasta do ticket, para o comando do Node recebê-las por um
-# caminho relativo à raiz, e saem no fim, com a página ou sem ela. A página é escrita ao lado delas,
-# fora da pasta que o comando do Node recebe, e só depois movida para o lugar dela, para uma montagem
-# que falha não deixar uma página pela metade.
-mkdir -p "$dir" || stop 2 "Não deu para criar a pasta do ticket, $dir." "confira as permissões da pasta $tickets."
-sources="$dir/fontes-da-pagina"
-draft="$dir/plano.html.parcial"
-# shellcheck disable=SC2064 # os caminhos são fixados agora, e não quando o trap roda.
-trap "rm -rf '$sources' '$draft'" EXIT
-rm -rf "$sources" && mkdir "$sources" || stop 2 "Não deu para criar a pasta das fontes, $sources." "confira as permissões da pasta $dir."
+# A saída de um comando, byte a byte, numa variável: a substituição de comando tiraria as quebras de
+# linha do fim, e o ponto impresso depois do comando as protege. Falha quando o comando falha.
+# capture <variável> <comando...>
+capture() {
+  local name="$1" out
+  shift
+  out="$("$@" && printf .)" || return 1
+  printf -v "$name" '%s' "${out%.}"
+}
 
+# A página é escrita num arquivo temporário na raiz da pasta dos tickets, para a pasta do ticket nunca
+# ter nada além da página e da mensagem proposta, e só no fim movida para o lugar dela, para uma
+# montagem que falha não deixar uma página pela metade. O `mktemp` cria o arquivo só para o dono; a
+# página ganha as permissões de um arquivo novo.
+mkdir -p "$dir" || stop 2 "Não deu para criar a pasta do ticket, $dir." "confira as permissões da pasta $tickets."
+draft="$(mktemp "$tickets/.plano-$ticket.XXXXXX")" ||
+  stop 2 "Não deu para criar o arquivo temporário da página em $tickets." "confira as permissões da pasta $tickets."
+# shellcheck disable=SC2064 # o caminho é fixado agora, e não quando o trap roda.
+trap "rm -f '$draft'" EXIT
+chmod "$(printf '%o' $((0666 & ~$(umask))))" "$draft" ||
+  stop 2 "Não deu para ajustar as permissões do arquivo temporário da página, $draft." "confira as permissões da pasta $tickets."
+
+pending=''
 if [[ -z "$commit" ]]; then
   [[ -f "$msg" ]] ||
     stop 1 "Falta a mensagem proposta do commit de plano, em $msg." \
       "escreva a mensagem nesse caminho, no formato da skill de plano (formatos/mensagem.md), e rode o script da página de novo."
   # O `git commit -F` limpa a mensagem como o `git stripspace`: ela é regravada já limpa, para a
   # página mostrar o que vai entrar no commit.
-  git stripspace <"$msg" >"$sources/plano.msg" && cp "$sources/plano.msg" "$msg" ||
+  capture message git stripspace <"$msg" && printf '%s' "$message" >"$msg" ||
     stop 2 "Não deu para limpar a mensagem proposta em $msg." "confira se o arquivo pode ser lido e escrito."
   from=HEAD
   to="$(git write-tree)" ||
@@ -176,7 +195,6 @@ if [[ -z "$commit" ]]; then
   # do `git status` da pasta de trabalho inteira, filtrado pelas quatro regras.
   pending="$(pending_changes)"
   if [[ -n "$pending" ]]; then
-    printf '%s\n' "$pending" >"$sources/pendentes.txt"
     printf '\nAVISO: há mudanças fora do índice nos caminhos do plano, e a página e o commit de plano leem só o índice:\n%s\n' "$pending" >&2
     printf 'Prepare-as com `git add`, ou desfaça-as, e rode o script da página de novo.\n\n' >&2
   fi
@@ -197,20 +215,21 @@ else
   from="$(git rev-parse --short "$commit^")"
   to="$(git rev-parse --short "$commit")"
   origin="Montada do commit de plano $to."
-  # A mensagem do commit, byte a byte: o que vem depois do cabeçalho do objeto.
-  git cat-file commit "$commit" | sed '1,/^$/d' >"$sources/plano.msg"
+  capture message commit_message "$commit" ||
+    stop 2 "Não deu para ler a mensagem do commit \`$commit\`." "confira o repositório com \`git status\`."
 fi
 
-printf '%s\n' "$ticket" >"$sources/ticket"
-printf '%s\n' "$origin" >"$sources/origem"
-printf '%s\n' "$acceptance" >"$sources/caminho-do-aceite"
-git show "$to:$acceptance" >"$sources/aceite.md" 2>/dev/null || rm -f "$sources/aceite.md"
+# As fontes do construtor da página, em pares nome e valor (o formato está no page.cjs). Só vão as
+# que existem: a que falta conta como ausente.
+sources=(ticket "$ticket" origin "$origin" acceptancePath "$acceptance")
+capture accepted git show "$to:$acceptance" 2>/dev/null && sources+=(acceptance "$accepted")
 
 # O contrato: o Markdown do comando do projeto, ou nada, quando o projeto declara `nenhum`.
 if [[ "$contrato" != nenhum ]]; then
-  project "$contrato" "$from" "$to" >"$sources/contrato.md" ||
+  capture contract project "$contrato" "$from" "$to" ||
     stop 1 "O comando do contrato (\`$contrato $from $to\`) falhou: o erro dele está acima." \
       "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no AGENTS.md, na lista da skill de plano."
+  sources+=(contract "$contract")
 fi
 
 # Os documentos: tudo o que o plano muda fora do próprio aceite e dos arquivos do contrato, que têm
@@ -219,10 +238,12 @@ excludes=(":(exclude)$acceptance")
 for file in ${contract_files[@]+"${contract_files[@]}"}; do
   excludes+=(":(exclude)$file")
 done
-plain_diff "$from" "$to" -- . "${excludes[@]}" >"$sources/documentos.diff" ||
+capture docs plain_diff "$from" "$to" -- . "${excludes[@]}" ||
   stop 2 "O \`git diff\` dos documentos de $from para $to falhou: o erro está acima." "confira o repositório com \`git status\`."
+sources+=(docsDiff "$docs" message "$message")
+[[ -n "$pending" ]] && sources+=(pending "$pending")
 
-project "$node" "$skill/page.cjs" "$sources" >"$draft" ||
+printf '%s\0' "${sources[@]}" | project "$node" "$skill/page.cjs" - >"$draft" ||
   stop 1 "A página do plano não pôde ser montada pelo comando do Node (\`$node\`): o erro está acima." \
     "corrija a fonte que ele aponta e rode o script da página de novo. Se o erro é do próprio comando, acerte o valor no AGENTS.md, na lista da skill de plano."
 mv "$draft" "$dir/plano.html" || stop 2 "Não deu para gravar a página em $dir/plano.html." "confira as permissões da pasta $dir."

@@ -3,15 +3,16 @@
 // e passado. Confere também a seção `## Aceite` do corpo do pull request. O desenho está no
 // docs/harness.md, e o formato do arquivo de aceite, na skill de plano (formatos/aceite.md).
 //
-// Roda dentro do contêiner `api` (ver o `node_in_api`, no scripts/verify.sh):
-//   node check-acceptance.cjs <--required|--optional> <corpo do PR> <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
-//   node check-acceptance.cjs --cited <corpo do PR>
-// O segundo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
+// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no scripts/verify.sh):
+//   node check-acceptance.cjs <--required|--optional> - <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
+//   node check-acceptance.cjs --cited -
+// O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. O
+// segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
 // plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
 // O parser do arquivo de aceite (`parseAcceptanceFile`) e as marcas (`CHECKS`) são os da skill de
 // plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de revisão do plano também usa:
-// os dois leem o aceite com as mesmas regras. O `node_in_api` leva a pasta da skill ao contêiner.
+// os dois leem o aceite com as mesmas regras.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -35,12 +36,6 @@ function finish() {
     process.exit(1);
   }
   process.exit(0);
-}
-
-/** Problema que impede de conferir o resto: registra e encerra o processo, sem retornar. */
-function fatal(message) {
-  error(message);
-  finish();
 }
 
 function normalize(text) {
@@ -136,24 +131,20 @@ function idsOf(test) {
 }
 
 /** A linha de comando: os dois modos do cabeçalho. */
-function main([mode, bodyFile, acceptDir, ...reportSpecs]) {
-  if (mode === '--cited' && bodyFile) {
-    const cited = fs.existsSync(bodyFile) && acceptSection(fs.readFileSync(bodyFile, 'utf8'))?.match(ACCEPTANCE_PATH);
+function main([mode, body, acceptDir, ...reportSpecs]) {
+  if (mode === '--cited' && body === '-') {
+    const cited = acceptSection(fs.readFileSync(0, 'utf8'))?.match(ACCEPTANCE_PATH);
     if (cited) console.log(`docs/aceite/${cited[1]}`);
     process.exit(0);
   }
 
-  if (!['--required', '--optional'].includes(mode) || !bodyFile || !acceptDir || reportSpecs.length === 0) {
+  if (!['--required', '--optional'].includes(mode) || body !== '-' || !acceptDir || reportSpecs.length === 0) {
     console.error(
-      'Uso: node check-acceptance.cjs <--required|--optional> <corpo do PR> <pasta de aceite> <tipo>:<relatório>...',
+      'Uso: node check-acceptance.cjs <--required|--optional> - <pasta de aceite> <tipo>:<relatório>...\n' +
+        '     node check-acceptance.cjs --cited -\n' +
+        'O corpo do PR vai pela entrada padrão.',
     );
     process.exit(2);
-  }
-
-  // Sem corpo de PR, só a cobertura é conferida. Onde a seção é exigida, a falta do corpo reprova.
-  const bodyExists = fs.existsSync(bodyFile);
-  if (!bodyExists && mode === '--required') {
-    fatal(`o corpo do pull request (${bodyFile}) não foi encontrado. Sem ele, não há seção "Aceite" para conferir.`);
   }
 
   // Os arquivos de aceite de todos os tickets.
@@ -164,8 +155,9 @@ function main([mode, bodyFile, acceptDir, ...reportSpecs]) {
     }
   }
 
-  // A seção "Aceite" do PR.
-  const section = acceptSection(bodyExists ? fs.readFileSync(bodyFile, 'utf8') : '');
+  // A seção "Aceite" do PR. Sem corpo, só a cobertura é conferida, e onde a seção é exigida a falta
+  // dela reprova.
+  const section = acceptSection(fs.readFileSync(0, 'utf8'));
   if (section === null) {
     if (mode === '--required') {
       error(

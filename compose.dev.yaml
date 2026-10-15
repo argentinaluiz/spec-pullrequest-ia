@@ -36,6 +36,15 @@ services:
       - "3001:3000"
     volumes:
       - ./apps/api:/app
+      # O repositório inteiro, só para leitura, para o Node do harness (scripts/node-in-api.sh) ler
+      # os scripts, os arquivos de aceite e os relatórios das apps sem cópia. As escritas continuam
+      # em /app.
+      - .:/repo:ro
+      # O .git do repositório fica coberto por uma pasta vazia: nada no contêiner usa o Git, e assim o
+      # histórico, os hooks e a configuração dele ficam fora do alcance do que roda aqui.
+      - type: tmpfs
+        target: /repo/.git
+        read_only: true
     depends_on:
       # As migrações rodam na subida do contêiner, então o banco precisa aceitar conexões antes.
       postgres:

@@ -22,8 +22,9 @@ api_fast() {
 
 api_full() {
   api_fast
-  # Relatório antigo não vale como evidência desta execução.
-  in_container api rm -rf reports
+  # Relatório antigo não vale como evidência desta execução. A pasta do relatório dos testes do
+  # harness (`HARNESS_REPORT`, no scripts/verify.sh), que o Node não cria, nasce vazia aqui.
+  in_container api sh -c "rm -rf reports && mkdir -p '$(dirname "$HARNESS_REPORT")'"
   api_suite "de unidade" test reports/unit.json
   api_suite "de integração" test:int reports/int.json
   api_suite "de ponta a ponta" test:e2e reports/e2e.json
@@ -130,19 +131,33 @@ api_contract_sources() {
   }
 }
 
+# As fontes gravadas em <pasta> pelo `api_contract_sources`, como o scripts/contract-view.cjs as lê da
+# entrada padrão: um par nome e valor por arquivo que existe, cada parte terminada por um NUL, com o
+# texto do arquivo como está.
+# api_contract_pairs <pasta>
+api_contract_pairs() {
+  local pair file
+  for pair in base:base.json novo:novo.json changelog:changelog.txt schemaDiff:schema.diff; do
+    file="$1/${pair#*:}"
+    [[ -f "$file" ]] || continue
+    printf '%s\0' "${pair%%:*}" && cat "$file" && printf '\0' || return 1
+  done
+}
+
 # A visão legível do contrato e do schema entre dois pontos (commits ou árvores), em Markdown: o
 # changelog do oasdiff (o que mudou, com a severidade), o contrato completo de cada rota nova ou
 # alterada e o diff do schema do Prisma, escritos pelo scripts/contract-view.cjs sobre as fontes do
-# `api_contract_sources`, nas seções `# Contrato` e `# Schema` que a página do plano da skill lê. A
-# primeira linha, antes delas, diz os dois pontos. Sem <to>, o segundo ponto é a pasta de trabalho.
-# Não é versionada. O desenho está no docs/harness.md, etapa 8.
+# `api_contract_sources`, nas seções `# Contrato` e `# Schema` que a página do plano da skill lê. As
+# fontes nascem aqui, numa pasta temporária fora do repositório, e chegam ao contêiner pela entrada
+# padrão. A primeira linha, antes das seções, diz os dois pontos. Sem <to>, o segundo ponto é a pasta
+# de trabalho. Não é versionada. O desenho está no docs/harness.md, etapa 8.
 # api_contract_view <from> [<to>]
 api_contract_view() {
   local from="$1" to="${2:-}" dir code=0
   dir="$(mktemp -d)" || return 1
   printf 'Contrato e schema de %s para %s.\n\n' "$from" "${to:-a pasta de trabalho}"
   api_contract_sources "$from" "$to" "$dir" &&
-    node_in_api contract-view "$dir" scripts/contract-view.cjs . || code=1
+    api_contract_pairs "$dir" | node_in_api scripts/contract-view.cjs - || code=1
   rm -rf "$dir"
   return $code
 }

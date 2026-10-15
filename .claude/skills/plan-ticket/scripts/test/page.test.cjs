@@ -6,6 +6,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 
 const { build } = require('../page.cjs');
 const { panel, text } = require('./helpers.cjs');
@@ -233,4 +235,40 @@ test('tira do título só a sequência de fechamento com um espaço antes', () =
   assert.match(tab, /<h3>Linguagem x-c#<\/h3>/);
   assert.match(tab, /<h4>C#<\/h4>/);
   assert.match(tab, /<h5><\/h5>/);
+});
+
+test('a linha de comando lê as fontes em pares terminados por NUL na entrada padrão, com `-`, e imprime a página', () => {
+  const cli = (args, input) =>
+    spawnSync(process.execPath, [path.join(__dirname, '..', 'page.cjs'), ...args], { input, encoding: 'utf8' });
+  // Como o `printf '%s\0' <nome> <valor>...` do plan-page.sh: só as fontes que existem, sem o contrato.
+  const pairs = (sources) => Object.entries(sources).flat().map((part) => `${part}\0`).join('');
+  const sources = {
+    ticket: 'LUI-900',
+    origin: ORIGIN,
+    acceptancePath: 'docs/aceite/LUI-900.md',
+    acceptance: ACCEPTANCE,
+    docsDiff: '',
+    message: 'docs: plan (LUI-900)\n\nDecision: a cópia reserva a cota.\n',
+    pending: ' M docs/lld.md\n?? docs/aceite/LUI-901.md',
+  };
+
+  const result = cli(['-'], pairs(sources));
+  assert.equal(result.status, 0, result.stderr);
+  const { pending, ...rest } = sources;
+  assert.equal(result.stdout, build({ ...rest, pending: pending.split('\n') }));
+  assert.match(text(panel(result.stdout, 'aceite')), /LUI-900-CA1 documento Dado o LLD/);
+  assert.match(result.stdout, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/aceite\/LUI-901\.md<\/code><\/li>/);
+  assert.match(text(panel(result.stdout, 'contrato')), /^O projeto não declara contrato\.$/);
+
+  // Uma entrada que não termina num par completo é recusada.
+  const broken = cli(['-'], 'ticket\0LUI-900');
+  assert.notEqual(broken.status, 0);
+  assert.match(broken.stderr, /pares nome e valor/);
+
+  // Sem o `-`, ou com uma pasta, a linha de comando diz como chamá-la.
+  for (const args of [[], ['fontes']]) {
+    const wrong = cli(args, '');
+    assert.equal(wrong.status, 2);
+    assert.match(wrong.stderr, /Uso: node page\.cjs -/);
+  }
 });

@@ -50,8 +50,8 @@ BASE_REF="${HARNESS_BASE_REF:-origin/main}"
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
-# Os scripts da skill de plano: o parser do aceite, que o conferidor importa, e a página do plano. O
-# scripts/node-in-api.sh os leva ao contêiner com os mesmos caminhos.
+# Os scripts da skill de plano: o parser do aceite, que o conferidor importa, e a página do plano. No
+# contêiner `api`, ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts "$PLAN_SKILL_SCRIPTS" docs/aceite)
@@ -143,35 +143,42 @@ wait_for() {
   return 1
 }
 
-# Roda o Node no contêiner `api`, em reports/<subpasta>/ da API, pelo scripts/node-in-api.sh, que
-# leva para lá os scripts do harness, os da skill de plano e o conteúdo da <pasta de dados>. Os
-# <argumentos> são o script como arquivo, como `scripts/check-acceptance.cjs`, e os dele.
-# node_in_api <subpasta> <pasta de dados, ou vazio> <argumentos do node...>
+# O Node no contêiner `api`: o scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
 node_in_api() {
-  local subdir="$1" data="$2"
-  shift 2
-  scripts/node-in-api.sh --subpasta "$subdir" ${data:+--dados "$data"} "$@"
+  scripts/node-in-api.sh "$@"
 }
+
+# O relatório dos testes do harness, relativo à pasta da API: o Node o grava em /app, a que aceita
+# escrita, e o `check_report` e o conferidor o leem como o de uma suíte da API. A pasta dele nasce no
+# `api_full`, que roda antes, porque o Node não a cria.
+HARNESS_REPORT=reports/harness/node-tests.json
 
 # Roda os testes do harness: os do conferidor, do renderizador do contrato e os da skill de plano (o
 # parser e a página do plano) no contêiner `api`, e os do hook de congelamento na máquina.
 harness_tests() {
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
-  # relativos aqui e no contêiner, então a lista sai daqui.
-  node_in_api harness "" --test --test-reporter=spec --test-reporter-destination=stdout \
-    --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination=node-tests.json \
+  # relativos aqui e no /repo, então a lista sai daqui.
+  node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
+    --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     scripts/test/*.test.cjs "$PLAN_SKILL_SCRIPTS"/test/*.test.cjs &&
-    check_report api vitest reports/harness/node-tests.json &&
+    check_report api vitest "$HARNESS_REPORT" &&
     # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
     scripts/test/freeze-acceptance.test.sh
 }
 
+# Falha, dizendo por quê, quando o ACCEPTANCE_BODY_FILE aponta para um arquivo que não existe. Sem
+# a variável, não há corpo, e passa.
+require_body() {
+  [[ -z "${ACCEPTANCE_BODY_FILE:-}" || -f "$ACCEPTANCE_BODY_FILE" ]] ||
+    fail "O corpo do pull request não foi encontrado em $ACCEPTANCE_BODY_FILE, o arquivo de ACCEPTANCE_BODY_FILE." \
+      "salve o corpo do PR nesse arquivo, ou aponte a variável para o arquivo certo, e rode de novo."
+}
+
 # O arquivo de aceite citado na seção "Aceite" do corpo do pull request, lido pelo mesmo conferidor,
-# do corpo que o `acceptance` já entregou ao contêiner `api` (em reports/acceptance/). Não imprime
-# nada quando não há corpo e quando a seção diz "nenhum".
+# com o corpo na entrada padrão. Não imprime nada quando não há corpo e quando a seção diz "nenhum".
 cited_acceptance() {
-  node_in_api cited "" scripts/check-acceptance.cjs --cited ../acceptance/pr-body.md
+  require_body && node_in_api scripts/check-acceptance.cjs --cited - <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
 }
 
 # ticket_dir <ticket>
@@ -206,13 +213,13 @@ plan_commit() {
 
 # O desvio do plano, comparado pelo grupo de cada app que declara <app>_contract_drift. Cada uma
 # acrescenta a própria visão ao contract-drift.txt da pasta do ticket, que o `run_full` apaga no
-# começo. Depois do `acceptance`, que entrega o corpo do PR ao contêiner. Só avisa: nunca falha.
+# começo. Só avisa: nunca falha.
 contract_drift() {
   local file plan app drift
   if [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
     echo "HARNESS_HEAD_REF aponta \`$HEAD_REF\`, que não é um commit deste clone, e o desvio não foi conferido. Aponte o commit da branch, ou deixe a variável vazia para comparar com a pasta de trabalho."
   elif ! file="$(cited_acceptance)"; then
-    echo "Não deu para ler a seção \"Aceite\" do corpo do PR no contêiner \`api\`, e o desvio não foi conferido."
+    echo "Não deu para ler a seção \"Aceite\" do corpo do PR, pelo motivo acima, e o desvio não foi conferido."
   elif [[ -z "$file" ]]; then
     echo "Não há commit de plano para comparar: o corpo do PR não cita, na seção \"Aceite\", um arquivo de aceite."
   elif ! plan="$(plan_commit "$file")"; then
@@ -234,7 +241,7 @@ contract_drift() {
 # pull request e a cobertura dos critérios de todos os tickets. A seção só é exigida quando a
 # branch altera código em apps/.
 acceptance() {
-  local mode=--optional app ref spec report name dir code error body="${ACCEPTANCE_BODY_FILE:-}" specs=()
+  local mode=--optional app ref spec report body="${ACCEPTANCE_BODY_FILE:-}" specs=()
   # Conta também o que ainda não foi commitado: na máquina, o modo completo costuma rodar antes
   # do commit, e a tabela não pode passar como "não exigida" só por isso.
   if [[ -n "$body" ]] && [[ -n "$(git diff --name-only "$(git merge-base "$BASE_REF" HEAD)" -- apps/)" ||
@@ -242,33 +249,26 @@ acceptance() {
     mode=--required
   fi
 
-  # O conferidor roda no contêiner `api` (`node_in_api`), sobre uma pasta com o corpo do PR, os
-  # arquivos de aceite e os relatórios de cada app. Um relatório que não pôde ser copiado fica de
-  # fora, com o erro da cópia e o que fazer, e o conferidor reprova dizendo qual. O corpo fica em
-  # reports/acceptance/ para o `contract_drift`.
-  dir="$(mktemp -d)" || return 1
-  cp "${body:-/dev/null}" "$dir/pr-body.md" && cp -R docs/aceite "$dir/aceite" || { rm -rf "$dir"; return 1; }
-  # O relatório dos testes do harness já está no contêiner `api`, em reports/harness/.
-  specs+=(vitest:../harness/node-tests.json)
+  require_body || return
+
+  # O conferidor roda no contêiner `api` (`node_in_api`) e lê do /repo os arquivos de aceite e os
+  # relatórios, que as suítes gravam na pasta de cada app, e o dos testes do harness, na da API. O
+  # corpo do PR, que não está no repositório, vai pela entrada padrão. O relatório que falta o
+  # conferidor reprova, dizendo qual; aqui sai também o que fazer.
+  specs+=("vitest:/repo/apps/api/$HARNESS_REPORT")
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
     for spec in "${!ref}"; do
-      report="${spec#*:}"
-      name="$app-$(basename "$report")"
-      # O relatório vai para o arquivo, e o erro do `docker` ou do `cat`, para a variável.
-      if ! error="$(in_container "$app" cat "$report" 2>&1 >"$dir/$name")"; then
-        rm -f "$dir/$name"
-        printf '\nO relatório %s não pôde ser copiado do contêiner `%s`: %s\n' "$report" "$app" "${error:-sem mensagem de erro.}" >&2
-        printf 'Como corrigir: se o contêiner não está no ar, suba o ambiente com `%s up -d --build --wait`; se o relatório não existe, a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `scripts/verify.sh full` de novo.\n' "${COMPOSE[*]}" >&2
+      report="apps/$app/${spec#*:}"
+      if [[ ! -f "$report" ]]; then
+        printf '\nO relatório %s não existe.\n' "$report" >&2
+        printf 'Como corrigir: a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `scripts/verify.sh full` de novo.\n' >&2
       fi
-      specs+=("${spec%%:*}:$name")
+      specs+=("${spec%%:*}:/repo/$report")
     done
   done
 
-  node_in_api acceptance "$dir" scripts/check-acceptance.cjs "$mode" pr-body.md aceite "${specs[@]}"
-  code=$?
-  rm -rf "$dir"
-  return $code
+  node_in_api scripts/check-acceptance.cjs "$mode" - /repo/docs/aceite "${specs[@]}" <"${body:-/dev/null}"
 }
 
 require_base() {
@@ -362,7 +362,7 @@ run_full() {
     "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
     acceptance
 
-  # Depois do "Aceite", que entrega o corpo do PR ao contêiner. Só avisa: nunca entra nas falhas.
+  # Depois do "Aceite", que confere a seção que ele lê. Só avisa: nunca entra nas falhas.
   step "Contrato e schema contra o commit de plano" \
     "o passo só avisa e não falha." \
     contract_drift

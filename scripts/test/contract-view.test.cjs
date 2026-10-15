@@ -5,8 +5,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
-const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 
 const { render } = require('../contract-view.cjs');
@@ -186,14 +184,19 @@ test('gera a visão em Markdown, uma seção por rota, com as tabelas de parâme
   assert.equal(render(base, head), `${CHILDREN_SECTION}\n\n${COPIES_SECTION}\n`);
 
   // O modo `contract` do script de verificação imprime o que a linha de comando do renderizador
-  // imprime sobre a pasta das fontes: o changelog, esse mesmo Markdown e o diff do schema.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'visao-'));
-  fs.writeFileSync(path.join(dir, 'base.json'), JSON.stringify(base));
-  fs.writeFileSync(path.join(dir, 'novo.json'), JSON.stringify(head));
-  fs.writeFileSync(path.join(dir, 'changelog.txt'), 'endpoint added POST /v1/items/{id}/copies\n');
-  fs.writeFileSync(path.join(dir, 'schema.diff'), '');
-  const cli = spawnSync(process.execPath, [path.join(__dirname, '..', 'contract-view.cjs'), dir], { encoding: 'utf8' });
-  fs.rmSync(dir, { recursive: true, force: true });
+  // imprime sobre as fontes, em pares nome e valor terminados por NUL na entrada padrão (`-`), como o
+  // `api_contract_view` as escreve: o changelog, esse mesmo Markdown e o diff do schema. Os snapshots
+  // vão como o texto dos arquivos.
+  const sources = [
+    ['base', JSON.stringify(base)],
+    ['novo', JSON.stringify(head)],
+    ['changelog', 'endpoint added POST /v1/items/{id}/copies\n'],
+    ['schemaDiff', ''],
+  ];
+  const cli = spawnSync(process.execPath, [path.join(__dirname, '..', 'contract-view.cjs'), '-'], {
+    input: sources.flat().map((part) => `${part}\0`).join(''),
+    encoding: 'utf8',
+  });
   assert.equal(cli.status, 0, cli.stderr);
   assert.equal(
     cli.stdout,

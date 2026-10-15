@@ -49,6 +49,8 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis servi�
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
+O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (`docs/harness.md`, linha "Comando do Node" da etapa 7).
+
 ### Subir e derrubar
 
 ```bash
@@ -255,7 +257,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 - **Pasta dos aceites:** `docs/aceite`.
 - **Pasta dos tickets:** `docs/tickets`, que o `.gitignore` ignora inteira.
 - **Pasta dos documentos:** `docs`.
-- **Comando do Node:** `scripts/node-in-api.sh`, que leva ao contêiner `api` os scripts do harness e os da skill, a pasta do script e os arquivos do repositório citados nos argumentos e roda o Node lá, porque a máquina não roda `node`.
+- **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
 - **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 

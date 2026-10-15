@@ -52,26 +52,21 @@ function playwrightReport(tests) {
   };
 }
 
-/** Monta uma pasta de trabalho e roda o conferidor. */
+/**
+ * Monta uma pasta de trabalho e roda o conferidor, com o corpo do PR na entrada padrão (`-`), como o
+ * `verify.sh` o entrega.
+ */
 function check({ mode = '--required', body = '## Aceite\n\nnenhum, refatoração.\n', files = {}, vitest = [], playwright = [] }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aceite-'));
   const acceptDir = path.join(dir, 'aceite');
   fs.mkdirSync(acceptDir);
   for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(acceptDir, name), text);
-  fs.writeFileSync(path.join(dir, 'body.md'), body);
   fs.writeFileSync(path.join(dir, 'unit.json'), JSON.stringify(vitestReport(vitest)));
   fs.writeFileSync(path.join(dir, 'e2e.json'), JSON.stringify(playwrightReport(playwright)));
   const result = spawnSync(
     process.execPath,
-    [
-      CHECKER,
-      mode,
-      path.join(dir, 'body.md'),
-      acceptDir,
-      `vitest:${path.join(dir, 'unit.json')}`,
-      `playwright:${path.join(dir, 'e2e.json')}`,
-    ],
-    { cwd: dir, encoding: 'utf8' },
+    [CHECKER, mode, '-', acceptDir, `vitest:${path.join(dir, 'unit.json')}`, `playwright:${path.join(dir, 'e2e.json')}`],
+    { cwd: dir, input: body, encoding: 'utf8' },
   );
   fs.rmSync(dir, { recursive: true, force: true });
   return { code: result.status, out: result.stdout + result.stderr };
@@ -237,14 +232,12 @@ test('o conferidor importa o parser da pasta da skill de plano: aprova o critér
   const acceptDir = path.join(root, 'aceite');
   fs.mkdirSync(acceptDir);
   fs.writeFileSync(path.join(acceptDir, 'LUI-1.md'), TICKET['LUI-1.md']);
-  fs.writeFileSync(path.join(root, 'body.md'), '## Aceite\n\ndocs/aceite/LUI-1.md\n');
   const run = (tests) => {
     fs.writeFileSync(path.join(root, 'unit.json'), JSON.stringify(vitestReport(tests)));
-    const result = spawnSync(
-      process.execPath,
-      [copy, '--required', path.join(root, 'body.md'), acceptDir, `vitest:${path.join(root, 'unit.json')}`],
-      { encoding: 'utf8' },
-    );
+    const result = spawnSync(process.execPath, [copy, '--required', '-', acceptDir, `vitest:${path.join(root, 'unit.json')}`], {
+      input: '## Aceite\n\ndocs/aceite/LUI-1.md\n',
+      encoding: 'utf8',
+    });
     return { code: result.status, out: result.stdout + result.stderr };
   };
 
@@ -307,11 +300,15 @@ test('o ID num describe não cobre os testes de dentro dele, e a tag do Playwrig
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aceite-'));
   fs.mkdirSync(path.join(dir, 'aceite'));
   fs.writeFileSync(path.join(dir, 'aceite', 'LUI-1.md'), acceptanceFile([['LUI-1-CA1', 'teste HTTP']]));
-  fs.writeFileSync(path.join(dir, 'body.md'), '## Aceite\n\nnenhum: teste.\n');
   fs.writeFileSync(path.join(dir, 'unit.json'), JSON.stringify(report));
   const run = () =>
-    spawnSync(process.execPath, [CHECKER, '--required', path.join(dir, 'body.md'), path.join(dir, 'aceite'), `vitest:${path.join(dir, 'unit.json')}`], { encoding: 'utf8' });
-  assert.equal(run().status, 1);
+    spawnSync(process.execPath, [CHECKER, '--required', '-', path.join(dir, 'aceite'), `vitest:${path.join(dir, 'unit.json')}`], {
+      input: '## Aceite\n\nnenhum: teste.\n',
+      encoding: 'utf8',
+    });
+  const result = run();
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /LUI-1-CA1 .*não tem nenhum teste/);
   assert.equal(check({ files: TICKET, playwright: [['o Usuário envia', 'passed', ['LUI-1-CA1']]] }).code, 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -368,28 +365,39 @@ test('um subtítulo dentro do critério não o encerra: a marca depois dele aind
   assert.equal(covered.code, 0, covered.out);
 });
 
-test('sem corpo de PR, o modo opcional confere só a cobertura, e o obrigatório reprova', () => {
-  const run = (mode) =>
-    spawnSync(process.execPath, [CHECKER, mode, '/nao/existe.md', '/nao/existe', 'vitest:/nao/existe.json'], { encoding: 'utf8' });
-  // O relatório também falta, então os dois reprovam; a mensagem mostra qual falta apareceu primeiro.
-  assert.match(run('--required').stdout, /corpo do pull request/);
-  assert.doesNotMatch(run('--optional').stdout, /corpo do pull request/);
+test('sem corpo de PR, a entrada vazia, o modo opcional confere só a cobertura, e o obrigatório reprova pela falta da seção', () => {
+  const optional = check({ mode: '--optional', body: '', files: TICKET, vitest: [['@LUI-1-CA1 ok', 'passed']] });
+  assert.equal(optional.code, 0, optional.out);
+  assert.match(optional.out, /seção não exigida/);
+
+  const required = check({ body: '', files: TICKET, vitest: [['@LUI-1-CA1 ok', 'passed']] });
+  assert.equal(required.code, 1);
+  assert.match(required.out, /não tem a seção "Aceite"/);
+});
+
+test('recebe o corpo do PR só pela entrada padrão: um caminho no lugar do `-` é recusado', () => {
+  for (const args of [
+    ['--required', 'corpo.md', '/nao/existe', 'vitest:/x.json'],
+    ['--cited', 'corpo.md'],
+  ]) {
+    const result = spawnSync(process.execPath, [CHECKER, ...args], { input: '', encoding: 'utf8' });
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /Uso: node check-acceptance\.cjs/);
+  }
 });
 
 test('reprova o relatório ausente em vez de aprovar sem conferir', () => {
-  const result = spawnSync(process.execPath, [CHECKER, '--optional', '/nao/existe.md', '/nao/existe', 'vitest:/x.json'], {
+  const result = spawnSync(process.execPath, [CHECKER, '--optional', '-', '/nao/existe', 'vitest:/x.json'], {
+    input: '',
     encoding: 'utf8',
   });
   assert.equal(result.status, 1);
 });
 
-test('no modo --cited, imprime só o arquivo de aceite citado na seção, e nada sem ele', () => {
+test('no modo --cited, imprime só o arquivo de aceite citado na seção do corpo da entrada padrão, e nada sem ele', () => {
+  // O corpo chega pela entrada padrão, com `-`; sem corpo, a entrada vem vazia.
   const cited = (body) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citado-'));
-    const file = path.join(dir, 'body.md');
-    if (body !== null) fs.writeFileSync(file, body);
-    const result = spawnSync(process.execPath, [CHECKER, '--cited', file], { encoding: 'utf8' });
-    fs.rmSync(dir, { recursive: true, force: true });
+    const result = spawnSync(process.execPath, [CHECKER, '--cited', '-'], { input: body ?? '', encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     return result.stdout;
   };

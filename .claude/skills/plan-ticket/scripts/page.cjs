@@ -7,17 +7,16 @@
 // abas Contrato e Schema vêm do Markdown que o comando do contrato do projeto imprime, no formato
 // de formatos/contrato.md. Só usa a biblioteca padrão do Node.
 //
-// Quem o chama é o plan-page.sh, pelo comando do Node do projeto, com a pasta das fontes que ele
-// monta, relativa à raiz do repositório:
-//   node page.cjs <pasta das fontes>
-// A pasta traz `ticket`, `origem` e `caminho-do-aceite` (uma linha cada; o último, o caminho do
-// arquivo de aceite no repositório), `aceite.md`, `contrato.md` (só quando o projeto declara um
-// comando do contrato), `plano.msg`, `documentos.diff` e, quando a pasta de trabalho tem mudanças que
-// o índice não tem, `pendentes.txt` (uma por linha, como o `git status --porcelain` as escreve). O
-// que falta conta como ausente.
+// Quem o chama é o plan-page.sh, pelo comando do Node do projeto, com as fontes que ele junta pelo
+// `git` na entrada padrão:
+//   node page.cjs -
+// A entrada é uma sequência de pares nome e valor, cada um terminado por um NUL, como o
+// `printf '%s\0' <nome> <valor>` os escreve. Os nomes são os campos do `build`: `ticket`, `origin`,
+// `acceptancePath`, `acceptance`, `contract` (só quando o projeto declara um comando do contrato),
+// `message`, `docsDiff` e `pending`, este num texto só, uma mudança por linha, como o
+// `git status --porcelain` as escreve. A fonte que não está na entrada conta como ausente.
 
 const fs = require('node:fs');
-const path = require('node:path');
 
 const { parseAcceptanceFile, CHECKS, parseMessage, DECISION, FILE_BLOCKS } = require('./plan.cjs');
 
@@ -474,30 +473,25 @@ ${TABS.map(({ id, label, panel }) => `<section class="painel" id="aba-${id}" ari
 `;
 }
 
-/** O leitor da pasta das fontes: devolve o texto de uma fonte, ou `null` quando ela não está lá. */
-function reader(dir) {
-  return (name) => (fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : null);
+/** As fontes da entrada padrão: os pares nome e valor do cabeçalho, num objeto. */
+function readSources(input) {
+  const parts = input.split('\0');
+  if (parts.pop() !== '' || parts.length % 2 !== 0) {
+    throw new Error('a entrada não é uma sequência de pares nome e valor, cada um terminado por um NUL.');
+  }
+  const sources = {};
+  for (let index = 0; index < parts.length; index += 2) sources[parts[index]] = parts[index + 1];
+  return sources;
 }
 
 if (require.main === module) {
-  const [dir] = process.argv.slice(2);
-  if (!dir) {
-    console.error('Uso: node page.cjs <pasta das fontes>');
+  const args = process.argv.slice(2);
+  if (args.length !== 1 || args[0] !== '-') {
+    console.error('Uso: node page.cjs -  (as fontes, em pares nome e valor terminados por NUL, na entrada padrão)');
     process.exit(2);
   }
-  const read = reader(dir);
-  process.stdout.write(
-    build({
-      ticket: read('ticket').trim(),
-      origin: read('origem').trim(),
-      acceptancePath: read('caminho-do-aceite')?.trim(),
-      acceptance: read('aceite.md'),
-      contract: read('contrato.md'),
-      docsDiff: read('documentos.diff'),
-      message: read('plano.msg'),
-      pending: (read('pendentes.txt') ?? '').split('\n').filter(Boolean),
-    }),
-  );
+  const sources = readSources(fs.readFileSync(0, 'utf8'));
+  process.stdout.write(build({ ...sources, pending: (sources.pending ?? '').split('\n').filter(Boolean) }));
 }
 
-module.exports = { build };
+module.exports = { build, readSources };
