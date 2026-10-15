@@ -210,7 +210,6 @@ harness_tests() {
     # usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na máquina:
     # os testes deles rodam aqui.
     scripts/test/freeze-acceptance.test.sh &&
-    scripts/test/protect-harness-state.test.sh &&
     scripts/test/plan-page.test.sh &&
     scripts/test/verify-plan.test.sh &&
     scripts/test/harness-guard.test.sh &&

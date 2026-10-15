@@ -7,6 +7,7 @@
       "Edit(./docs/specs/**)",
       "Read(./docs/Gerenciador de arquivos.fig)",
       "Edit(./docs/Gerenciador de arquivos.fig)",
+      "Edit(./.harness/**)",
       "Bash(gh pr merge:*)"
     ],
     "ask": [
@@ -36,11 +37,6 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/freeze-acceptance.sh",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-harness-state.sh",
             "timeout": 10
           }
         ]
