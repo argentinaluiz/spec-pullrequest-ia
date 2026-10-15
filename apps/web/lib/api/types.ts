@@ -5,7 +5,7 @@ import "server-only";
  * compartilhado, a web mantém a própria cópia.
  */
 
-/** Os `code` de erro que a autenticação usa, mais os dois que qualquer rota pode devolver. */
+/** Os `code` de erro que a web conhece: os da autenticação e do envio, mais os que qualquer rota pode devolver. */
 export const API_ERROR_CODES = [
   "validation_error",
   "invalid_token",
@@ -14,6 +14,10 @@ export const API_ERROR_CODES = [
   "email_not_verified",
   "rate_limited",
   "not_found",
+  "quota_exceeded",
+  "file_too_large",
+  "upload_size_mismatch",
+  "upload_incomplete",
   "internal_error",
 ] as const;
 
@@ -81,4 +85,49 @@ export interface TokenPair {
 export interface Me {
   id: string;
   email: string;
+}
+
+export type ItemType = "file" | "folder";
+
+/** Um Item da listagem de uma pasta. A forma é a do `ItemDto` do snapshot da OpenAPI. */
+export interface Item {
+  id: string;
+  type: ItemType;
+  name: string;
+  /** 0 para pastas. */
+  sizeBytes: number;
+  /** Nulo para pastas. */
+  mimeType: string | null;
+  /** Data de modificação, em ISO 8601. */
+  updatedAt: string;
+}
+
+/** Uma página da listagem. O cursor é opaco, e nulo na última página. */
+export interface ItemPage {
+  items: Item[];
+  nextCursor: string | null;
+}
+
+/** O que `POST /uploads` pede. */
+export interface CreateUploadInput {
+  name: string;
+  sizeBytes: number;
+  /** Vazio vira `application/octet-stream` na API. */
+  mimeType: string;
+  parentId: string;
+}
+
+/** A sessão de envio criada: o endereço que o navegador alcança e quando ela deixa de valer. */
+export interface Upload {
+  itemId: string;
+  uploadUrl: string;
+  /** ISO 8601. */
+  expiresAt: string;
+}
+
+/** A URL assinada de leitura de um arquivo. Vale 5 minutos e nunca entra no HTML. */
+export interface DownloadUrl {
+  url: string;
+  /** ISO 8601. */
+  expiresAt: string;
 }

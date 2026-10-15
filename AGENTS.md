@@ -6,7 +6,7 @@ Em `docs/` estão os documentos que definem o produto, a arquitetura e os detalh
 
 1. `docs/product-brief.md`: o quê e para quem. Escopo do MVP, o que fica fora, planos e métricas.
 2. `docs/hld.md`: High-level design, documento de arquitetura de alto nível. Aqui ficam as decisões de arquitetura, os fluxos principais e a visão geral do sistema.
-3. `docs/lld.md`: Low-level design, documento de arquitetura de baixo nível. Aqui ficam a estrutura de pastas, as bibliotecas escolhidas, os esquemas de banco, os contratos de API, os estados, as regras de cota, as tarefas do worker, o upload em chunks e as variáveis de ambiente.
+3. `docs/lld.md`: Low-level design, documento de arquitetura de baixo nível. Aqui ficam a estrutura de pastas, as bibliotecas escolhidas, os esquemas de banco, os contratos de API, os estados, as regras de cota, as tarefas do worker, o upload em chunks e as variáveis de ambiente, os componentes da API e como se comunicam, e o comportamento da web: o mapa de rotas e telas, a Sessão no navegador, a entrega de arquivos e a reação aos erros da API.
 4. `docs/design-system.md`: linguagem visual da interface. Aqui ficam os tokens de cor, tipografia, espaçamento, raio e sombra, os estados de interação, os componentes, o comportamento responsivo e o fluxo de trabalho com o Figma.
 5. `docs/harness.md`: como o trabalho dos agentes é verificado. Aqui ficam o script de verificação, a CI, a política do que bloqueia e do que só avisa e o que ficou de fora.
 
@@ -18,10 +18,9 @@ Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da
 **Onde cada informação mora**
 
 - **O que o sistema faz** fica em `docs/`: escopo, arquitetura, esquema, contrato, regras de negócio e configuração.
-- **Como o código é escrito** fica no `AGENTS.md` do projeto: camadas, regras de import, tratamento de erros, nomes de arquivos, níveis de teste e comandos.
 - **Nunca nos dois.** Uma informação tem um dono só, e o outro arquivo aponta para ele pelo nome do documento e da seção, sem repetir o conteúdo.
-- **Este arquivo** só traz o que vale para todos os projetos.
 
+<!-- instruções para fins didáticos -->
 **Arquivos que não devem ser lidos**
 
 Os caminhos abaixo existem para quem lê o repositório, e não para os agentes. **Nunca os leia nem os edite**, nem para buscar contexto de uma tarefa:
@@ -31,33 +30,28 @@ Os caminhos abaixo existem para quem lê o repositório, e não para os agentes.
 - `docs/Gerenciador de arquivos.fig`: exportação binária do arquivo do Figma. O design é lido pelo servidor MCP do Figma, como descrito em [Design e Figma](#design-e-figma).
 
 O `.claude/settings.json` nega a leitura e a escrita nesses caminhos.
+<!-- instruções para fins didáticos -->
 
 ## Execução no Docker
 
 Tudo roda dentro dos contêineres do Docker Compose: instalação de dependências, servidor de desenvolvimento, testes, lint, compilação do TypeScript e qualquer outro comando do projeto. **Nunca rode `pnpm`, `node` ou `npx` direto na máquina.**
 
-O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com cinco serviços:
+O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis serviços:
 
 | Serviço | O que é | Endereço na máquina | Endereço entre contêineres |
 | --- | --- | --- | --- |
 | `web` | Frontend em Next.js | `http://localhost:3000` | `http://web:3000` |
-| `api` | API em NestJS | `http://localhost:3001` | `http://api:3000` |
+| `api` | API em NestJS, com as rotas sob `/v1` | `http://localhost:3001` | `http://api:3000` |
 | `postgres` | Banco PostgreSQL (usuário, senha e banco `app`) | Não é publicado | `postgres:5432` |
+| `storage` | Emulador do Cloud Storage (`fake-gcs-server`), com o bucket `app-files` | `http://localhost:4443` | `http://storage:4443` |
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
 
-Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado, e o comando dos testes está no `apps/web/AGENTS.md`. A `node_modules` é criada na pasta do projeto, montada da máquina, e não num volume do Docker. Os comandos são executados neles com `docker compose exec`.
+Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
-Na subida, o contêiner `api` faz sozinho, nesta ordem:
+O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (`docs/harness.md`, linha "Comando do Node" da etapa 7).
 
-1. Instala as dependências (`pnpm install`).
-2. Cria o `apps/api/.env` a partir do `apps/api/.env.example`, se ele ainda não existir. Se ele já existe, acrescenta as variáveis que o `.env.example` ganhou depois, sem trocar nenhum valor.
-3. Gera o par de chaves do JWT e o grava no `.env`, se ele ainda não tiver as chaves.
-4. Gera o cliente do Prisma e aplica as migrações pendentes no banco.
-
-Nenhum desses passos é manual. O `.env` fica fora do Git, e o `.env.example`, que é versionado, funciona sem alterações.
-
-**Iniciar o projeto**
+### Subir e derrubar
 
 ```bash
 docker compose -f compose.dev.yaml up -d --build --wait
@@ -65,24 +59,9 @@ docker compose -f compose.dev.yaml exec web pnpm dev --hostname 0.0.0.0
 docker compose -f compose.dev.yaml exec api pnpm start:dev
 ```
 
-O `--wait` segura o primeiro comando até os cinco serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Se ele terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api`.
+O `--wait` segura o primeiro comando até os seis serviços ficarem prontos, o que inclui a instalação das dependências e as migrações. Na primeira subida, isso leva alguns minutos. Os outros dois ficam presos ao terminal, então rode cada um em segundo plano. O `--hostname 0.0.0.0` é necessário para que a web aceite conexões de fora do contêiner.
 
-Quando a preparação da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` encerra e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pela preparação:
-
-```bash
-docker compose -f compose.dev.yaml run --rm api <comando>
-```
-
-Depois do conserto, suba o ambiente de novo.
-
-Os dois últimos comandos ficam presos ao terminal, então rode cada um num terminal próprio.
-
-- **Web:** responde em `http://localhost:3000`. O `--hostname 0.0.0.0` é necessário para que ela aceite conexões de fora do contêiner.
-- **API:** responde em `http://localhost:3001` na máquina, com as rotas sob `/v1`.
-- **E-mails:** tudo o que a API envia aparece em `http://localhost:8025`.
-- **Banco:** para abrir um console SQL, rode `docker compose -f compose.dev.yaml exec postgres psql -U app app`.
-
-**Derrubar o projeto**
+**Derrubar**
 
 ```bash
 docker compose -f compose.dev.yaml down
@@ -98,32 +77,26 @@ docker compose -f compose.dev.yaml down -v
 
 O `-v` apaga o volume do banco. Na subida seguinte, o banco é recriado e as migrações são aplicadas de novo. Para gerar também um `.env` e chaves novas, apague o `apps/api/.env` antes de subir.
 
-**Executar comandos dentro do contêiner**
+### Quando a API não sobe
+
+Se o `up --wait` terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api`.
+
+Quando a preparação da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` encerra e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pela preparação:
 
 ```bash
-docker compose -f compose.dev.yaml exec web <comando>
+docker compose -f compose.dev.yaml run --rm api <comando>
 ```
 
-Exemplos:
+Depois do conserto, suba o ambiente de novo.
 
-```bash
-docker compose -f compose.dev.yaml exec web pnpm lint
-docker compose -f compose.dev.yaml exec web pnpm exec tsc --noEmit
-docker compose -f compose.dev.yaml exec web bash
-```
+### Banco e e-mails
 
-O `web` é o nome do serviço no Compose. Para a API, troque por `api`.
+- **Banco:** para abrir um console SQL, rode `docker compose -f compose.dev.yaml exec postgres psql -U app app`.
+- **E-mails:** tudo o que a API envia fica no `mailpit`, nos endereços da tabela.
 
-## Rede no Docker
+### Rede entre serviços
 
-O projeto roda inteiro em contêineres do Docker Compose. Ao configurar a conexão entre serviços (banco, storage, e-mail, worker), **use sempre o nome do serviço do Compose como host**, nunca `localhost` nem `127.0.0.1`.
-
-Dentro de um contêiner, `localhost` é o próprio contêiner, e não a máquina nem os outros serviços.
-
-- **Certo:** `DATABASE_URL=postgresql://user:pass@postgres:5432/app`
-- **Errado:** `DATABASE_URL=postgresql://user:pass@localhost:5432/app`
-
-A regra vale para variáveis de ambiente, arquivos de configuração e código que referencie o host de um serviço.
+Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável de ambiente, arquivo de configuração ou código, **o host é sempre o nome do serviço do Compose**, como na coluna "Endereço entre contêineres" da tabela, e nunca `localhost` nem `127.0.0.1`: dentro de um contêiner, `localhost` é o próprio contêiner.
 
 **Exceção:** quando o processo fala com algo que roda no mesmo contêiner, o endereço é `127.0.0.1`. É o caso do healthcheck de um serviço, que confere o próprio contêiner, e de um teste que abre um servidor temporário no contêiner onde roda.
 
@@ -131,9 +104,8 @@ A regra vale para variáveis de ambiente, arquivos de configuração e código q
 
 - **Responsabilidade única:** cada módulo e cada função tem uma responsabilidade clara. Reavalie isso a cada passo. Quando um módulo começa a criar ou alterar entidades de outro domínio, extraia a lógica para o módulo certo na hora, em vez de deixar para uma tarefa futura.
 - **Tipagem:** TypeScript estrito em todas as camadas.
-- **Testes:** pirâmide de testes em todos os níveis (unitários, de integração e de ponta a ponta).
+- **Testes:** pirâmide de testes em todos os níveis (unitários, de integração e end-to-end).
 - **Qualidade de código:** lint e formatação automáticos, com as ferramentas de cada projeto.
-- **Documentação:** cada informação fica no documento dono dela, como descrito em [Documentos](#documentos).
 
 ## Design e Figma
 
@@ -145,24 +117,22 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 ## Definição de pronto
 
-Uma mudança no código só está concluída quando **todos** os itens abaixo passam:
+Uma mudança no código está pronta quando:
 
-1. Durante o desenvolvimento, rode só os testes ligados ao código alterado.
-2. Antes de terminar, rode todas as suítes de teste do projeto. Elas estão listadas no `AGENTS.md` dele.
-3. O TypeScript compila sem erros: `pnpm exec tsc --noEmit` termina com código 0. Erros de compilação nunca ficam como dívida para tarefas futuras.
-4. O lint passa: `pnpm lint`.
-5. Em mudanças de interface, a validação visual descrita em `docs/design-system.md` foi feita.
+1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no `docs/harness.md`, seção "Script de verificação".
+2. Em mudança de interface, a validação visual descrita em `docs/design-system.md` foi feita. É a única exigência que o script não confere.
 
-Se algum item falhar, a tarefa não está pronta. Corrija a causa antes de declarar a conclusão.
-
-**Verificação completa**
-
-O `scripts/verify.sh full` roda os itens 2 a 4 de uma vez, mais o build da web e a varredura de segredos. Rode-o da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
+Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
 
 ```bash
 scripts/verify.sh full
 ```
 
+- **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `scripts/verify.sh fast`. O `scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
+- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade").
+- **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
+- **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
+- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava. O desenho está no `docs/harness.md`, seção "Trava das reprovações repetidas".
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
@@ -171,54 +141,55 @@ scripts/verify.sh full
 
 Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. Para o push passar:
 
-1. Faça o commit de tudo. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
-2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a tabela de aceite.
+1. Faça o commit de tudo que alterou. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
+2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`.
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml` ou em `scripts/`. Mudança só em documento não invalida, e uma branch que só altera documento não precisa de aprovação.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou num arquivo de aceite (`docs/tickets/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
-**Tabela de aceite no pull request**
+**Aceite no pull request**
 
-Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Tabela de aceite`, com uma linha por critério de aceite e o teste que o prova:
+Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Aceite`, que diz qual arquivo de aceite o PR cumpre:
 
 ```markdown
-## Tabela de aceite
+## Aceite
 
-| Critério | Arquivo de teste | Nome do teste |
-| --- | --- | --- |
-| O login bloqueia a sexta tentativa | apps/api/test/auth-rate-limit.e2e-spec.ts | devolve rate_limited na sexta tentativa, exista ou não o Usuário, com a mesma resposta |
-| O Usuário entra e sai pela interface | apps/web/e2e/session.spec.ts | o Usuário entra, vê o próprio e-mail na página provisória e sai |
+docs/tickets/LUI-146/aceite.md
 ```
 
-- **Critério:** os critérios de aceite do ticket, um por linha, sem pular nenhum. Em PR sem ticket, os critérios do próprio PR.
-- **Arquivo de teste:** o caminho a partir da raiz do repositório.
-- **Nome do teste:** o nome exato, como está no `it` ou no `test`. Quando o mesmo nome se repete no arquivo, use o nome completo, com os `describe` separados por ` › `.
-- **Um teste por linha.** Se um critério precisa de dois testes, repita o critério em duas linhas.
-- **Critério sem teste não entra na tabela:** escreva o teste. A CI reprova linha incompleta, teste inexistente, teste que falhou e teste pulado.
+- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano. Os critérios e os testes não se repetem no PR.
+- **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
+- **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
+- **Critério sem teste:** escreva o teste, com o ID no título. Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
-A tabela é conferida na máquina antes do push, como descrito em "Antes do push".
+O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
 
-**Revisão em contexto novo**
+**Revisão de conformidade**
 
-Quem escreveu o código não é quem o revisa. Todo pull request que altera código em `apps/` passa pelo subagente `revisor`, que não viu a implementação. Ela é a revisão que vale para o PR; uma revisão feita na mesma sessão que escreveu o código não a substitui.
+Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR, e o que só ele confere, em `.claude/agents/revisor-conformidade.md`. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-1. **Gere o diff num arquivo,** com a implementação terminada, a verificação completa passando e tudo commitado:
+No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit.
+
+1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<ticket>/`, onde `<ticket>` é o do ticket da branch, o mesmo do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, a pasta é `docs/tickets/sem-ticket/`. O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
 
    ```bash
-   git status --short
-   git diff origin/main...HEAD > "$(git rev-parse --git-dir)/harness/review.diff"
+   git add -N -- <arquivos novos da mudança>
+   git diff origin/main > docs/tickets/<ticket>/review.diff
+   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<ticket>/aceite.md)"
+   git show -s --format=%B "$plano" > docs/tickets/<ticket>/plano.txt
+   scripts/verify.sh contract "$plano" > docs/tickets/<ticket>/contract-drift.txt
    ```
 
-   O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso.
+   O `git add -N` só registra que os arquivos novos existem, para o diff trazê-los, sem prepará-los para o commit. Confira com o `git status --short` que nenhum arquivo da mudança ficou de fora: o que não está no diff fica fora da revisão, sem aviso. Sem commit de plano, não há mensagem nem visão do desvio. Os arquivos não aparecem no `git status`, porque o Git os ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
 
-2. **Chame o subagente `revisor`** passando só o caminho desse arquivo e o identificador do ticket. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
-3. **Corrija os achados com que você concorda,** faça o commit das correções e rode a verificação de novo.
-4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
+2. **Chame o subagente `revisor-conformidade`** passando só o caminho do diff, o identificador do ticket e os caminhos da mensagem do plano e da visão do desvio, ou o aviso de que elas não existem. Numa mudança sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões. Rode a revisão no checkout da branch, porque ele lê o arquivo de aceite dela.
+3. **Corrija os achados com que você concorda** e siga para o `full` (ver "Definição de pronto").
+4. **Publique o resultado como comentário no PR,** quando ele for aberto, com o título `## Revisão de conformidade`, neste formato:
 
    ```markdown
-   ## Revisão em contexto novo
+   ## Revisão de conformidade
 
    | # | Severidade | Achado | Situação | Motivo |
    | --- | --- | --- | --- | --- |
@@ -236,9 +207,9 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
 - **Todo achado entra na tabela,** inclusive o que você considera errado. Nesse caso, a situação é "Não corrigido" e o motivo diz por quê. Não omita achado nem edite o relatório.
 - **A revisão não bloqueia.** O que fazer com um achado não corrigido é decisão do usuário no merge. A CI não lê esse comentário.
 - **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
-- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor.md`, e publique o comentário do mesmo jeito.
+- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor-conformidade.md`, e publique o comentário do mesmo jeito.
 
-O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor em contexto novo". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
+O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor de conformidade". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
@@ -264,17 +235,44 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 - Specs e tickets são escritos em português, com o vocabulário do `GLOSSARY.md`.
 - Não cite caminhos de arquivo nem trechos de código: eles envelhecem rápido. Cite documentos e módulos pelo nome.
-- Todo ticket traz critérios de aceite verificáveis, e cada critério diz por onde é conferido (teste HTTP da API ou teste no navegador).
+- Todo ticket traz critérios de aceite verificáveis. Cada critério leva um ID `CA<n>` e uma marca de conferência, como descrito em [Plano do ticket](#plano-do-ticket).
 - A spec e os tickets levam `ready-for-agent` e uma label de tipo.
 
 **Ao trabalhar em um ticket**
 
 - Pegue só tickets cujos bloqueios já foram concluídos.
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
+- Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
 - Use o identificador da issue no nome da branch, por exemplo `feature/lui-137-cadastro-e-verificacao`.
 - Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
+
+### Plano do ticket
+
+Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado. O desenho e os motivos estão em `docs/harness.md`, seção "Plano do ticket (planejado)".
+
+1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
+2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill, e o desenho, no `docs/harness.md`, etapa 7.
+3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
+
+**Os formatos são da skill.** A skill de plano, em `.claude/skills/plan-ticket/`, é a dona dos formatos do plano: o ID e a marca do critério, o arquivo de aceite e o token do ID no título do teste (`formatos/aceite.md`), a mensagem do commit de plano (`formatos/mensagem.md`) e o contrato de rota e de tabela, com a saída do comando do contrato (`formatos/contrato.md`). Siga-os; aqui fica só o que é deste projeto.
+
+**Valores da skill de plano**
+
+- **Pasta dos tickets:** `docs/tickets`. O que o Git versiona nela está no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket".
+- **Pasta dos documentos:** `docs`.
+- **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
+- **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
+- **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
+
+O atalho `scripts/verify.sh plan <ticket> [<commit de plano>]` chama o script da página da skill com esses valores; use-o nos passos de parada e de commit da skill.
+
+**Neste projeto**
+
+- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
+- **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
+- **Cobertura:** a CI confere o ID no título do teste, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga os arquivos de aceite.
 
 ## Convenções de Git
 
@@ -282,9 +280,15 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
-- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/` e `scripts/` só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
 
 Quando precisar consultar a documentação de uma biblioteca, use o context7 para buscar informações atualizadas e precisas.
 
+## Agent Skill Usage
+
+
+Quando estiver trabalhando em uma tarefa, primeiro decomponha a solicitação em suas subtarefas e preocupações subjacentes, depois identifique quais skills disponíveis correspondem a alguma delas e ative essas skills.
+
+Quando uma skill diverge deste arquivo, do `AGENTS.md` do projeto ou dos documentos de `docs/`, valem estes.

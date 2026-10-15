@@ -6,6 +6,9 @@ import { AppConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './infra/database/database.module.js';
 import { MailModule } from './infra/mail/mail.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { ItemsModule } from './modules/items/items.module.js';
+import { QuotaModule } from './modules/quota/quota.module.js';
+import { UploadsModule } from './modules/uploads/uploads.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 
 @Module({
@@ -15,6 +18,9 @@ import { UsersModule } from './modules/users/users.module.js';
     MailModule,
     UsersModule,
     AuthModule,
+    ItemsModule,
+    QuotaModule,
+    UploadsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },

@@ -1,1 +1,5 @@
 .history/
+# A pasta de cada ticket: só o arquivo de aceite é versionado (docs/harness.md, etapa 7).
+docs/tickets/*/*
+!docs/tickets/*/aceite.md
+.playwright-mcp/

@@ -39,15 +39,26 @@ scripts_changed() {
 
 blocked=()
 warned=()
+frozen=()
 total=0
 
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   total=$((total + 1))
   case "$file" in
-    # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin.
-    .github/* | .claude/settings.json | .claude/hooks/* | .claude/agents/* | scripts/*)
+    # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin. Os
+    # scripts da skill de plano entram porque o conferidor do aceite importa o parser deles; o texto
+    # da skill (o SKILL.md e os formatos) muda em tarefa normal.
+    .github/* | .claude/settings.json | .claude/hooks/* | .claude/agents/* | scripts/* | \
+      .claude/skills/plan-ticket/scripts/*)
       blocked+=("$file")
+      ;;
+    # Aceite congelado: um arquivo de aceite que já existe na `main` (a versão do diretório atual)
+    # foi alterado, renomeado ou apagado. Criar um arquivo novo não conta, nem os outros arquivos da
+    # pasta do ticket. Só avisa, porque descongelar é legítimo quando um ticket muda um
+    # comportamento já entregue, e o humano que faz o merge é quem decide.
+    docs/tickets/*/aceite.md)
+      [[ -f "$file" ]] && frozen+=("$file")
       ;;
     # Mudança de dependência é tarefa normal e só avisa. Mudança nos comandos bloqueia.
     apps/*/package.json)
@@ -75,6 +86,10 @@ fi
 
 for file in "${warned[@]}"; do
   echo "::warning title=Entrada da verificação alterada::$file define o que a verificação roda ou confere. Leia essa mudança antes do merge."
+done
+
+for file in "${frozen[@]}"; do
+  echo "::warning title=Aceite congelado alterado::$file já existe na main e foi alterado, renomeado ou apagado. Confira no merge que foi o humano quem o descongelou."
 done
 
 if [[ ${#blocked[@]} -gt 0 ]]; then

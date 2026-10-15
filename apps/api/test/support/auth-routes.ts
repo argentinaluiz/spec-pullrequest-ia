@@ -1,7 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { CapturedMail, extractLink, waitForMailTo } from './mailpit.js';
+import {
+  CapturedMail,
+  extractLink,
+  uniqueEmail,
+  waitForMailTo,
+} from './mailpit.js';
 import { expectProblem } from './problem.js';
 
 export const PASSWORD = 'uma senha bem longa';
@@ -85,6 +90,21 @@ export function authRoutes(app: INestApplication<App>) {
     return (await login(email).expect(200)).body;
   };
 
+  /** `GET /me`, com o token de acesso no cabeçalho quando ele é passado. */
+  const me = (accessToken?: string) => {
+    const call = request(app.getHttpServer()).get('/v1/me');
+    return accessToken
+      ? call.set('Authorization', `Bearer ${accessToken}`)
+      : call;
+  };
+
+  /** Um Usuário novo, verificado e com Sessão, e o id dele. */
+  const signedInUser = async () => {
+    const { accessToken } = await openSession(uniqueEmail());
+    const { body } = await me(accessToken).expect(200);
+    return { accessToken, userId: (body as { id: string }).id };
+  };
+
   return {
     register,
     verifyEmail,
@@ -98,13 +118,8 @@ export function authRoutes(app: INestApplication<App>) {
     registerAndGetToken,
     registerVerified,
     openSession,
-    /** `GET /me`, com o token de acesso no cabeçalho quando ele é passado. */
-    me: (accessToken?: string) => {
-      const call = request(app.getHttpServer()).get('/v1/me');
-      return accessToken
-        ? call.set('Authorization', `Bearer ${accessToken}`)
-        : call;
-    },
+    me,
+    signedInUser,
     /** A verificação de e-mail recusa o token com `invalid_token`. */
     expectInvalidToken: async (token: string) => {
       expectProblem(await verifyEmail(token).expect(400), INVALID_TOKEN);

@@ -34,8 +34,11 @@ export type RotationOutcome = 'rotated' | 'invalid' | 'reused';
 export class RefreshTokensRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(token: NewRefreshToken): Promise<void> {
-    await this.prisma.refreshToken.create({ data: token });
+  async create(
+    token: NewRefreshToken,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    await db.refreshToken.create({ data: token });
   }
 
   findByHash(tokenHash: string): Promise<{ userId: string } | null> {

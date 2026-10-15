@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Banner } from "@/components/ui/banner";
 import { TextLink } from "@/components/ui/text-link";
@@ -44,29 +44,37 @@ async function Notice({ searchParams }: Props) {
   return null;
 }
 
-/** A página pedida antes do login. A Server Action só aceita caminhos internos. */
-async function ReturnTo({ searchParams }: Props) {
+/**
+ * O formulário só é renderizado depois de a página pedida antes do login ser lida, e a recebe
+ * por prop: um envio rápido nunca sai sem o destino. A Server Action só aceita caminhos internos.
+ */
+async function LoginFormWithReturnTo({
+  searchParams,
+  notice,
+}: Props & { notice: ReactNode }) {
   const returnTo = (await searchParams)[RETURN_PARAM];
-  if (typeof returnTo !== "string") return null;
 
-  return <input type="hidden" name={RETURN_PARAM} value={returnTo} />;
+  return (
+    <LoginForm
+      returnTo={typeof returnTo === "string" ? returnTo : undefined}
+      notice={notice}
+    />
+  );
 }
 
 export default function LoginPage(props: Props) {
   return (
     <AuthCard title="Entrar">
-      <LoginForm
-        returnTo={
-          <Suspense>
-            <ReturnTo {...props} />
-          </Suspense>
-        }
-        notice={
-          <Suspense>
-            <Notice {...props} />
-          </Suspense>
-        }
-      />
+      <Suspense>
+        <LoginFormWithReturnTo
+          {...props}
+          notice={
+            <Suspense>
+              <Notice {...props} />
+            </Suspense>
+          }
+        />
+      </Suspense>
       <div className="flex flex-col items-center gap-2">
         <TextLink href="/esqueci-minha-senha">Esqueci minha senha</TextLink>
         <p className="text-body text-ink-muted">

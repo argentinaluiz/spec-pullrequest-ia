@@ -5,6 +5,7 @@ import { Banner } from "@/components/ui/banner";
 import { ButtonPrimary } from "@/components/ui/button-primary";
 import { PasswordField } from "@/components/ui/password-field";
 import { TextLink } from "@/components/ui/text-link";
+import { RETURN_PARAM } from "@/lib/session/return-path";
 import { EmailField } from "../email-field";
 import { login } from "../actions";
 import type { LoginFormState } from "../form-state";
@@ -12,15 +13,15 @@ import type { LoginFormState } from "../form-state";
 const INITIAL_STATE: LoginFormState = {};
 
 type LoginFormProps = {
-  /** O campo oculto com a página pedida antes do login, que chega pela URL. */
-  returnTo?: ReactNode;
+  /** A página pedida antes do login, lida da URL antes de o formulário ser renderizado. */
+  returnTo?: string;
   /** O aviso que chegou de outro fluxo. Dá lugar ao aviso do próprio formulário. */
   notice?: ReactNode;
 };
 
 /*
- * O que depende da URL entra pronto, por props, e chega depois dos campos. Assim os campos
- * não são trocados no meio da digitação quando essa parte termina de carregar.
+ * O destino entra pronto, antes do formulário. O aviso depende da URL, entra por prop e chega
+ * depois dos campos, para que eles não sejam trocados no meio da digitação.
  */
 export function LoginForm({ returnTo, notice }: LoginFormProps) {
   const [state, action, pending] = useActionState(login, INITIAL_STATE);
@@ -30,7 +31,9 @@ export function LoginForm({ returnTo, notice }: LoginFormProps) {
     <>
       {/* A validação é da Server Action: a do navegador mostraria balões fora do design. */}
       <form action={action} noValidate className="flex flex-col gap-6">
-        {returnTo}
+        {returnTo !== undefined && (
+          <input type="hidden" name={RETURN_PARAM} value={returnTo} />
+        )}
         {formNotice(state, pending, resendFormId) ?? notice}
         <div className="flex flex-col gap-4">
           <EmailField

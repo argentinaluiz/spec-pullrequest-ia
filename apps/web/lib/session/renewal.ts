@@ -2,7 +2,7 @@ import { apiEndpoint } from "@/lib/api/endpoint";
 import type { TokenPair } from "@/lib/api/types";
 
 /*
- * A renovação da Sessão (docs/lld.md, seção 4.5). Sem `server-only`, porque quem renova é o
+ * A renovação da Sessão (docs/lld.md, seção 7.2). Sem `server-only`, porque quem renova é o
  * Proxy. Por isso a chamada não passa pelo cliente de `lib/api`, que o Proxy não pode importar.
  */
 

@@ -23,7 +23,7 @@ export type SessionCheck =
 
 /**
  * Confere a Sessão na API, sem redirecionar. A web não valida o token, e o Proxy só faz um
- * filtro otimista (docs/lld.md, seção 4.5). O `cache` evita a chamada repetida dentro da mesma
+ * filtro otimista (docs/lld.md, seção 7.2). O `cache` evita a chamada repetida dentro da mesma
  * requisição, e não guarda nada entre requisições.
  */
 export const checkSession = cache(async (): Promise<SessionCheck> => {

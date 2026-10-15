@@ -1,33 +1,59 @@
+import { CloudUpload } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { ButtonPrimary } from "@/components/ui/button-primary";
-import { getCurrentUser } from "@/lib/dal/user";
-import { logout } from "./actions";
+import { EmptyState } from "@/components/files/empty-state";
+import { FileListSkeleton } from "@/components/files/file-list";
+import { Dropzone } from "@/components/files/dropzone";
+import { FileTable } from "@/components/files/file-table";
+import { ROOT_FOLDER_LABEL } from "@/lib/drive";
+import { getRootItems } from "@/lib/dal/items";
+import { loadMoreRootItems } from "./actions";
 
-export const metadata: Metadata = { title: "Início" };
+export const metadata: Metadata = { title: ROOT_FOLDER_LABEL };
 
-async function SignedInAs() {
-  const user = await getCurrentUser();
+async function RootFolderContents() {
+  const result = await getRootItems();
+  if (!result.ok) {
+    // A pessoa não é deslogada por uma falha da API: a página mostra o erro.
+    throw new Error(
+      `Não foi possível listar a Pasta raiz na API (${result.error.status} ${result.error.code}).`,
+    );
+  }
+  const { items, nextCursor } = result.data;
+
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={<CloudUpload className="size-12" />}
+        title="Nenhum arquivo ainda"
+      >
+        Arraste arquivos para cá ou clique em Enviar.
+      </EmptyState>
+    );
+  }
+
   return (
-    <p className="text-body text-ink-muted">
-      Você entrou como <span className="text-ink">{user.email}</span>.
-    </p>
+    <FileTable
+      label={ROOT_FOLDER_LABEL}
+      items={items}
+      nextCursor={nextCursor}
+      load={loadMoreRootItems}
+    />
   );
 }
 
-// Página provisória: dá lugar à listagem de arquivos quando ela existir.
-export default function HomePage() {
+/** "Meus arquivos": a lista da Pasta raiz (docs/lld.md, seção 7.1). */
+export default function MyFilesPage() {
   return (
-    <main className="flex flex-1 flex-col items-center gap-6 bg-surface px-4 py-16">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="text-display text-ink">Gerenciador de arquivos</h1>
-        <Suspense>
-          <SignedInAs />
-        </Suspense>
+    <main className="flex min-w-0 flex-1 flex-col px-4 pb-4 lg:px-6 lg:pb-6">
+      <div className="flex h-12 shrink-0 items-center">
+        <h1 className="px-2 text-ui-strong text-ink">{ROOT_FOLDER_LABEL}</h1>
       </div>
-      <form action={logout}>
-        <ButtonPrimary type="submit">Sair</ButtonPrimary>
-      </form>
+      <Dropzone folderName={ROOT_FOLDER_LABEL} parentId="root">
+        <Suspense fallback={<FileListSkeleton />}>
+          <RootFolderContents />
+        </Suspense>
+      </Dropzone>
     </main>
   );
 }

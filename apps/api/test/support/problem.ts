@@ -21,6 +21,21 @@ export function expectProblem(
   expect(response.body).toEqual({ type: 'about:blank', ...expected });
 }
 
+/** O corpo do `not_found`, para qualquer recurso. */
+export const NOT_FOUND = {
+  title: 'Not Found',
+  status: 404,
+  code: 'not_found',
+  detail: expect.any(String),
+};
+
+/** O corpo do `internal_error`, sem `detail`, que não expõe a causa. */
+export const INTERNAL_ERROR = {
+  title: 'Internal Server Error',
+  status: 500,
+  code: 'internal_error',
+};
+
 /** Confere que a resposta é o `validation_error` de um único campo recusado. */
 export function expectValidationError(response: Response, field: string): void {
   expectProblem(response, {

@@ -1,7 +1,3 @@
-## Estado atual
-
-A fundação está pronta: módulo de config (`src/config/`), banco com Prisma (`prisma/` e `src/infra/database/`), envio de e-mail (`src/infra/mail/`), filtro de erros e validação de entrada (`src/common/`) e a base de testes (`test/support/`). Dos módulos de domínio (`src/modules/`), existem o `users`, com a rota do Usuário autenticado, e o `auth`, com o cadastro, a verificação de e-mail, o reenvio, o login, a renovação da Sessão, o logout e a recuperação de senha. O token de acesso e o guard que o exige ficam em `src/common/auth/`. O limite de tentativas fica em `src/common/rate-limit/`, e o IP de quem chama, em `src/common/client-ip/`. A estrutura-alvo está na seção 1 do `docs/lld.md`, e o código novo deve nascer nela.
-
 ## Comandos
 
 Todos rodam no contêiner `api`, a partir da raiz do repositório:
@@ -25,9 +21,10 @@ docker compose -f compose.dev.yaml exec api <comando>
 | `pnpm build` | Compila para `dist/` |
 | `pnpm exec prisma migrate dev --name <nome>` | Cria uma migração a partir do `prisma/schema.prisma` e a aplica no banco local. Não gera o cliente. |
 | `pnpm exec prisma generate` | Gera de novo o cliente do Prisma, depois de mudar o schema |
+| `pnpm uploads:cleanup-pending` | Remove os uploads `pending` vencidos, devolvendo o espaço à Cota, e termina os que um expurgo anterior deixou `deleting` (docs/lld.md, seções 4.6 e 5). Compila e abre a aplicação sem o servidor HTTP, imprime `Uploads pendentes removidos: <n>. Falhas: <m>.` e sai com 1 se alguma falhou, ou com 0. O prazo é o `PENDING_UPLOAD_TTL_HOURS`, com o padrão e a regra da tabela de variáveis do LLD (seção 6). Compilado por `tsconfig.uploads-cleanup.json`, que tem o próprio `outDir`. |
 | `pnpm setup:dev` | Prepara o ambiente: `.env`, chaves do JWT, cliente do Prisma e migrações. Já roda sozinho quando o contêiner sobe. |
 
-**Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para cumprir a definição de pronto, rode as três: `pnpm test`, `pnpm test:int` e `pnpm test:e2e`.
+**Cada suíte tem o próprio comando e a própria configuração do Vitest.** O `pnpm test` roda só a de unidade. Para rodar as três, use `pnpm test`, `pnpm test:int` e `pnpm test:e2e`. O `scripts/verify.sh full api` roda as três de uma vez.
 
 Uma suíte que não roda nenhum teste falha. As de integração e de ponta a ponta precisam do `postgres` e do `mailpit` no ar, o que o Compose já garante.
 
@@ -36,97 +33,63 @@ O `pnpm lint` só aponta os problemas, sem corrigir. A formatação é conferida
 ## Particularidades da stack
 
 - **Módulos ES:** o projeto é `"type": "module"` com `moduleResolution: nodenext`. Todo import relativo leva a extensão `.js`, mesmo apontando para um arquivo `.ts` (`import { AppService } from './app.service.js'`). Sem a extensão, o `tsc` e o Node falham.
-- **Vitest:** `describe`, `it`, `expect` e `vi` são globais, sem import. Os mocks usam `vi.fn()` e `vi.mock()`.
-- **oxlint:** as regras ficam no `.oxlintrc.json`. `no-floating-promises` é erro, então toda promise precisa de `await`, `return` ou `void`.
-- **TypeScript:** `strict` ligado, com `strictPropertyInitialization` desligado para os DTOs e as classes com decorators.
-- **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco fica no `prisma.config.ts`, e não no schema. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
-- **`PrismaService`:** é o cliente do banco, global, em `src/infra/database/`. Só os repositories o injetam.
+- **Prisma:** a versão é a 7, fixada no `package.json` (o motivo está na seção 1 do LLD). O cliente é gerado em `src/generated/prisma/`, que fica fora do Git, do lint e do Prettier, e é importado de `generated/prisma/client.js`. A URL do banco não fica no schema: a CLI a lê no `prisma.config.ts`, com o `env('DATABASE_URL')` do Prisma e o `.env` carregado pelo `dotenv`. Sem a variável, qualquer comando da CLI falha apontando-a, até o `prisma generate`, e por isso o `Dockerfile` passa uma URL de reserva só a esse comando. Depois de mudar o `schema.prisma`, crie a migração com `prisma migrate dev` e gere o cliente com `prisma generate`: no Prisma 7, a migração não gera mais o cliente.
+- **Cliente do banco:** o `PrismaService` recebe a URL pela configuração injetada, que a valida na subida, e não lê `process.env.DATABASE_URL` direto, como no exemplo da skill `prisma-client-api`. A divergência é de propósito.
 - **pnpm:** os pacotes que rodam script na instalação precisam estar liberados no `pnpm-workspace.yaml` (`allowBuilds`). Sem isso, a instalação falha.
 
-## Nomes de arquivos
+## Testes
 
-Os arquivos seguem a convenção do Nest: nome em `kebab-case`, seguido de um sufixo que diz o papel do arquivo. A classe leva o mesmo nome em `PascalCase`, com o papel no fim (`items.service.ts` exporta `ItemsService`). Na dúvida, gere o arquivo com o Nest CLI (`pnpm exec nest g <tipo> <nome>`), que já aplica o padrão.
-
-| Artefato | Arquivo |
-| --- | --- |
-| Módulo | `items.module.ts` |
-| Controller | `items.controller.ts` |
-| Service | `items.service.ts` |
-| Repository | `items.repository.ts` |
-| DTO | `dto/create-item.dto.ts` |
-| Entidade | `entities/item.entity.ts` |
-| Guard | `auth.guard.ts` |
-| Exception filter | `problem-details.filter.ts` |
-| Erro de domínio | `quota-exceeded.error.ts` |
-| Interface de `src/infra/` e a implementação dela | `mail-sender.ts` e `smtp-mail-sender.ts` |
-| Configuração de um assunto | `mail.config.ts` |
-| Pipe, interceptor e decorator | `*.pipe.ts`, `*.interceptor.ts` e `*.decorator.ts` |
-
-**Testes**
-
-O sufixo do arquivo define o nível do teste e a suíte que o executa:
+O arquivo de teste leva o nome do arquivo testado, como descrito em `.claude/rules/nest-coding-standards.md`. O sufixo define o nível do teste e a suíte que o executa:
 
 | Nível | Sufixo | Onde fica | O que exercita |
 | --- | --- | --- | --- |
-| Unidade | `.spec.ts` | Ao lado do código, em `src/` | Uma classe isolada, com as dependências trocadas por dublês |
-| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, como um repository contra o PostgreSQL |
-| Ponta a ponta | `.e2e-spec.ts` | Em `test/` | A aplicação inteira por HTTP, com `Test.createTestingModule` e `supertest` |
-
-O arquivo de teste leva o nome do arquivo testado: `items.service.ts` é coberto por `items.service.spec.ts`.
+| Unidade | `.spec.ts` | Ao lado do código, em `src/` | Uma classe isolada, criada com `new`, com as dependências trocadas por dublês |
+| Integração | `.int-spec.ts` | Ao lado do código, em `src/` | Uma peça com a dependência real, como um repository contra o PostgreSQL. Um artefato de um módulo do Nest é montado com `Test.createTestingModule` |
+| Ponta a ponta | `.e2e-spec.ts` | Em `test/` | A aplicação inteira por HTTP, com `createTestApp()` e `supertest` |
 
 **Onde cada regra é provada:** as regras de negócio são provadas pelos testes de ponta a ponta, pelas rotas, com banco e e-mail reais. O teste de unidade de um service é opcional, e vale quando a regra tem muitos casos que seriam lentos ou repetitivos pelas rotas. Funções puras têm teste de unidade. A spec da funcionalidade pode restringir isso, e ela prevalece.
 
-**Base de testes**
-
-As suítes de integração e de ponta a ponta usam a base de `test/support/`. Não há dublês de banco nem de e-mail.
-
-- **Banco de testes:** é um banco separado no mesmo PostgreSQL, com o nome do banco de `DATABASE_URL` mais o sufixo `_test`. Ele é criado e migrado sozinho no começo de cada execução da suíte, e todas as tabelas são esvaziadas antes de cada arquivo de teste. Por dividirem esse banco, os arquivos rodam um por vez.
-- **Aplicação:** um teste de ponta a ponta sobe a aplicação inteira com `createTestApp()`, que aplica a mesma configuração do `main.ts`, e fala com ela só por HTTP, com `supertest`. No fim, fecha com `app.close()`.
-- **Rotas da autenticação:** `authRoutes(app)`, de `test/support/auth-routes.ts`, traz as chamadas de cadastro, verificação, login, renovação, logout, recuperação de senha e `GET /me`, e os atalhos que deixam um Usuário cadastrado ou verificado. O token de um link de e-mail sai de `verificationToken()` e `resetToken()`, que falham se o e-mail não tiver exatamente um link para o caminho esperado.
-- **E-mail:** os testes leem o que foi enviado pela API HTTP do Mailpit, com `waitForMailTo()`. Cada teste usa um destinatário próprio, de `uniqueEmail()`, e acha os e-mails por ele. A caixa do Mailpit nunca é apagada, porque ela também serve ao desenvolvimento. Quando o teste provoca mais de um e-mail para o mesmo destinatário (reenvio, redefinição de senha), ele espera o seguinte com `waitForMailTo(endereço, { count: 2 })`. Sem o `count`, a espera termina no primeiro e-mail que já existir. Para provar que um envio **não** aconteceu, o teste provoca em seguida um envio que conhece, espera por ele e confere o total com `countMailTo()`.
-- **Prazos:** são testados reduzindo a variável de ambiente no teste, com `vi.stubEnv` antes de `createTestApp()`, sem relógio falso dentro dos services. O valor trocado passa pelo schema: se for inválido, a aplicação do teste não sobe. O Vitest desfaz a troca sozinho no fim de cada teste (`unstubEnvs`), sem `vi.unstubAllEnvs()` à mão.
-- **Limite de tentativas:** a base de testes sobe os tetos por e-mail e por IP, porque os testes saem todos do mesmo IP e repetem chamadas com o mesmo e-mail. O teste que exercita um teto o reduz com `vi.stubEnv` antes de `createTestApp()` e esvazia o banco antes de cada caso, com `cleanDatabase()`, para o contador do IP não atravessar os testes.
-- **Configuração no teste:** um teste que precisa de um valor de configuração o pega da configuração injetada (`app.get(mailConfig.KEY)`), e não de `process.env`.
-- **Rota só de teste:** para provar um comportamento da fundação que nenhuma rota de negócio exercita, o teste declara um controller próprio e o passa em `createTestApp({ controllers })`. Ele não entra na aplicação real.
+Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/rules/nest-testing.md`.
 
 ## Aplicação HTTP
 
 - **Prefixo:** o `/v1` é aplicado a todas as rotas por `configureApp()`, em `src/app.setup.ts`, que o `main.ts` e a base de testes chamam. Os controllers declaram a rota sem o prefixo.
 - **Configuração global:** o que vale para todas as rotas e não depende de injeção entra em `configureApp()`. O filtro de erros e a validação de entrada são registrados no `AppModule` (`APP_FILTER` e `APP_PIPE`), e não no `main.ts`, para valerem também nos testes.
-
 - **Rota protegida:** o controller leva `@UseGuards(AuthGuard)` e lê o id do Usuário com `@CurrentUserId()`, os dois de `src/common/auth/`. O módulo dele importa o `AccessTokensModule`. O guard só confere a assinatura do token, sem consultar o banco.
 - **IP de quem chama:** o controller leva `@UseGuards(ClientIpGuard)` e lê o IP com `@ClientIp()`, os dois de `src/common/client-ip/`. Ninguém lê o IP da requisição por conta própria: é o guard que decide entre o IP repassado pela web e o da conexão.
 - **Limite de tentativas:** o service do módulo dono da regra monta as chaves e chama o `RateLimitService`, de `src/common/rate-limit/`, antes de qualquer outra coisa. O módulo dele importa o `RateLimitModule`.
 
-## Onde está cada assunto
+### Contrato OpenAPI
 
-Este arquivo é dono de como o código da API é escrito. O que o sistema faz está nos documentos de `docs/`, e nada de lá é repetido aqui. Antes de implementar, leia a seção do assunto:
+O contrato das rotas é o `openapi.json`, gerado do código pelo `@nestjs/swagger` e conferido pela verificação (`docs/harness.md`, etapa 8). O plugin do Nest (`nest-cli.json`) lê os DTOs, então eles não levam decorators do Swagger.
 
-| Assunto | Onde ler |
-| --- | --- |
-| Visão geral, fluxos principais e ambientes | `docs/hld.md` |
-| Estrutura de pastas e bibliotecas escolhidas | `docs/lld.md`, seção 1 |
-| Esquema e convenções do banco | `docs/lld.md`, seção 2 |
-| Convenções do contrato, códigos de erro e endpoints | `docs/lld.md`, seção 3 |
-| Estados e regras de negócio | `docs/lld.md`, seção 4 |
-| Tarefas do worker | `docs/lld.md`, seção 5 |
-| Limites, prazos e variáveis de ambiente | `docs/lld.md`, seção 6 |
-
-Antes de criar uma rota ou uma tabela, leia as convenções das seções 3.1 e 2 do LLD.
+- **Rota nova ou alterada:** o controller leva `@ApiTags`, o tipo de sucesso (`@ApiOkResponse({ type })` ou o tipo de retorno) e um `@ApiProblem(status, ...códigos)`, de `src/common/openapi/`, para cada erro que a rota pode devolver. A resposta é uma classe, e não uma `interface`, porque o plugin só lê classes.
+- **Rota protegida:** acrescente `@ApiBearerAuth()` ao controller.
+- **Cabeçalho de entrada:** o plugin não enxerga um cabeçalho lido com `@Headers()` ou do `Request`. Declare-o no método com `@ApiHeader({ name: 'Idempotency-Key', required: true })`, para ele entrar no snapshot como parâmetro `in: header`. O `Authorization` não é declarado: o `@ApiBearerAuth()` já o descreve.
+- **Cabeçalho de resposta:** declare-o no decorator da resposta que o devolve, na opção `headers`, como `@ApiCreatedResponse({ type: ItemDto, headers: { Location: { required: true, schema: { type: 'string' } } } })`. O `@ApiProblem` ainda não aceita cabeçalhos: o primeiro erro que devolver um, como o `Retry-After` do `rate_limited`, acrescenta a opção a ele.
+- **Regenerar o snapshot:** `pnpm openapi:generate openapi.json`, no contêiner `api`, e faça o commit do arquivo. A verificação reprova se o snapshot divergir do código.
+- **Schema do banco:** o `prisma/schema.prisma` é o dono das tabelas implementadas, com as observações nos comentários `///`. Mudou o schema, crie a migração: a verificação reprova schema sem migração.
 
 ## Práticas de código
 
+A estrutura de pastas, o esquema do banco, o contrato da API, os estados e as regras de negócio, as tarefas do worker e os limites, prazos e variáveis de ambiente estão no `docs/lld.md`, nas seções 1 a 6. Leia a do assunto antes de implementar, e as convenções das seções 2 e 3.1 antes de criar uma tabela ou uma rota.
+
 O código segue Clean Architecture e SOLID. A regra central é a direção das dependências: o controller conhece o service, e o service não conhece nem o HTTP nem o fornecedor de nenhuma integração.
 
-### Camadas de cada módulo
+As convenções de cada artefato estão em `.claude/rules/nest-*.md`, e cada uma vale para os arquivos listados no `paths` dela. O Claude Code as carrega sozinho quando mexe num desses arquivos. Outro agente lê a do artefato antes de mexer nele.
 
-- **Controller:** rotas HTTP, DTOs e validação.
-- **Service:** regras de negócio. Ele decide o que acontece e nunca abre uma transação: só os repositories têm o cliente do banco.
-- **Repository:** acesso ao banco e a atomicidade de cada comando. Quando um comando lê, decide e grava, ou quando duas gravações têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service.
+### Componentes e como se comunicam
 
-Cada módulo é dono das próprias tabelas. Um módulo só chama outro pelo service público dele, nunca pelas tabelas nem pelo repository.
+Os tipos de peça, o que cada um pode chamar e a direção das dependências estão no `docs/lld.md`, seção 1.1. Leia-a antes de criar uma peça nova ou de injetar uma dependência. A tabela "Pode importar" mais abaixo é a conferência de cada import num arquivo de service.
 
-As integrações externas (storage, fila, e-mail e gateway de pagamento) ficam atrás de interfaces em `src/infra/`, para que a troca de fornecedor fique restrita a um arquivo. Guards, filtros de erro e rate limit ficam em `src/common/`.
+**Onde diverge da skill `nestjs-best-practices`:** a `arch-use-events` troca a chamada direta entre services por eventos (`@nestjs/event-emitter`). Aqui, o service chama o outro de forma direta: os fluxos são síncronos, a resposta e a transação dependem do resultado, e a sequência faz parte da regra de negócio. A `arch-single-responsibility` mostra o controller orquestrando vários services, o que também não vale aqui (`.claude/rules/nest-controller.md`).
+
+### Transação e atomicidade
+
+O que cada peça é está no LLD (seção 1.1). Aqui, como o service e o repository dividem a transação:
+
+- **Service:** quando uma operação grava por mais de um repository e as gravações têm de valer juntas, é o service que abre a transação, com o `$transaction` do `PrismaService`, e passa o cliente dela, o `tx`, aos repositories do próprio módulo.
+- **Repository:** quando um comando lê, decide e grava, ou quando duas gravações dele têm de valer juntas, o repository as põe numa transação e devolve ao service o que aconteceu, como um resultado tipado (`'rotated' | 'invalid' | 'reused'`). O que só pode valer junto com a gravação entra nessa mesma transação, mesmo sendo consequência de uma regra. A regra continua descrita e conferida no service. O método que um service precisa chamar dentro de uma transação aceita, como último parâmetro, o cliente dela (`db: Prisma.TransactionClient = this.prisma`), e o parâmetro entra quando o primeiro service precisa dele. Não o aceitam o método que abre a própria transação nem o que depende de capturar um erro do banco, porque no PostgreSQL esse erro aborta a transação aberta.
 
 ### A camada de serviços não conhece o mundo externo
 
@@ -138,9 +101,10 @@ Antes de adicionar um import num arquivo de service, confira em qual dos dois gr
 | --- | --- |
 | `Injectable`, `Inject` e `Logger` do `@nestjs/common` | `HttpException` e as filhas (`NotFoundException`, `BadRequestException` etc.) e `HttpStatus` |
 | Entidades, tipos e erros de domínio do próprio módulo | `Request` e `Response` do Express, e os decorators de rota (`@Req`, `@Body`, `@Headers`) |
-| O repository do próprio módulo | DTOs do controller, com decorators do class-validator ou do Swagger |
-| O service público de outro módulo | Repository, tabelas ou tipos internos de outro módulo |
-| As interfaces de `src/infra/` (storage, fila, e-mail, gateway) | SDKs de fornecedor (`@google-cloud/*`, cliente SMTP, SDK do gateway) |
+| O repository e os outros services do próprio módulo | DTOs do controller, com decorators do class-validator ou do Swagger |
+| O service público de outro módulo, e os services de `src/common/` | Repository, tabelas ou tipos internos de outro módulo |
+| As interfaces de `src/infra/` (storage, fila, e-mail, gateway), pelo token | A implementação delas e os SDKs de fornecedor (`@google-cloud/*`, cliente SMTP, SDK do gateway) |
+| O `PrismaService` e o tipo `Prisma.TransactionClient`, só para abrir uma transação e passar o `tx` | Consultas e gravações pelo cliente do banco |
 | Utilitários puros, sem entrada e saída | `process.env`, direto. A configuração chega pelo módulo de config, por injeção. |
 
 O que vem da requisição (corpo, parâmetros, usuário autenticado, IP, cabeçalho `Idempotency-Key`) é extraído no controller ou num guard e entra no service como argumento tipado.
@@ -149,20 +113,7 @@ A mesma regra vale para o repository: ele não importa nada de HTTP.
 
 ### Erros
 
-- **No service:** uma regra de negócio violada lança um erro de domínio, uma classe própria que carrega o `code` estável do contrato (`quota_exceeded`, `invalid_move`) e os dados do caso. O erro não sabe o status HTTP.
-- **No exception filter:** a resposta HTTP de erro é desenhada num único lugar, um exception filter global em `src/common/`. Ele traduz o erro de domínio em status e corpo `application/problem+json`, e é ali que mora o mapa de `code` para status da seção 3.1 do LLD.
-- **No controller:** nada de `try/catch` para converter erro em resposta, nem `res.status(...).json(...)`. O controller deixa o erro subir até o filter.
-- **Erro de domínio:** estende `DomainError`, de `src/common/errors/`, e fica no módulo dono da regra. Um `code` novo entra na mesma tarefa no tipo `ErrorCode`, no mapa de status do filter e na tabela da seção 3.1 do LLD. A mensagem do erro vai para o campo `detail` da resposta, então não traz detalhes internos.
-- **Validação de entrada:** os DTOs são validados por um pipe global, com os decorators do class-validator. O erro dele passa pelo mesmo filter e sai como `validation_error`. Os campos que o DTO não declara são descartados.
-- **Erro inesperado:** o filter registra em log e responde 500, sem expor mensagem interna nem stack trace. Isso vale também para o erro de uma biblioteca que traz um `statusCode` próprio: o filter só aceita o status de uma `HttpException` e dos erros do leitor do corpo do Express.
-- **Erro de fornecedor:** a implementação de `src/infra/` que recebe um erro com significado para a regra de negócio (objeto inexistente, limite atingido) o converte em erro de domínio. Ela não deixa o erro do SDK subir contando com o status dele.
-
-### SOLID no dia a dia
-
-- **Responsabilidade única:** o controller adapta o HTTP, o service decide e o repository persiste. Um service que cresce para atender dois motivos de mudança é dividido.
-- **Inversão de dependência:** o service depende da interface de `src/infra/`, e a implementação concreta é ligada no módulo por um token de injeção. Nos testes unitários, a interface é trocada por um dublê, sem `vi.mock()` de SDK.
-- **Segregação de interface:** as interfaces de `src/infra/` são pequenas e escritas a partir do que o service precisa, e não do que o SDK oferece.
-- **Aberto para extensão:** um fornecedor novo é uma implementação nova da interface, sem mudança no service.
+O service lança erro de domínio, e só o exception filter global conhece o HTTP: ele traduz o erro em status e corpo `application/problem+json`. As regras estão em `.claude/rules/nest-errors.md` e, para o controller, em `.claude/rules/nest-controller.md`.
 
 ## Configuração
 
@@ -175,7 +126,5 @@ Toda configuração entra no projeto por um módulo de config próprio, em `src/
 - **Tipagem:** os valores saem do módulo já convertidos e tipados (número, booleano, duração), e não como `string | undefined`. Prefira configurações agrupadas por assunto, com `registerAs` (`auth`, `storage`, `mail`), a chaves soltas lidas por nome. Cada assunto tem o próprio arquivo (`mail.config.ts`) e é injetado pela chave dele: `@Inject(mailConfig.KEY) config: ConfigType<typeof mailConfig>`.
 - **Variável nova:** entra na mesma tarefa no schema do Joi, no `.env.example` e na tabela da seção 6 do LLD.
 - **Padrões:** os valores padrão do schema são os de produção. O ambiente local os reduz pelo `.env`.
-- **Testes:** os testes de unidade não carregam o `ConfigModule`. Eles injetam um objeto de configuração montado no próprio teste. Nas suítes de integração e de ponta a ponta, a base de testes carrega o `.env` e troca `DATABASE_URL` pelo banco de testes; ela e o `prisma.config.ts` são as únicas exceções à regra de não ler `process.env` fora de `src/config/`. A CLI do Prisma roda fora do Nest, então lê o `.env` e a `DATABASE_URL` por conta própria.
+- **Exceções à leitura de `process.env`:** a base de testes, que carrega o `.env` e troca `DATABASE_URL` pelo banco de testes, e o `prisma.config.ts` são os únicos que leem `process.env` fora de `src/config/`. A CLI do Prisma roda fora do Nest, então lê o `.env` e a `DATABASE_URL` por conta própria.
 - **Arquivo `.env`:** a aplicação lê o `.env` da pasta do projeto, se ele existir, e as variáveis já definidas no ambiente prevalecem sobre as do arquivo. Em produção não há arquivo.
-- **Lista das variáveis:** está na seção 6 do LLD, e não aqui. O `.env` fica fora do Git, e o `.env.example` é versionado.
-- **Imagens:** o `Dockerfile.dev` é o do desenvolvimento, com o código montado por volume. O `Dockerfile` é o de produção, para o Cloud Run.

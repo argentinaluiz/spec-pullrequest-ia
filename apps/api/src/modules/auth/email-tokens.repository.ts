@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import { EmailTokenType } from './email-token-type.js';
 
@@ -41,8 +42,9 @@ export class EmailTokensRepository {
     tokenHash: string,
     type: EmailTokenType,
     now: Date,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<string | null> {
-    const used = await this.prisma.emailToken.updateManyAndReturn({
+    const used = await db.emailToken.updateManyAndReturn({
       where: { tokenHash, type, usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },
       select: { userId: true },

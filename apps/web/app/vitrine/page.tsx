@@ -1,8 +1,9 @@
-import { Eye } from "lucide-react";
+import { Eye, FolderPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Banner } from "@/components/ui/banner";
 import { ButtonIcon } from "@/components/ui/button-icon";
 import { ButtonPrimary } from "@/components/ui/button-primary";
+import { ButtonUtility } from "@/components/ui/button-utility";
 import { PasswordField } from "@/components/ui/password-field";
 import { TextField } from "@/components/ui/text-field";
 import { TextLink } from "@/components/ui/text-link";
@@ -40,6 +41,15 @@ export default function VitrinePage() {
         <ButtonPrimary loading>Entrar</ButtonPrimary>
         <ButtonPrimary disabled>Entrar</ButtonPrimary>
         <ButtonPrimary href="/vitrine">Pedir novo link</ButtonPrimary>
+      </Section>
+
+      <Section title="button-utility">
+        <ButtonUtility>Carregar mais</ButtonUtility>
+        <ButtonUtility icon={<FolderPlus className="size-4" />}>
+          Nova pasta
+        </ButtonUtility>
+        <ButtonUtility loading>Carregar mais</ButtonUtility>
+        <ButtonUtility disabled>Carregar mais</ButtonUtility>
       </Section>
 
       <Section title="button-icon">

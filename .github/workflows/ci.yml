@@ -53,6 +53,9 @@ jobs:
           # não teria commit nenhum para olhar. A base passa a ser o commit anterior ao push.
           # Num pull request, a base é a branch de destino dele.
           HARNESS_BASE_REF: ${{ github.event_name == 'push' && github.event.before || format('origin/{0}', github.base_ref) }}
+          # Num pull request, o checkout é o merge da branch na base, e o desvio do plano contaria as
+          # mudanças da base como da branch. Ele compara com o último commit da branch.
+          HARNESS_HEAD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || '' }}
         run: scripts/verify.sh full --start-apps
 
       - name: Logs dos contêineres
