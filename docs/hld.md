@@ -183,7 +183,8 @@ Apagar o link corta o acesso na hora, porque as URLs assinadas expiram em minuto
 
 | Entidade | O que guarda | Onde vive |
 | --- | --- | --- |
-| Usuário | E-mail, hash da senha, plano atual e bytes usados | Cloud SQL |
+| Usuário | E-mail e hash da senha | Cloud SQL |
+| Cota | Plano atual e bytes usados de cada usuário | Cloud SQL |
 | Token de renovação | Hash do token, usuário e validade | Cloud SQL |
 | Item | Arquivo ou pasta: tipo, nome, item pai, dono, tamanho, status, chave do objeto e data de exclusão | Cloud SQL |
 | Link de compartilhamento | Token, item, expiração e hash da senha | Cloud SQL |
@@ -195,7 +196,7 @@ Apagar o link corta o acesso na hora, porque as URLs assinadas expiram em minuto
 **Decisões do modelo**
 
 - **Hierarquia por lista de adjacência:** arquivos e pastas são a mesma entidade, e cada item aponta para o pai. Mover altera um único registro.
-- **Cota por contador:** os bytes usados ficam no usuário e são atualizados na mesma transação que cria ou expurga um arquivo.
+- **Cota por contador:** os bytes usados ficam na cota do usuário, uma linha por usuário e separada da conta, e são atualizados na mesma transação que cria ou expurga um arquivo.
 - **Busca por nome:** índice de texto do próprio PostgreSQL, sem serviço de busca separado.
 
 **Integrações externas**
@@ -219,9 +220,9 @@ O sistema tem quatro ambientes. O desenvolvimento é todo local, sem conta no Go
 
 ### 6.1 Ambiente local
 
-Tudo roda no Docker Compose, inclusive o Next.js e o NestJS, com o código montado por volume. O Compose tem seis serviços: `web`, `api`, `worker`, `postgres`, `storage` e `mailpit`.
+Tudo roda no Docker Compose, inclusive o Next.js e o NestJS, com o código montado por volume. O Compose tem sete serviços: `web`, `api`, `worker`, `postgres`, `storage`, `mailpit` e `playwright`, com os navegadores dos testes da web.
 
-Hoje o Compose tem quatro deles: `web`, `api`, `postgres` e `mailpit`. O `worker` e o `storage` entram com as funcionalidades que os usam. Os comandos e os endereços de cada serviço estão na seção "Execução no Docker" do `AGENTS.md` da raiz.
+Hoje o Compose tem seis deles: `web`, `api`, `postgres`, `storage`, `mailpit` e `playwright`. O `worker` entra com a funcionalidade que o usa. Os comandos e os endereços de cada serviço estão na seção "Execução no Docker" do `AGENTS.md` da raiz.
 
 | Produção | Substituto local |
 | --- | --- |
@@ -239,17 +240,17 @@ Hoje o Compose tem quatro deles: `web`, `api`, `postgres` e `mailpit`. O `worker
 - **Segredos:** o ambiente local não usa segredos reais. As chaves do JWT são geradas por um script na primeira subida.
 - **Migrações:** são aplicadas quando o contêiner da API sobe.
 - **Seed:** os quatro planos, um usuário gratuito e um usuário pago, já verificados, com pastas e arquivos de exemplo.
-- **Bucket:** é criado na subida do emulador.
+- **Bucket:** `app-files`, criado na subida do emulador.
 - **Reinício:** um comando apaga os volumes e refaz as migrações e o seed.
 - **Prazos configuráveis:** a retenção da lixeira, o prazo de upload pendente e a validade dos tokens são definidos por variável de ambiente, com os valores de produção como padrão. Localmente, eles podem ser reduzidos para testar.
 
 **O que o ambiente local não reproduz**
 
-- **Upload em chunks:** o emulador pode divergir do Cloud Storage no protocolo de sessão retomável e nas URLs assinadas. A compatibilidade do `fake-gcs-server` com esses dois recursos ainda não foi verificada.
+- **Upload em chunks e URLs assinadas:** o `fake-gcs-server` reproduz a sessão retomável com chunks e o nome do arquivo no download assinado (`response-content-disposition`), e diverge em seis pontos, medidos na versão 1.56.1 (detalhes na seção 4.6 do LLD): o endereço da sessão sai com o host da requisição, e não com o `-external-url`; a consulta de progresso encerra o envio em vez de consultar; o CORS é fixo, sem expor o `Range` ao navegador; o cancelamento só responde 499 e a sessão continua aceitando bytes; a assinatura e a validade da URL não são conferidas; o tamanho do chunk não precisa ser múltiplo de 256 KiB.
 - **Novas tentativas das tarefas:** com o driver local, uma tarefa que falha não é repetida.
 - **Webhooks reais:** os eventos são simulados, e não enviados pelo gateway.
 
-Esses três pontos são validados no staging.
+Esses pontos são validados no staging.
 
 ### 6.2 Staging, produção e entrega
 
@@ -312,7 +313,7 @@ flowchart LR
 - [ ] Confirmação do limite de 5 GB por arquivo e dos 30 dias de lixeira, que o brief deixou em aberto.
 - [ ] Alta disponibilidade do Cloud SQL (réplica em outra zona): custo contra a meta de 99,5%.
 - [ ] Observabilidade: logs, métricas e alertas ainda não foram desenhados.
-- [ ] Compatibilidade do `fake-gcs-server` com sessão de upload retomável e URLs assinadas.
+- [x] Compatibilidade do `fake-gcs-server` com sessão de upload retomável e URLs assinadas. Fechada: as divergências estão na seção 6.1 e são cobertas no staging.
 - [ ] Escolha entre Terraform e OpenTofu para a infraestrutura como código.
 - [ ] Forma da `DATABASE_URL` no staging e na produção. A validação da API hoje recusa a URL por socket do Cloud SQL, que tem o host vazio e o caminho do socket no parâmetro `host`. Falta decidir se a API conecta por socket ou por TCP; se for por socket, a validação passa a aceitar essa forma.
 - [ ] Formato das chaves do JWT nos segredos. A validação só aceita o PEM com quebras de linha reais. Falta decidir se o meio que entrega o segredo as preserva, ou se a API passa a aceitar a chave numa linha só, com `\n` escapado.

@@ -9,7 +9,10 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { databaseConfig } from '../../config/database.config.js';
 import { PrismaClient } from '../../generated/prisma/client.js';
 
-/** Cliente do banco. Os repositories de cada módulo o recebem por injeção. */
+/**
+ * Cliente do banco. Os repositories de cada módulo o recebem por injeção, e o
+ * service que abre uma transação também.
+ */
 @Injectable()
 export class PrismaService
   extends PrismaClient

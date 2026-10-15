@@ -5,6 +5,9 @@
 //    É o caso de um `.env` criado antes de a variável existir.
 // 3. Se faltam as chaves do JWT, um par RS256 é gerado e gravado no `.env`.
 //
+// 4. Se há emulador de storage e falta a chave que assina as URLs, um par RSA descartável é gerado
+//    e a chave privada é gravada no `.env` (docs/lld.md, seção 4.6).
+//
 // O script pode rodar quantas vezes for: ele nunca troca um valor que já existe.
 import { generateKeyPairSync } from 'node:crypto';
 import { appendFileSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
@@ -68,4 +71,25 @@ if (jwtKeys.length === 0) {
     ].join('\n'),
   );
   console.log('setup-env: chaves do JWT geradas e gravadas no .env');
+}
+
+if (current.STORAGE_EMULATOR_HOST && !current.STORAGE_SIGNER_PRIVATE_KEY) {
+  // O SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador, que não
+  // confere a assinatura. A chave só vale neste ambiente e nunca é versionada.
+  const { privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+
+  appendFileSync(
+    envPath,
+    [
+      '',
+      '# Chave que assina as URLs do storage, gerada por scripts/setup-env.mjs. Só vale para o ambiente local.',
+      `STORAGE_SIGNER_PRIVATE_KEY="${privateKey.trim()}"`,
+      '',
+    ].join('\n'),
+  );
+  console.log('setup-env: chave de assinatura do storage gerada e gravada no .env');
 }

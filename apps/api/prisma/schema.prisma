@@ -1,4 +1,6 @@
-// Esquema do banco. As convenções e as tabelas estão na seção 2 do docs/lld.md.
+// Esquema do banco. Este arquivo é o dono das tabelas já implementadas, com as observações de
+// cada coluna nos comentários `///`. As convenções, o diagrama e as tabelas ainda não
+// implementadas estão na seção 2 do docs/lld.md.
 // A URL de conexão fica no prisma.config.ts, e não aqui.
 
 generator client {
@@ -6,43 +8,56 @@ generator client {
   output              = "../src/generated/prisma"
   moduleFormat        = "esm"
   importFileExtension = "js"
+  // Os índices parciais (`where`) de `items` dependem desta prévia, que existe desde o Prisma 7.4.
+  previewFeatures     = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+/// O Usuário.
 model User {
   id              String    @id @db.Uuid
+  /// Gravado sem os espaços das pontas. O CITEXT ignora maiúsculas, e não há outra normalização: `joao+x@gmail.com` e `joao@gmail.com` são usuários diferentes.
   email           String    @unique @db.Citext
+  /// Argon2id.
   passwordHash    String    @map("password_hash")
+  /// Nulo até a verificação.
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  /// Aceite dos termos e da política de privacidade, gravado no cadastro.
   termsAcceptedAt DateTime  @map("terms_accepted_at") @db.Timestamptz
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   emailTokens   EmailToken[]
   refreshTokens RefreshToken[]
+  items         Item[]
+  quota         Quota?
 
   @@map("users")
 }
 
+/// Token de uso único enviado por e-mail, para verificar o endereço ou redefinir a senha.
 model EmailToken {
   id        String    @id @db.Uuid
   userId    String    @map("user_id") @db.Uuid
   /// `verify_email` ou `reset_password`.
   type      String
   tokenHash String    @unique @map("token_hash")
+  /// 24 horas para verificação, 1 hora para redefinição.
   expiresAt DateTime  @map("expires_at") @db.Timestamptz
+  /// Uso único.
   usedAt    DateTime? @map("used_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  /// Um token por Usuário e tipo: emitir outro substitui o anterior.
+  /// Um token por Usuário e tipo: emitir outro substitui o anterior, e por isso só o link mais recente funciona, mesmo com emissões simultâneas.
   @@unique([userId, type])
   @@map("email_tokens")
 }
 
+/// Token de renovação de uma Sessão.
 model RefreshToken {
   id           String    @id @db.Uuid
   userId       String    @map("user_id") @db.Uuid
@@ -50,8 +65,11 @@ model RefreshToken {
   sessionId    String    @map("session_id") @db.Uuid
   /// SHA-256 do token.
   tokenHash    String    @unique @map("token_hash")
+  /// 30 dias após a emissão.
   expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  /// Preenchido quando o token é trocado.
   rotatedAt    DateTime? @map("rotated_at") @db.Timestamptz
+  /// O token que o substituiu.
   replacedById String?   @map("replaced_by_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
@@ -62,12 +80,80 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-/// Contador do limite de tentativas: uma linha por chave, com a janela atual.
+/// Contador do limite de tentativas: uma linha por chave, com a janela atual. A janela abre na primeira tentativa e dura o tempo configurado, sem se esticar com as tentativas seguintes. A primeira tentativa depois de ela fechar abre outra, com o contador em 1. O relógio da janela é o do banco, que é um só para todas as instâncias da API. Os contadores ficam no PostgreSQL porque as instâncias do Cloud Run não compartilham memória: uma troca futura por Redis fica restrita ao módulo `common/rate-limit`.
 model RateLimit {
   /// Por exemplo `login:email:<hash do e-mail>` ou `login:ip:<ip>`.
   key         String   @id
+  /// Início da janela.
   windowStart DateTime @map("window_start") @db.Timestamptz
+  /// Contador da janela.
   count       Int
 
   @@map("rate_limits")
+}
+
+/// Um arquivo ou uma pasta de um Usuário. O conteúdo do arquivo fica no storage, no objeto de `object_key`. A miniatura e a lixeira acrescentam colunas e índices com as funcionalidades delas (seção 2 do docs/lld.md).
+model Item {
+  id               String   @id @db.Uuid
+  ownerId          String   @map("owner_id") @db.Uuid
+  /// Nulo só na Pasta raiz, que nasce sob demanda e se chama "Meus arquivos".
+  parentId         String?  @map("parent_id") @db.Uuid
+  /// `file` ou `folder`.
+  type             String
+  /// Sem `/` nem caracteres de controle. Nomes duplicados são permitidos.
+  name             String   @db.VarChar(255)
+  /// `pending`, `deleting`, `active` ou `trashed`. `deleting` é o upload que o expurgo já tomou (cancelamento ou limpeza), com a Cota já devolvida, enquanto o storage é limpo: nunca é ativado nem aparece em leitura nenhuma, e a limpeza o termina (seção 4.6 do docs/lld.md).
+  status           String
+  /// 0 para pastas.
+  sizeBytes        BigInt   @default(0) @map("size_bytes")
+  /// Nulo para pastas.
+  mimeType         String?  @map("mime_type")
+  /// Chave aleatória do objeto no bucket. Nula para pastas.
+  objectKey        String?  @unique @map("object_key")
+  /// Sessão retomável do storage, enquanto `pending`.
+  uploadSessionUri String?  @map("upload_session_uri")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner    User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// `NoAction`, e não `Restrict`: a conferência fica para o fim do comando, e a exclusão em cascata de um Usuário apaga pais e filhos juntos. Fora dela, o expurgo apaga os descendentes antes da pasta.
+  parent   Item?  @relation("ItemChildren", fields: [parentId], references: [id], onDelete: NoAction)
+  children Item[] @relation("ItemChildren")
+
+  /// Uma Pasta raiz por Usuário, mesmo com chamadas simultâneas no primeiro uso.
+  @@unique([ownerId], map: "items_root_key", where: raw("parent_id IS NULL"))
+  /// Lista uma pasta na ordem do contrato e pagina por cursor: pastas primeiro (`folder` vem depois de `file` no alfabeto, daí o `Desc`), depois por nome, com o id como desempate.
+  @@index([parentId, type(sort: Desc), name, id], map: "items_listing_idx", where: raw("status = 'active'"))
+  /// Para a limpeza dos uploads pendentes e dos que ficaram em remoção. O filtro está escrito como o PostgreSQL o guarda (o `IN` vira `= ANY (ARRAY[...])`), para o Prisma não ver diferença entre o schema e o banco.
+  @@index([status, createdAt], map: "items_pending_idx", where: raw("status = ANY (ARRAY['pending'::text, 'deleting'::text])"))
+  @@map("items")
+}
+
+/// O plano de armazenamento, dado de referência: a tabela nasce só com o plano gratuito, inserido pela migração (existe também em produção, e não é seed). Os preços e os outros planos entram com a cobrança. Dono: o módulo `quota`.
+model Plan {
+  id           String  @id @db.Uuid
+  /// `free`, `plan_100gb`, `plan_1tb` ou `plan_2tb`. Só `free` existe até a cobrança.
+  code         String  @unique
+  /// Limite da Cota, em bytes. 15 GB no plano gratuito.
+  storageBytes BigInt  @map("storage_bytes")
+  /// Plano disponível para contratação.
+  active       Boolean @default(true)
+
+  quotas Quota[]
+
+  @@map("plans")
+}
+
+/// A Cota de um Usuário: o plano e os bytes usados, contando os uploads em andamento. Uma linha por Usuário, que nasce sob demanda, no plano gratuito, na mesma transação da primeira reserva; a migração que cria a tabela cria também a linha dos Usuários que já existem. A conta (`users`) não tem coluna de cota. Dono: o módulo `quota`, e os outros módulos só a usam pelo service público dele.
+model Quota {
+  userId    String   @id @map("user_id") @db.Uuid
+  planId    String   @map("plan_id") @db.Uuid
+  /// Bytes reservados pelos Itens do Usuário, com o tamanho declarado dos uploads pendentes. A restrição `used_bytes >= 0` é escrita à mão na migração, porque o Prisma não a expressa. A reserva é um único `UPDATE` condicionado ao limite do plano (seção 4.2 do docs/lld.md).
+  usedBytes BigInt   @default(0) @map("used_bytes")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@map("quotas")
 }

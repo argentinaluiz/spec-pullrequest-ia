@@ -1,4 +1,4 @@
-import { INestApplication, Type } from '@nestjs/common';
+import { INestApplication, Provider, Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { App } from 'supertest/types.js';
 import { AppModule } from '../../src/app.module.js';
@@ -10,6 +10,8 @@ interface TestAppOptions {
    * erro, validação) sem depender de uma rota de negócio.
    */
   controllers?: Type[];
+  /** Providers que só existem no teste, como um service que usa os repositories reais. */
+  providers?: Provider[];
 }
 
 /**
@@ -22,6 +24,7 @@ export async function createTestApp(
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
     controllers: options.controllers ?? [],
+    providers: options.providers ?? [],
   }).compile();
 
   const app = moduleRef.createNestApplication<INestApplication<App>>({

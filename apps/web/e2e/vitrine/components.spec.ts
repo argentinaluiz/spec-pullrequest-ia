@@ -23,3 +23,13 @@ test("o erro de um campo fica ligado a ele", async ({ page }) => {
     "Informe um e-mail válido, como nome@exemplo.com.",
   );
 });
+
+test("o botão utilitário em carregamento mantém o nome acessível", async ({ page }) => {
+  await page.goto("/vitrine");
+
+  const busy = page.locator('button[aria-busy="true"]').filter({ hasText: "Carregar mais" });
+
+  await expect(busy).toHaveCount(1);
+  await expect(busy).toBeDisabled();
+  await expect(busy).toHaveAccessibleName("Carregar mais");
+});

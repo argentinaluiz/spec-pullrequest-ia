@@ -48,9 +48,25 @@ export async function fillLogin(page: Page, email: string, password = PASSWORD) 
   await page.getByRole("button", { name: "Entrar" }).click();
 }
 
-/** Cria um Usuário verificado e entra com ele. Termina na página inicial do produto. */
+/** O botão do menu da conta, na barra superior do Drive. O nome dele traz o e-mail do Usuário. */
+export function accountMenuButton(page: Page, email: string) {
+  return page.getByRole("button", { name: `Conta de ${email}` });
+}
+
+/** A página é a do Drive, com a Sessão do Usuário do e-mail. */
+export async function expectSignedInAs(page: Page, email: string) {
+  await expect(accountMenuButton(page, email)).toBeVisible();
+}
+
+/** Cria um Usuário verificado e entra com ele. Termina na casca do Drive, em "Meus arquivos". */
 export async function signIn(page: Page, email: string) {
   await createVerifiedUser(page, email);
   await fillLogin(page, email);
-  await expect(page.getByText(email)).toBeVisible();
+  await expectSignedInAs(page, email);
+}
+
+/** Sai pelo menu da conta, na página do Drive em que a página já está. */
+export async function signOut(page: Page, email: string) {
+  await accountMenuButton(page, email).click();
+  await page.getByRole("menuitem", { name: "Sair" }).click();
 }

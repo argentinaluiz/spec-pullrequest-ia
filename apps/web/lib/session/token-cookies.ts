@@ -6,7 +6,7 @@ import {
 import { secureCookies } from "@/lib/session/cookie-options";
 
 /*
- * Como os dois cookies de token são gravados e apagados (docs/lld.md, seção 4.5). Sem
+ * Como os dois cookies de token são gravados e apagados (docs/lld.md, seção 7.2). Sem
  * `server-only`, porque o Proxy grava na resposta dele e as Server Actions, em `cookies()`: os
  * dois passam o próprio armazenamento.
  */

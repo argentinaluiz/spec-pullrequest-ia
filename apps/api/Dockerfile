@@ -25,7 +25,8 @@ COPY --from=deps /app/node_modules ./node_modules
 # Ele só depende do schema, então fica numa camada que o código não invalida.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts ./
 COPY prisma ./prisma
-RUN pnpm exec prisma generate
+# O `env()` do prisma.config.ts exige `DATABASE_URL` até no `generate`, que não conecta.
+RUN DATABASE_URL=postgresql://build:build@postgres:5432/build pnpm exec prisma generate
 
 COPY . .
 RUN pnpm build

@@ -76,8 +76,8 @@ Do NOT close or modify any parent issue.
 
 **Status:** ready-for-agent
 
-- [ ] Acceptance criterion 1
-- [ ] Acceptance criterion 2
+- [ ] **CA1** · Acceptance criterion 1 (check)
+- [ ] **CA2** · Acceptance criterion 2 (check)
 
 </local-ticket-template>
 
@@ -93,13 +93,15 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 
 ## Acceptance criteria
 
-- [ ] Criterion 1
-- [ ] Criterion 2
+- [ ] **CA1** · Criterion 1 (check)
+- [ ] **CA2** · Criterion 2 (check)
 
 ## Blocked by
 
 - A reference to each blocking ticket, or "None (can start immediately)". Omit this section when blockers were set as native edges.
 
 </issue-template>
+
+In a criterion, `CA<n>` is its stable ID and `(check)` is how it is verified. The ID rules and the checks are owned by the `plan-ticket` skill, in `formatos/aceite.md`; follow them. The definition of done is not a criterion.
 
 In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.

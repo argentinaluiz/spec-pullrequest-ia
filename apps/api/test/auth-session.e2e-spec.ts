@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
+import { PrismaService } from '../src/infra/database/prisma.service.js';
 import {
   authRoutes,
   INVALID_CREDENTIALS,
@@ -139,6 +140,17 @@ describe('Entrar e sair', () => {
         id: expect.stringMatching(/^[0-9a-f-]{36}$/),
         email,
       });
+    });
+
+    it('devolve unauthenticated, e não um erro do servidor, quando o Usuário do token já não existe', async () => {
+      const email = uniqueEmail();
+      await auth.registerVerified(email);
+      const { body: tokens } = await auth.login(email).expect(200);
+      await app.get(PrismaService).user.deleteMany({ where: { email } });
+
+      const response = await auth.me(tokens.accessToken).expect(401);
+
+      expectProblem(response, UNAUTHENTICATED);
     });
 
     it('devolve unauthenticated sem token', async () => {

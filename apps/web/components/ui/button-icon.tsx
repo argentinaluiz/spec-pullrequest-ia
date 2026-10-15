@@ -17,6 +17,14 @@ const SIZES = {
   44: "size-11",
 };
 
+/**
+ * A classe do `{component.button-icon}`, para o botão que outro componente desenha, como o
+ * gatilho de um `Menu`, que é o próprio botão do menu.
+ */
+export function buttonIconClassName(size: 36 | 44 = 36): string {
+  return `${SIZES[size]} focus-ring flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-[color,background-color,scale] duration-150 enabled:hover:bg-surface-hover enabled:hover:text-ink enabled:active:scale-95 disabled:text-ink-disabled motion-reduce:enabled:active:scale-100`;
+}
+
 export function ButtonIcon({
   children,
   size = 36,
@@ -26,7 +34,7 @@ export function ButtonIcon({
   return (
     <button
       type={type}
-      className={`${SIZES[size]} focus-ring flex shrink-0 items-center justify-center rounded-full text-ink-muted transition-[color,background-color,scale] duration-150 enabled:hover:bg-surface-hover enabled:hover:text-ink enabled:active:scale-95 disabled:text-ink-disabled motion-reduce:enabled:active:scale-100`}
+      className={buttonIconClassName(size)}
       {...props}
     >
       {children}

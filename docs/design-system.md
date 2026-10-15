@@ -212,7 +212,7 @@ Os estados são definidos uma vez aqui e valem para todo componente. A seção d
 
 ### Arquivos
 
-**`file-list`**: a visão padrão do Drive, em tabela. Cabeçalho de 40px em `{typography.ui-strong}` e `{colors.ink-muted}`, com borda inferior em `{colors.hairline}`. Colunas: Nome, Tipo, Tamanho e Modificado em. O cabeçalho ordena a lista ao clique e mostra uma seta de 16px na coluna ativa.
+**`file-list`**: a visão padrão do Drive, em tabela. Cabeçalho de 40px em `{typography.ui-strong}` e `{colors.ink-muted}`, com borda inferior em `{colors.hairline}`. Colunas: Nome, Tipo, Tamanho e Modificado em. O cabeçalho ordena a lista ao clique e mostra uma seta de 16px na coluna ativa. No fim da lista, quando há mais itens, fica o `{component.button-utility}` "Carregar mais", centrado, com `{spacing.md}` acima e abaixo. Enquanto a página seguinte carrega, o botão fica no estado carregando; quando não há mais itens, ele some.
 
 **`file-row`**: linha da lista. Altura de 48px, fundo `{colors.canvas}`, borda inferior de 1px em `{colors.hairline}`, padding horizontal `{spacing.md}`. Da esquerda para a direita: `{component.checkbox}`, ícone do tipo ou miniatura de 32px, nome em `{typography.ui}` e `{colors.ink}` (truncado com reticências), e tipo, tamanho e data em `{typography.mono}` e `{colors.ink-muted}`. No fim da linha, um `{component.button-icon}` "Mais ações" abre o `{component.menu}`. Um clique seleciona; dois cliques abrem a pasta ou a pré-visualização.
 
@@ -220,11 +220,18 @@ Os estados são definidos uma vez aqui e valem para todo componente. A seção d
 
 **`empty-state`**: ocupa a área de conteúdo quando não há itens. Centrado, com ícone de 48px em `{colors.ink-muted}`, título em `{typography.title}`, uma frase em `{typography.body}` e `{colors.ink-muted}`, e no máximo um botão. Variações: pasta vazia ("Arraste arquivos para cá ou clique em Enviar"), lixeira vazia e busca sem resultados.
 
-**`dropzone`**: cobre a área de conteúdo enquanto o usuário arrasta arquivos sobre a janela. Usa o estado "arrastando sobre", com `{rounded.lg}`, e mostra o nome da pasta de destino em `{typography.title}`.
+**`dropzone`**: cobre a lista da pasta atual enquanto o usuário arrasta arquivos sobre ela. Usa o estado "arrastando sobre", com `{rounded.lg}`, e mostra o nome da pasta de destino em `{typography.title}`.
 
-**`upload-panel`**: painel flutuante no canto inferior direito, com 360px de largura. Fundo `{colors.surface-raised}`, borda em `{colors.hairline}`, `{rounded.lg}` e `{shadow.overlay}`. O cabeçalho resume o envio ("Enviando 3 de 5") e tem botões para recolher e fechar. Cada `{component.upload-item}` ocupa uma linha, e a lista rola a partir de cinco itens.
+**`upload-panel`**: painel flutuante no canto inferior direito, com 360px de largura. Fundo `{colors.surface-raised}`, borda em `{colors.hairline}`, `{rounded.lg}` e `{shadow.overlay}`. O cabeçalho resume o envio e tem botões para recolher e fechar. O resumo é "Enviando 3 de 5" enquanto há arquivo enviando, pausado, esperando o arquivo ou na fila (os que enviam, estão pausados ou esperam o arquivo, entre todos do painel), e "1 de 5 enviado" quando todos terminaram (os concluídos, entre todos do painel). Cada `{component.upload-item}` ocupa uma linha, e a lista rola a partir de cinco itens. Quando o usuário solta uma pasta, que não é enviada, o painel mostra entre o cabeçalho e a lista um `{component.banner}` de alerta no formato estreito, com o aviso "Pastas não podem ser enviadas. Envie os arquivos de dentro da pasta.", a `{spacing.sm}` das bordas do painel. Os arquivos soltos junto com a pasta entram na lista normalmente, e o aviso some quando o painel é fechado.
 
-**`upload-item`**: linha do painel de uploads, com 48px de altura. Ícone do tipo, nome em `{typography.ui}` e, à direita, o progresso em `{typography.mono}`. Sob o nome, uma barra de 2px em `{colors.primary}` sobre `{colors.hairline}`. Estados: enviando (barra e botão de cancelar), pausado ou retomando (texto em `{colors.ink-muted}`), concluído (ícone de confirmação em `{colors.success}`) e falhou (mensagem em `{colors.danger}` e botão "Tentar de novo").
+**`upload-item`**: linha do painel de uploads, com 48px de altura e padding horizontal `{spacing.md}`. Ícone do tipo, nome em `{typography.ui}` e, à direita, o progresso em `{typography.mono}` e os botões do estado, em `{component.button-icon}`. Sob o nome, uma barra de 2px em `{colors.primary}` sobre `{colors.hairline}`, ou a mensagem do estado em `{typography.caption}`. Os estados com mensagem e botão crescem na altura para caber o conteúdo, com padding vertical `{spacing.sm}`. Estados:
+
+- **Na fila:** o arquivo espera uma das três vagas de envio. A barra parada em 0% e "Na fila" em `{colors.ink-muted}` no lugar da porcentagem, só com o botão de cancelar.
+- **Enviando:** barra e porcentagem, com os botões de pausar (`pause`) e de cancelar (`x`).
+- **Pausado ou retomando:** a barra para, "Pausado" em `{colors.ink-muted}` fica no lugar da porcentagem, e os botões passam a retomar (`play`) e cancelar.
+- **Concluído:** sem barra e sem botões; à direita, o ícone `circle-check` em `{colors.success}`.
+- **Esperando o arquivo:** o envio incompleto que volta depois de a aba ser fechada. Sob o nome, o pedido "Selecione o arquivo de novo para continuar" em `{colors.ink-muted}` e, abaixo dele, o `{component.button-utility}` "Selecionar arquivo"; à direita, a porcentagem já enviada em `{colors.ink-muted}` e o botão de cancelar. Quando o arquivo escolhido é diferente do original, o pedido dá lugar ao aviso "Não é o mesmo arquivo. Selecione <nome do original>." em `{colors.warning}`, com o ícone `triangle-alert` de 16px, e o item continua esperando, com os mesmos botões.
+- **Falhou:** o ícone `circle-alert` de 16px e a mensagem em `{colors.danger}`, e o botão de cancelar, que tira o item do painel. Mensagens: sem espaço na Cota ("Não há espaço na sua cota para este arquivo"), arquivo grande demais ("O arquivo passa do limite de 5 GB") e tamanho divergente ("O arquivo chegou com um tamanho diferente do original"). Só as falhas que podem dar certo numa nova tentativa (tamanho divergente e rede) têm também o `{component.button-utility}` "Tentar de novo", abaixo da mensagem.
 
 **`quota-meter`**: indicador de uso da cota, ao pé da barra lateral. Barra de 4px com `{rounded.pill}`, preenchida em `{colors.primary}` sobre `{colors.hairline}`; abaixo, "9,2 GB de 15 GB" em `{typography.mono}`. A partir de 80% de uso, o preenchimento passa a `{colors.warning}`; em 100%, a `{colors.danger-fill}`, e aparece um `{component.text-link}` "Ver planos".
 
@@ -232,7 +239,7 @@ Os estados são definidos uma vez aqui e valem para todo componente. A seção d
 
 ### Botões
 
-**`button-primary`**: a ação principal de cada tela. Fundo `{colors.primary-fill}`, texto `{colors.on-fill}` em `{typography.ui-strong}`, `{rounded.pill}`, padding 11px × 22px, altura de 44px. Cada tela tem no máximo um.
+**`button-primary`**: a ação principal de cada tela. Fundo `{colors.primary-fill}`, texto `{colors.on-fill}` em `{typography.ui-strong}`, `{rounded.pill}`, padding 11px × 22px, altura de 44px. Cada tela tem no máximo um. Onde falta largura, como o "Enviar" da barra superior no celular, ele fica só com o ícone de 20px em `{colors.on-fill}`: um círculo de 44 × 44px, sem padding, com `aria-label`.
 
 **`button-secondary`**: a segunda ação, ao lado do primário ("Cancelar", "Agora não"). Fundo transparente, texto `{colors.primary}`, borda de 1px em `{colors.primary}`, `{rounded.pill}`, mesmo padding e altura do primário.
 
@@ -268,11 +275,11 @@ Os estados são definidos uma vez aqui e valem para todo componente. A seção d
 
 **`banner`**: aviso persistente no topo da área de conteúdo, em largura total. Padding 12px × 16px, ícone de 20px, texto em `{typography.ui}` e `{colors.ink}` e, à direita, uma ação opcional em `{component.text-link}`. Variações:
 
-- **Alerta** (`{colors.warning-soft}` com o ícone `triangle-alert` em `{colors.warning}`): cota perto do limite, pagamento em período de tolerância e sessão expirada.
+- **Alerta** (`{colors.warning-soft}` com o ícone `triangle-alert` em `{colors.warning}`): cota perto do limite, pagamento em período de tolerância, sessão expirada e pasta solta no `{component.upload-panel}`.
 - **Erro** (`{colors.danger-soft}` com o ícone `circle-alert` em `{colors.danger}`): conta em modo somente leitura por estar acima da cota e erros de formulário que não pertencem a um campo.
 - **Sucesso** (`{colors.success-soft}` com o ícone `circle-check` em `{colors.success}`): confirmação que precisa ficar na tela, como "e-mail verificado" e "senha redefinida".
 
-Dentro de um contêiner estreito, como o `{component.auth-card}`, o banner usa `{rounded.sm}` e a ação fica abaixo do texto, e não à direita.
+Dentro de um contêiner estreito, como o `{component.auth-card}` e o `{component.upload-panel}`, o banner usa `{rounded.sm}` e a ação fica abaixo do texto, e não à direita.
 
 ### Compartilhamento
 
@@ -401,6 +408,7 @@ O arquivo do Figma espelha este documento com os mesmos nomes. Nenhuma camada us
 - **Estados de interação:** são valores da propriedade `State` (`default`, `hover`, `focus`, `disabled`, `loading`). O hover é um segundo preenchimento em `colors/surface-hover`, sobre o preenchimento do controle, exceto nos campos de texto, onde ele muda a borda. O pressionado não é desenhado, porque é uma transformação (`scale(0.95)`) e não muda cor nem forma.
 - **Anel de foco:** é a camada `focus-ring`, 4px maior que o controle em cada lado, com borda interna de 2px em `colors/primary-focus`. Isso reproduz o `outline` de 2px com 2px de afastamento. O raio do anel é o do controle mais 4px. No campo, o anel contorna só a caixa, e não o rótulo.
 - **Ícones:** os do Lucide, com o nome original na camada, para que o código importe o mesmo ícone do `lucide-react`.
+- **Medidas fora da escala:** as medidas que este documento fixa fora das escalas de `spacing` e `rounded` ficam como valor no Figma, e não viram variável: o padding horizontal de 14px do `{component.button-utility}`, o de 2px do `{component.segmented-control}`, o raio de 4px do `{component.checkbox}`, o padding de 11px × 22px do `{component.button-primary}` e o raio do anel de foco. São a única exceção à regra do valor solto. Uma medida nova fora da escala entra primeiro nesta lista.
 - **Processo:** as regras de trabalho com o Figma (sincronia, fluxo, assets, validação) estão na seção "Fluxo de trabalho com o Figma", a seguir.
 
 ## Fluxo de trabalho com o Figma
@@ -485,8 +493,8 @@ Com a web rodando no contêiner, abra a tela pelo MCP do Playwright, capture em 
 
 - O produto ainda não tem nome nem logotipo. Onde este documento diz "marca do produto", a interface usa um marcador de texto até a identidade ser definida.
 - O contraste dos pares de cor (texto sobre superfície, nos dois temas) foi escolhido para atender à WCAG AA, mas ainda não foi medido com ferramenta. A medição acontece quando os tokens forem implementados.
-- O arquivo do Figma tem as fundações (variáveis, estilos de texto e de sombra), os componentes usados na autenticação (`auth-card`, `banner`, `button-primary`, `button-icon`, `text-field`, `password-field` e `text-link`) e as telas da página Autenticação. Os demais componentes e as páginas Drive, Link público e Planos ainda estão vazios.
-- No código, só existem os componentes usados na autenticação, os mesmos que o Figma tem. Os demais entram com as telas que os usam.
+- O arquivo do Figma tem as fundações (variáveis, estilos de texto e de sombra), os componentes usados na autenticação (`auth-card`, `banner`, `button-primary`, `button-icon`, `text-field`, `password-field` e `text-link`), os usados pelas telas do Drive (`app-bar`, `sidebar`, `nav-item`, `breadcrumb`, `toolbar`, `account-menu`, `search-input`, `quota-meter`, `segmented-control`, `button-utility`, `menu`, `file-list`, `file-row`, `checkbox`, `empty-state`, `dropzone`, `upload-panel` e `upload-item`, com o "Carregar mais", o estado de espera pelo arquivo e o aviso de pasta solta), as telas da página Autenticação e as da página Drive: a casca, com a gaveta da navegação e o menu da conta, a lista com arquivos, a Pasta raiz vazia, a zona de soltar, o painel de envios em cada estado e o aviso de pasta solta. Os demais componentes (`file-card`, `preview-viewer`, `button-secondary`, `button-danger`, `dialog`, `toast`, `share-dialog`, `public-share-page`, `plan-card` e `plan-card-current`) ainda não existem no Figma, e as páginas Link público e Planos ainda estão vazias.
+- No código, existem os componentes usados na autenticação e os da casca e da lista do Drive: `app-bar`, `sidebar` (com a gaveta abaixo de `lg`), `nav-item`, `account-menu`, `menu`, `button-utility`, `file-list` (com o "Carregar mais"), `file-row` e `empty-state`, só com as partes que as funcionalidades já entregues usam. Os demais entram com as telas que os usam.
 - Não há seletor manual de tema. O tema segue o sistema operacional.
 - Os controles internos de vídeo, áudio e PDF do `{component.preview-viewer}` são os do navegador e não seguem estes tokens.
 - O checkout de cartão e Pix é hospedado pelo gateway de pagamento e fica fora deste design system. Só o `{component.plan-card}` e a tela de retorno são nossos.

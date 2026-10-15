@@ -14,10 +14,12 @@ import type { Response } from 'express';
 import { IsEmail, IsString, MinLength, ValidateNested } from 'class-validator';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
+import { v7 as uuidv7 } from 'uuid';
 import { DomainError } from '../src/common/errors/domain-error.js';
 import { FieldError } from '../src/common/errors/input-validation.error.js';
+import { PrismaService } from '../src/infra/database/prisma.service.js';
 import { createTestApp } from './support/create-test-app.js';
-import { expectProblem } from './support/problem.js';
+import { INTERNAL_ERROR, expectProblem } from './support/problem.js';
 
 class ProbeAddressDto {
   @IsString()
@@ -45,6 +47,8 @@ class ProbeInvalidMoveError extends DomainError {
 // Rotas que só existem neste teste: a fundação ainda não tem rota de negócio.
 @Controller('probe')
 class ProbeController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Get()
   ok() {
     return { ok: true };
@@ -63,6 +67,13 @@ class ProbeController {
   @Get('unexpected-error')
   unexpectedError() {
     throw new Error('segredo interno: a senha do banco é hunter2');
+  }
+
+  // O "registro não encontrado" do Prisma escapando sem passar por um repository:
+  // nenhum controller de verdade lê pelo cliente do banco.
+  @Get('record-not-found')
+  recordNotFound() {
+    return this.prisma.user.findUniqueOrThrow({ where: { id: uuidv7() } });
   }
 
   // Como o erro de um SDK de terceiro, que traz o status da chamada que ele fez.
@@ -255,13 +266,26 @@ describe('Formato de erro da API (RFC 9457)', () => {
         .get('/v1/probe/unexpected-error')
         .expect(500);
 
-      expectProblem(response, {
-        title: 'Internal Server Error',
-        status: 500,
-        code: 'internal_error',
-      });
+      expectProblem(response, INTERNAL_ERROR);
       expect(response.text).not.toContain('hunter2');
       expect(response.text).not.toContain('stack');
+    });
+
+    it('trata o registro não encontrado do Prisma como inesperado: 500, registrado no log', async () => {
+      const logged = vi.spyOn(Logger.prototype, 'error');
+      try {
+        const response = await request(app.getHttpServer())
+          .get('/v1/probe/record-not-found')
+          .expect(500);
+
+        expectProblem(response, INTERNAL_ERROR);
+        expect(logged).toHaveBeenCalledTimes(1);
+        expect(logged).toHaveBeenCalledWith(
+          expect.stringContaining('PrismaClientKnownRequestError'),
+        );
+      } finally {
+        logged.mockRestore();
+      }
     });
 
     it.each(['third-party-error', 'third-party-error-like-body-reader'])(
@@ -271,11 +295,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
           .get(`/v1/probe/${route}`)
           .expect(500);
 
-        expectProblem(response, {
-          title: 'Internal Server Error',
-          status: 500,
-          code: 'internal_error',
-        });
+        expectProblem(response, INTERNAL_ERROR);
       },
     );
 
@@ -286,11 +306,7 @@ describe('Formato de erro da API (RFC 9457)', () => {
           .get(`/v1/probe/${route}`)
           .expect(500);
 
-        expectProblem(response, {
-          title: 'Internal Server Error',
-          status: 500,
-          code: 'internal_error',
-        });
+        expectProblem(response, INTERNAL_ERROR);
       },
     );
 
