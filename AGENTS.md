@@ -167,46 +167,9 @@ O aceite é conferido na máquina antes do push, como descrito em "Antes do push
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR, e o que só ele confere, em `.claude/agents/revisor-conformidade.md`. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit.
-
-1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<issue>/<ticket>/`, a mesma do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, `docs/tickets/sem-ticket/<nome>/`. O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
-
-   ```bash
-   git add -N -- <arquivos novos da mudança>
-   git diff origin/main > docs/tickets/<issue>/<ticket>/review.diff
-   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<issue>/<ticket>/aceite.md)"
-   git show -s --format=%B "$plano" > docs/tickets/<issue>/<ticket>/plano.txt
-   scripts/verify.sh contract "$plano" > docs/tickets/<issue>/<ticket>/contract-drift.txt
-   ```
-
-   O `git add -N` só registra que os arquivos novos existem, para o diff trazê-los, sem prepará-los para o commit. Confira com o `git status --short` que nenhum arquivo da mudança ficou de fora: o que não está no diff fica fora da revisão, sem aviso. Sem commit de plano, não há mensagem nem visão do desvio. Os arquivos não aparecem no `git status`, porque o Git os ignora: ele versiona só o arquivo de aceite da pasta do ticket.
-
-2. **Chame o subagente `revisor-conformidade`** passando só o caminho do diff, o identificador do ticket e os caminhos da mensagem do plano e da visão do desvio, ou o aviso de que elas não existem. Numa mudança sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões. Rode a revisão no checkout da branch, porque ele lê o arquivo de aceite dela.
-3. **Corrija os achados com que você concorda** e siga para o `full` (ver "Definição de pronto").
-4. **Publique o resultado como comentário no PR,** quando ele for aberto, com o título `## Revisão de conformidade`, neste formato:
-
-   ```markdown
-   ## Revisão de conformidade
-
-   | # | Severidade | Achado | Situação | Motivo |
-   | --- | --- | --- | --- | --- |
-   | 1 | alta | O que o revisor apontou | Corrigido | O que mudou, e em que commit |
-   | 2 | média | O que o revisor apontou | Não corrigido | Por que ficou como está |
-
-   <details>
-   <summary>Relatório do revisor, na íntegra</summary>
-
-   (o relatório, sem edição)
-
-   </details>
-   ```
-
-- **Todo achado entra na tabela,** inclusive o que você considera errado. Nesse caso, a situação é "Não corrigido" e o motivo diz por quê. Não omita achado nem edite o relatório.
-- **A revisão não bloqueia.** O que fazer com um achado não corrigido é decisão do usuário no merge. A CI não lê esse comentário.
-- **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
-- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor-conformidade.md`, e publique o comentário do mesmo jeito.
+No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit. A revisão não bloqueia: todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
