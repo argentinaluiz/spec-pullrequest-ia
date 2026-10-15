@@ -54,16 +54,20 @@ function escape(value) {
     .replaceAll("'", '&#39;');
 }
 
-/** O texto de uma linha do Markdown, escapado, com o código entre crases e o negrito. */
+/**
+ * O texto de uma linha do Markdown, escapado, com o código entre crases e o negrito. O código sai
+ * do texto antes (cada trecho vira uma marca com o índice dele, entre caracteres nulos, que o texto
+ * não traz) para o negrito ser procurado no texto todo: assim, um negrito com código dentro fecha,
+ * e um `**` dentro do código não abre negrito. Um `**` sem par fica como texto.
+ */
 function inline(value) {
-  return String(value)
-    .split(/(`[^`]*`)/)
-    .map((part) =>
-      /^`[^`]*`$/.test(part)
-        ? `<code>${escape(part.slice(1, -1))}</code>`
-        : escape(part).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>'),
-    )
-    .join('');
+  const codes = [];
+  const text = String(value)
+    .replaceAll('\0', '')
+    .replace(/`([^`]*)`/g, (_, code) => `\0${codes.push(code) - 1}\0`);
+  return escape(text)
+    .replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, '<strong>$1</strong>')
+    .replace(/\0(\d+)\0/g, (_, index) => `<code>${escape(codes[Number(index)])}</code>`);
 }
 
 /** Os parágrafos de um texto (separados por linha em branco), cada um com as quebras de linha desfeitas. */

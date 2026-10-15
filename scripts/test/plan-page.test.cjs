@@ -63,6 +63,31 @@ test('mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, l
   assert.doesNotMatch(second, /<details/);
 });
 
+test('mostra em negrito o trecho que contém código, sem sobrar asteriscos @LUI-174-CA1', () => {
+  const acceptance = ACCEPTANCE.replace(
+    'Ticket de exemplo.',
+    'Ticket de exemplo.\n\n**Como o teste faz o `GET` da URL.** O resto do parágrafo.',
+  ).replace('então a cópia é criada.', 'então a cópia é criada. **Atenção:** use `node:http`');
+
+  const aceite = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance }), 'aceite');
+  assert.match(aceite, /<p><strong>Como o teste faz o <code>GET<\/code> da URL\.<\/strong> O resto do parágrafo\.<\/p>/);
+  assert.match(aceite, /então a cópia é criada\. <strong>Atenção:<\/strong> use <code>node:http<\/code><\/p>/);
+  assert.doesNotMatch(aceite, /\*\*/);
+
+  // Um `**` sem par continua como texto, e o código continua escapado.
+  const unpaired = ACCEPTANCE.replace('quando se lê a seção de cópia', 'quando se lê 2 ** 3 em `<b>**</b>`');
+  assert.match(
+    panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance: unpaired }), 'aceite'),
+    /quando se lê 2 \*\* 3 em <code>&lt;b&gt;\*\*&lt;\/b&gt;<\/code>, então ela descreve a cota\./,
+  );
+});
+
+test('fecha o negrito que contém um asterisco solto', () => {
+  const acceptance = ACCEPTANCE.replace('Ticket de exemplo.', 'Ticket de exemplo.\n\n**Nota: 2*3 = 6.** resto');
+  const aceite = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance }), 'aceite');
+  assert.match(aceite, /<p><strong>Nota: 2\*3 = 6\.<\/strong> resto<\/p>/);
+});
+
 const COPY_ROUTE = {
   post: {
     parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
