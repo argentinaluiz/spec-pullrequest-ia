@@ -18,6 +18,7 @@ export const API_ERROR_CODES = [
   "file_too_large",
   "upload_size_mismatch",
   "upload_incomplete",
+  "max_depth_exceeded",
   "internal_error",
 ] as const;
 
@@ -100,6 +101,25 @@ export interface Item {
   mimeType: string | null;
   /** Data de modificação, em ISO 8601. */
   updatedAt: string;
+}
+
+/** Um trecho do caminho do topo até uma pasta. */
+export interface ItemTrailEntry {
+  id: string;
+  name: string;
+}
+
+/** Uma pasta e o caminho do topo, a Pasta raiz, até ela (`ItemDetailDto`). */
+export interface ItemDetail {
+  item: Item;
+  trail: ItemTrailEntry[];
+}
+
+/** O que `POST /folders` pede. */
+export interface CreateFolderInput {
+  name: string;
+  /** `root` ou o id de uma pasta ativa do Usuário. */
+  parentId: string;
 }
 
 /** Uma página da listagem. O cursor é opaco, e nulo na última página. */

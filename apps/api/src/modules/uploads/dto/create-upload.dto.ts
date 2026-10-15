@@ -7,7 +7,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { IsFileName } from './file-name.decorator.js';
+import { IsFileName } from '../../../common/validation/file-name.decorator.js';
 
 /** O início do envio de um arquivo (seção 3.4 do docs/lld.md). */
 export class CreateUploadDto {

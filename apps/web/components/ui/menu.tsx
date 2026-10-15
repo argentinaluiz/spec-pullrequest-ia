@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   createContext,
   useContext,
@@ -29,6 +30,8 @@ type MenuProps = {
   offsetClassName?: string;
   /** A largura da camada. O padrão é a do menu da conta (240px); o menu da linha usa 220px. */
   widthClassName?: string;
+  /** De que lado do botão a camada se alinha. O padrão é a borda direita; o menu de um botão à esquerda usa `left-0`. */
+  alignClassName?: string;
   /** Os itens: `MenuItem`, `MenuLink`, `MenuSeparator` e `MenuHeader`. */
   children: ReactNode;
 };
@@ -45,6 +48,7 @@ export function Menu({
   triggerClassName,
   offsetClassName = "mt-1",
   widthClassName = "w-60 min-w-50",
+  alignClassName = "right-0",
   children,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
@@ -111,7 +115,7 @@ export function Menu({
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
-          className={`${offsetClassName} absolute top-full right-0 z-30 flex ${widthClassName} flex-col rounded-lg border border-hairline bg-surface-raised p-1 shadow-overlay transition-[opacity,translate] duration-200 starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0`}
+          className={`${offsetClassName} absolute top-full ${alignClassName} z-30 flex ${widthClassName} flex-col rounded-lg border border-hairline bg-surface-raised p-1 shadow-overlay transition-[opacity,translate] duration-200 starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0`}
         >
           <CloseMenuContext value={() => setOpen(false)}>
             {children}
@@ -168,15 +172,24 @@ export function MenuItem({
 
 type MenuLinkProps = ItemContentProps & {
   href: string;
+  /**
+   * Navega pelo app, com um `Link` do Next.js, para a página não recarregar e os envios em
+   * andamento seguirem. Sem ela, é um `<a>` comum, para o destino que responde com um download ou
+   * um redirecionamento, que a navegação do cliente não trata.
+   */
+  clientNavigation?: boolean;
 };
 
 /**
- * Uma ação do menu que é um link, como "Baixar". É um `<a>` comum, e não um `Link` do Next.js:
- * o destino responde com um download ou um redirecionamento, que a navegação do cliente não
- * trata. O menu fecha ao clicar. Como item de menu, ativa também com Espaço, igual aos botões,
- * e não rola a página.
+ * Uma ação do menu que é um link, como "Baixar" ou uma pasta do breadcrumb. O menu fecha ao
+ * clicar. Como item de menu, ativa também com Espaço, igual aos botões, e não rola a página.
  */
-export function MenuLink({ icon, href, children }: MenuLinkProps) {
+export function MenuLink({
+  icon,
+  href,
+  clientNavigation = false,
+  children,
+}: MenuLinkProps) {
   const close = useContext(CloseMenuContext);
 
   function onKeyDown(event: KeyboardEvent<HTMLAnchorElement>) {
@@ -185,8 +198,9 @@ export function MenuLink({ icon, href, children }: MenuLinkProps) {
     event.currentTarget.click();
   }
 
+  const Anchor = clientNavigation ? Link : "a";
   return (
-    <a
+    <Anchor
       href={href}
       role="menuitem"
       onClick={close}
@@ -194,7 +208,7 @@ export function MenuLink({ icon, href, children }: MenuLinkProps) {
       className={ITEM_CLASS_NAME}
     >
       <ItemContent icon={icon}>{children}</ItemContent>
-    </a>
+    </Anchor>
   );
 }
 

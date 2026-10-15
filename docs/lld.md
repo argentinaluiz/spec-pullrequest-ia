@@ -669,7 +669,7 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
+| `/` | Protegida | `GET /me`, `GET /items/root`, `GET /items/root/children`, `POST /folders` | Sair (`POST /auth/logout`), pelo menu da conta, breadcrumb, abrir uma pasta por duplo clique, "Nova pasta" (Server Action), "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
 | `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children`, `POST /folders` | Abrir uma pasta por duplo clique, breadcrumb, "Carregar mais", "Nova pasta" (Server Action) e "Enviar" para a pasta aberta. Id de arquivo, inexistente, de outro Usuário, não-UUID ou de Item não ativo mostra a página de não encontrado. Renomear, mover, excluir e compartilhar ficam para os tickets seguintes | Existe (renomear, mover e excluir a detalhar) |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
