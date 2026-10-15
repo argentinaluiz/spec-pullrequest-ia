@@ -181,6 +181,37 @@ check "guarda o registro recente e o que não é do hook" \
 check "o registro da sessão que está em uso sobrevive, e a data dele é a do último uso" \
   bash -c '[[ -n "$(find "$1/touched-D" -mmin -5)" ]]' _ "$state_dir"
 
+# --- Caminho com parênteses (grupos de rota do Next.js) e diagnóstico global do tsc ---
+mkdir -p "$project/apps/web/app/(auth)/entrar"
+echo "export default 1;" >"$project/apps/web/app/(auth)/entrar/page.tsx"
+web_tsc_failure() {
+  printf '\n=== Web: tipos\n%s\n\nREPROVADO: 1 verificação(ões) falharam.\n- Web: tipos\n    Como corrigir: corrija.\n' "$1"
+}
+touch_file G "apps/web/app/(auth)/entrar/page.tsx"
+touch_file H apps/web/src/w.tsx
+route_error='app/(auth)/entrar/page.tsx(2,3): error TS2322: tipo errado.'
+set_output "$(web_tsc_failure "$route_error")"
+stop G
+expect_stop "o erro em caminho com grupo de rota (parênteses) bloqueia a sessão que o editou" 2 "roda" "tentativa 1 de 3"
+rm -f "$state_dir"/stop-blocks-*
+stop H
+expect_stop "o erro em caminho com grupo de rota avisa a sessão que não o editou" 0 "roda" "systemMessage"
+set_output "$(web_tsc_failure "$route_error
+src/w.tsx(1,1): error TS2322: tipo errado.")"
+stop G
+expect_stop "o erro do grupo de rota bloqueia mesmo com erro reconhecido em outro arquivo" 2 "roda" "tentativa 1 de 3"
+rm -f "$state_dir"/stop-blocks-*
+
+set_output "$(web_tsc_failure 'error TS2688: Cannot find type definition file for vitest.')"
+stop H
+expect_stop "o diagnóstico global do tsc, sem caminho, bloqueia" 2 "roda" "tentativa 1 de 3"
+rm -f "$state_dir"/stop-blocks-*
+set_output "$(web_tsc_failure 'error TS2688: Cannot find type definition file for vitest.
+src/other.ts(1,1): error TS2322: tipo errado.')"
+stop H
+expect_stop "o diagnóstico global junto com erro em arquivo de outra sessão ainda bloqueia" 2 "roda" "tentativa 1 de 3"
+rm -f "$state_dir"/stop-blocks-*
+
 # --- Cada passo que falhou vale só para a app dele ---
 echo "export const x = 1;" >"$project/apps/api/src/x.ts"
 echo "export const x = 1;" >"$project/apps/web/src/x.ts"

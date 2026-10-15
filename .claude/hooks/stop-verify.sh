@@ -141,13 +141,13 @@ fi
 # para os passos de formato conhecido. Os demais (testes, build, tipos de rota) não dão caminho, e a
 # falha deles bloqueia. Relativos à pasta da app, ou absolutos no contêiner, onde a app fica em /app.
 #   error_paths <nome do passo> <trecho da saída>
-# - `tipos` (tsc): `caminho(linha,coluna): error TS...`
+# - `tipos` (tsc): `caminho(linha,coluna): error TS...`; o sufixo `(linha,coluna): error TS` delimita o caminho, que pode ter parênteses (grupos de rota do Next.js, `app/(auth)/...`)
 # - `lint` (oxlint): um bloco que começa com `x ` é erro, e `!` é aviso; o caminho vem em `,-[caminho:linha:coluna]`
 # - `lint` (eslint): o caminho sozinho na linha, e depois os problemas dele, `linha:coluna  error` ou `warning`
 # Limite: caminho com espaço não é reconhecido, e a falha dele bloqueia por não ter atribuição.
 error_paths() {
   case "${1#*: }" in
-    tipos) sed -nE 's/^([^ (]+)\([0-9]+,[0-9]+\): error TS.*/\1/p' <<<"$2" ;;
+    tipos) sed -nE 's/^(.+)\([0-9]+,[0-9]+\): error TS[0-9]+:.*/\1/p' <<<"$2" ;;
     lint)
       awk '
         /^ +x /  { err = 1; next }
@@ -161,6 +161,13 @@ error_paths() {
       ' <<<"$2"
       ;;
   esac | sed -E 's#^/app/##; s#^\./##' | sort -u
+}
+
+# Diz se o passo de tipos traz um diagnóstico global, `error TSnnnn:` sem o prefixo `caminho(linha,coluna):`
+# (como o TS2688). Ele não é de arquivo nenhum, e vale mesmo que haja erros com caminho no mesmo passo.
+#   has_pathless_error <nome do passo> <trecho da saída>
+has_pathless_error() {
+  [[ "${1#*: }" == tipos ]] && grep -qE '^ *error TS[0-9]+:' <<<"$2"
 }
 
 # Os nomes dos passos que falharam, do resumo `REPROVADO` no fim da saída.
@@ -185,7 +192,10 @@ blocking_reason() {
     project="${step%%:*}"
     project="${project,,}"
     [[ " ${projects[*]} " == *" $project "* ]] || { echo "não deu para atribuir o passo \"$step\" a uma app verificada"; return 0; }
-    paths="$(error_paths "$step" "$(step_output "$step")")"
+    local out
+    out="$(step_output "$step")"
+    has_pathless_error "$step" "$out" && { echo "o passo \"$step\" traz um diagnóstico global, sem arquivo"; return 0; }
+    paths="$(error_paths "$step" "$out")"
     [[ -z "$paths" ]] && { echo "não deu para atribuir a falha do passo \"$step\" a um arquivo"; return 0; }
     while IFS= read -r path; do
       grep -qxF -- "apps/$project/$path" "$touched_file" && { echo "há erro em arquivo que a sessão editou"; return 0; }
