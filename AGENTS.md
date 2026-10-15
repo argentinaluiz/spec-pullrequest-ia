@@ -174,7 +174,7 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
 
    O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso.
 
-2. **Chame o subagente `revisor`** passando só o caminho desse arquivo e o identificador do ticket. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
+2. **Chame o subagente `revisor`** passando só o caminho desse arquivo, o identificador do ticket e o caminho do `$(git rev-parse --git-dir)/harness/contract-drift.txt`. Se esse arquivo não existe, diga isso ao revisor. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
    O que o revisor confere, inclusive o aceite do ticket, está em `.claude/agents/revisor.md` e em `docs/harness.md`. Rode a revisão no checkout da branch do PR, porque ele lê o arquivo de aceite dessa branch.
 3. **Corrija os achados com que você concorda,** faça o commit das correções e rode a verificação de novo.
 4. **Publique o resultado como comentário no PR,** com o título `## Revisão em contexto novo`, neste formato:
@@ -244,7 +244,7 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado. O desenho e os motivos estão em `docs/harness.md`, seção "Plano do ticket (planejado)".
 
 1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
-2. **Aprovar:** o usuário revisa o diff do plano. Só depois da aprovação você faz o commit de plano, com a lista de arquivos e interfaces na mensagem.
+2. **Aprovar:** o usuário revisa o diff do plano e a visão legível do contrato e do schema, que a `/plan-ticket` mostra na parada, sem versioná-la (ver `docs/harness.md`, etapa 8). Só depois da aprovação você faz o commit de plano, com a lista de arquivos e interfaces na mensagem.
 3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
 **Critérios do ticket**
@@ -257,7 +257,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 - **Onde:** `docs/aceite/<ticket>.md`, um por ticket, permanente. O texto do critério fica só no Linear.
 - **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das seis), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
-- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces fica só na mensagem do commit de plano.
+- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Cada rota e cada tabela segue o formato do `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces fica só na mensagem do commit de plano, e a mudança de dados (seed, backfill) também: ela não cabe no schema nem no snapshot.
 - **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
 - **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite é imposto por um hook que nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
 

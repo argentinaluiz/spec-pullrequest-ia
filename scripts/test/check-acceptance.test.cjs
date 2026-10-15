@@ -201,6 +201,28 @@ test('reprova o relatório ausente em vez de aprovar sem conferir', () => {
   assert.equal(result.status, 1);
 });
 
+test('no modo --cited, imprime só o arquivo de aceite citado na seção, e nada sem ele', () => {
+  const cited = (body) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citado-'));
+    const file = path.join(dir, 'body.md');
+    if (body !== null) fs.writeFileSync(file, body);
+    const result = spawnSync(process.execPath, [CHECKER, '--cited', file], { encoding: 'utf8' });
+    fs.rmSync(dir, { recursive: true, force: true });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+
+  assert.equal(cited('Resumo.\n\n## Aceite\n\ndocs/aceite/LUI-2.md\n\n## Testes\n'), 'docs/aceite/LUI-2.md\n');
+  // A quebra de linha do GitHub e o caminho entre crases.
+  assert.equal(cited('## Aceite\r\n\r\n`docs/aceite/LUI-2.md`\r\n'), 'docs/aceite/LUI-2.md\n');
+  // O arquivo citado fora da seção não conta.
+  assert.equal(cited('Ver docs/aceite/LUI-2.md.\n\n## Aceite\n\nnenhum: só documento.\n'), '');
+  assert.equal(cited('## Aceite\n\nnenhum: refatoração sem mudança de comportamento.\n'), '');
+  assert.equal(cited('Resumo sem a seção, citando docs/aceite/LUI-2.md.\n'), '');
+  // Sem corpo de PR.
+  assert.equal(cited(null), '');
+});
+
 test('confere o relatório da suíte de unidade da web: aceita o teste que passou e recusa o que falhou @LUI-164-CA1', () => {
   // O relatório da web chega ao conferidor como `vitest:`, como o da API: o ID no título é a ligação.
   const unit = (status) => [['o login volta para a página pedida @LUI-1-CA1', status]];

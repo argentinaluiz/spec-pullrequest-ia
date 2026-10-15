@@ -12,12 +12,16 @@
 #   scripts/verify.sh prepush                      a varredura de segredos, e a conferência de que o
 #                                                  modo completo aprovou o que está no último commit
 #   scripts/verify.sh apps                         as apps registradas, uma por linha
+#   scripts/verify.sh contract [<de> [<para>]]     a visão legível do contrato e do schema entre dois
+#                                                  commits; sem <para>, até a pasta de trabalho, e
+#                                                  sem nenhum, do HEAD até ela (a parada do plano)
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
 #
 # Com ACCEPTANCE_BODY_FILE apontando para um arquivo com o corpo do pull request, o modo
 # completo confere também o aceite: a seção "Aceite" do PR e a cobertura dos critérios por testes.
+# E, sem bloquear, avisa quando o contrato ou o schema mudou depois do commit de plano.
 #
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
@@ -25,7 +29,8 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 # As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
-# uma fica em scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports.
+# uma fica em scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports, e, se a
+# app tem contrato planejado, <app>_contract_drift.
 APPS=(api web)
 
 COMPOSE=(docker compose -f compose.dev.yaml)
@@ -37,15 +42,25 @@ START_APPS=no
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A varredura de segredos olha os commits que a branch tem a mais do que esta referência.
 BASE_REF="${HARNESS_BASE_REF:-origin/main}"
+# O fim da branch, para o desvio do plano. Na CI de um pull request, a pasta de trabalho é o merge da
+# branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
+# Vazio, o desvio compara com a pasta de trabalho.
+HEAD_REF="${HARNESS_HEAD_REF:-}"
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/aceite)
-# Onde o modo completo registra o que aprovou. Fica na pasta do Git, fora do versionamento.
-APPROVAL_FILE="$(git rev-parse --git-dir)/harness/full-ok"
+# O que o modo completo grava fica na pasta do Git, fora do versionamento. O caminho é absoluto,
+# para o aviso do desvio apontá-lo.
+HARNESS_DIR="$(git rev-parse --absolute-git-dir)/harness"
+# Onde o modo completo registra o que aprovou.
+APPROVAL_FILE="$HARNESS_DIR/full-ok"
+# Onde o modo completo grava a visão do desvio do contrato em relação ao commit de plano, para o
+# revisor ler.
+DRIFT_FILE="$HARNESS_DIR/contract-drift.txt"
 
 failures=()
 
 usage() {
-  sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -113,17 +128,58 @@ wait_for() {
   return 1
 }
 
-# Roda os testes do harness: os do conferidor no contêiner `api`, que tem o Node, e os do hook de
-# congelamento na máquina. O conferidor e os testes dele chegam ao contêiner pela entrada padrão,
-# como o resto, porque o contêiner só enxerga a pasta da própria app.
+# Roda os testes do harness: os do conferidor e do renderizador do contrato no contêiner `api`, que
+# tem o Node, e os do hook de congelamento na máquina. Os scripts e os testes deles chegam ao
+# contêiner pela entrada padrão, como o resto, porque o contêiner só enxerga a pasta da própria app.
 harness_tests() {
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log.
-  tar -c scripts/check-acceptance.cjs scripts/test |
+  tar -c scripts/check-acceptance.cjs scripts/contract-view.cjs scripts/test |
     in_container api sh -c 'rm -rf reports/harness && mkdir -p reports/harness && tar -x -C reports/harness && cd reports/harness && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination=node-tests.json scripts/test/*.test.cjs' &&
     check_report api vitest reports/harness/node-tests.json &&
     # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
     scripts/test/freeze-acceptance.test.sh
+}
+
+# O arquivo de aceite citado na seção "Aceite" do corpo do pull request. Lê o corpo que o
+# `acceptance` já entregou ao contêiner `api`, com o mesmo conferidor. Não imprime nada quando não
+# há corpo e quando a seção diz "nenhum".
+cited_acceptance() {
+  in_container api node - --cited reports/acceptance/pr-body.md <scripts/check-acceptance.cjs
+}
+
+# O commit de plano: o mais recente da branch que criou o arquivo de aceite, que é o plano em
+# vigor. Não imprime nada quando nenhum commit da branch o criou (um ticket antigo, ou o plano ainda
+# sem commit). Falha quando o `git log` não lê o histórico da branch.
+# plan_commit <arquivo de aceite>
+plan_commit() {
+  local commits
+  commits="$(git log --diff-filter=A --format=%H "$BASE_REF..${HEAD_REF:-HEAD}" -- "$1")" || return 1
+  printf '%s' "${commits%%$'\n'*}"
+}
+
+# O desvio do plano, comparado pelo grupo de cada app que declara <app>_contract_drift. Cada uma
+# acrescenta a própria visão ao DRIFT_FILE, que o `run_full` limpa no começo. Só avisa: nunca falha.
+contract_drift() {
+  local file plan app
+  if [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
+    echo "HARNESS_HEAD_REF aponta \`$HEAD_REF\`, que não é um commit deste clone, e o desvio não foi conferido. Aponte o commit da branch, ou deixe a variável vazia para comparar com a pasta de trabalho."
+  elif ! file="$(cited_acceptance)"; then
+    echo "Não deu para ler a seção \"Aceite\" do corpo do PR no contêiner \`api\`, e o desvio não foi conferido."
+  elif [[ -z "$file" ]]; then
+    echo "Não há commit de plano para comparar: o corpo do PR não cita, na seção \"Aceite\", um arquivo de aceite."
+  elif ! plan="$(plan_commit "$file")"; then
+    echo "Não deu para ler o histórico da branch ($BASE_REF..${HEAD_REF:-HEAD}) com o \`git log\`, e o desvio não foi conferido. Confira se a base existe (\`git fetch origin\`, ou outra base em HARNESS_BASE_REF) e se o clone tem o histórico inteiro (\`git fetch --unshallow\`; na CI, \`fetch-depth: 0\` no checkout)."
+  elif [[ -z "$plan" ]]; then
+    echo "Não há commit de plano para comparar: nenhum commit desta branch criou o $file, citado na seção \"Aceite\" do corpo do PR."
+  else
+    for app in "${APPS[@]}"; do
+      if declare -F "${app}_contract_drift" >/dev/null; then
+        "${app}_contract_drift" "$plan" "$HEAD_REF"
+      fi
+    done
+  fi
+  return 0
 }
 
 # Confere o aceite contra os relatórios que as apps declaram em <app>_reports: a seção "Aceite" do
@@ -235,7 +291,8 @@ run_full() {
   # para o que estiver na pasta quando a verificação terminar.
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \
     "confira se o repositório do Git está íntegro, com \`git status\`."
-  rm -f "$APPROVAL_FILE"
+  # A visão do desvio também é desta execução: uma interrompida não deixa uma antiga para o revisor.
+  rm -f "$APPROVAL_FILE" "$DRIFT_FILE"
 
   for app in "${APPS[@]}"; do
     "${app}_full"
@@ -251,9 +308,21 @@ run_full() {
     "acerte a seção \"Aceite\" do corpo do pull request, no formato do AGENTS.md da raiz, ou escreva o teste do critério que falta, com o ID no título." \
     acceptance
 
+  # Depois do "Aceite", que entrega o corpo do PR ao contêiner. Só avisa: nunca entra nas falhas.
+  step "Contrato e schema contra o commit de plano" \
+    "o passo só avisa e não falha." \
+    contract_drift
+
   step "Segredos nos commits da branch" \
     "tire o segredo do código, troque-o na origem (ele já vazou para o histórico) e reescreva o commit que o trouxe." \
     secret_scan
+}
+
+# Valida um ponto da visão do contrato.
+require_commit() {
+  git rev-parse --verify --quiet "$1^{commit}" >/dev/null ||
+    abort "\`$1\` não é um commit deste repositório." \
+      "passe um commit, uma branch ou uma tag existente, como \`HEAD\` ou \`origin/main\`."
 }
 
 mode="${1:-}"
@@ -296,6 +365,21 @@ case "$mode" in
   apps)
     [[ $# -eq 0 ]] || usage
     printf '%s\n' "${APPS[@]}"
+    exit 0
+    ;;
+  contract)
+    # A visão não é verificação: não aprova nada. Ela é a do contrato da API, que é o contrato que
+    # o plano escreve, e por isso chama o grupo da API direto, e não percorre o registro.
+    [[ $# -le 2 ]] || usage
+    from="${1:-HEAD}"
+    to="${2:-}"
+    require_commit "$from"
+    [[ -z "$to" ]] || require_commit "$to"
+    require_container api
+    if ! api_contract_view "$from" "$to"; then
+      printf '\nComo corrigir: corrija o JSON de apps/api/openapi.json no ponto que o oasdiff aponta acima e rode `scripts/verify.sh contract` de novo.\n' >&2
+      exit 1
+    fi
     exit 0
     ;;
   *) usage ;;

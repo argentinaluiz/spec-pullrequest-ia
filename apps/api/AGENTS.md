@@ -64,6 +64,8 @@ O contrato das rotas é o `openapi.json`, gerado do código pelo `@nestjs/swagge
 
 - **Rota nova ou alterada:** o controller leva `@ApiTags`, o tipo de sucesso (`@ApiOkResponse({ type })` ou o tipo de retorno) e um `@ApiProblem(status, ...códigos)`, de `src/common/openapi/`, para cada erro que a rota pode devolver. A resposta é uma classe, e não uma `interface`, porque o plugin só lê classes.
 - **Rota protegida:** acrescente `@ApiBearerAuth()` ao controller.
+- **Cabeçalho de entrada:** o plugin não enxerga um cabeçalho lido com `@Headers()` ou do `Request`. Declare-o no método com `@ApiHeader({ name: 'Idempotency-Key', required: true })`, para ele entrar no snapshot como parâmetro `in: header`. O `Authorization` não é declarado: o `@ApiBearerAuth()` já o descreve.
+- **Cabeçalho de resposta:** declare-o no decorator da resposta que o devolve, na opção `headers`, como `@ApiCreatedResponse({ type: ItemDto, headers: { Location: { required: true, schema: { type: 'string' } } } })`. O `@ApiProblem` ainda não aceita cabeçalhos: o primeiro erro que devolver um, como o `Retry-After` do `rate_limited`, acrescenta a opção a ele.
 - **Regenerar o snapshot:** `pnpm openapi:generate openapi.json`, no contêiner `api`, e faça o commit do arquivo. A verificação reprova se o snapshot divergir do código.
 - **Schema do banco:** o `prisma/schema.prisma` é o dono das tabelas implementadas, com as observações nos comentários `///`. Mudou o schema, crie a migração: a verificação reprova schema sem migração.
 

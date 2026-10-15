@@ -5,6 +5,9 @@
 //
 // Roda dentro do contêiner `api`, lido pela entrada padrão (ver scripts/verify.sh):
 //   node - <--required|--optional> <corpo do PR> <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
+//   node - --cited <corpo do PR>
+// O segundo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
+// plano, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -148,6 +151,12 @@ function idsOf(test) {
     return tag ? [tag[1]] : [...String(name).matchAll(TEST_TOKEN)].map((match) => match[1]);
   });
   return new Set(ids);
+}
+
+if (mode === '--cited' && bodyFile) {
+  const cited = fs.existsSync(bodyFile) && acceptSection(fs.readFileSync(bodyFile, 'utf8'))?.match(ACCEPTANCE_PATH);
+  if (cited) console.log(`docs/aceite/${cited[1]}`);
+  process.exit(0);
 }
 
 if (!['--required', '--optional'].includes(mode) || !bodyFile || !acceptDir || reportSpecs.length === 0) {

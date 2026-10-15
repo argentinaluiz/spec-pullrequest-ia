@@ -45,6 +45,7 @@ O projeto é uma referência didática que precisa funcionar de verdade. Por iss
 | Teste do harness que falhou, ou relatório dele sem teste ou com teste pulado | Bloqueia | 4 |
 | O agente edita um arquivo de aceite já versionado | Nega a edição | 7 |
 | PR que altera, renomeia ou apaga um arquivo de aceite que já existe na `main` | Aviso no PR | 7 |
+| Contrato (snapshot da OpenAPI) ou schema do Prisma diferente do commit de plano | Aviso no PR | 8 |
 | Achado do revisor | Comentário no PR | 5 |
 | Push do agente com segredo nos commits da branch | Nega o push | 6 |
 | Push do agente sem o modo completo aprovado para o último commit | Nega o push | 6 |
@@ -60,6 +61,7 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 | `full <app>... [--start-apps]` | Só o grupo completo das apps citadas. Não confere a tabela nem os segredos e não grava aprovação | O agente, durante o desenvolvimento, se quiser |
 | `prepush` | A varredura de segredos e a conferência de que o modo completo aprovou o último commit | O hook de antes do push |
 | `apps` | A lista das apps registradas | O hook de fim de turno |
+| `contract [<de> [<para>]]` | A visão legível do contrato e do schema entre dois commits, ou entre um commit e a pasta de trabalho. Sem argumentos, do `HEAD` até a pasta. Não verifica nem aprova nada (etapa 8) | A `/plan-ticket`, na parada para aprovação, e quem quiser ler um delta |
 
 - **Códigos de saída:** 0 quando tudo passou, 1 quando alguma verificação falhou e 2 quando não deu para verificar (contêiner fora do ar, web ou API sem responder).
 - **Suítes da web:** o grupo completo roda a suíte de unidade (Vitest, `reports/unit.json`) antes do build e depois a suíte no navegador (Playwright, `reports/playwright.json`). Cada relatório passa pelo `check_report`, que reprova relatório ausente, suíte vazia e teste pulado.
@@ -70,13 +72,14 @@ O `scripts/verify.sh` roda as verificações dentro dos contêineres do `compose
 
 ### Grupos por app
 
-O `verify.sh` é o motor: os auxiliares, o despacho dos modos e o que atravessa as apps (testes do harness, aceite, segredos e aprovação). O que cada app verifica fica num arquivo dela, em `scripts/verify/<app>.sh`, que define três coisas:
+O `verify.sh` é o motor: os auxiliares, o despacho dos modos e o que atravessa as apps (testes do harness, aceite, segredos e aprovação). O que cada app verifica fica num arquivo dela, em `scripts/verify/<app>.sh`, que define três coisas e, se for o caso, uma quarta:
 
 | Nome | O que é |
 | --- | --- |
 | `<app>_fast` | Os passos rápidos da app, como tipos e lint |
 | `<app>_full` | O grupo completo: chama o `<app>_fast` e acrescenta as suítes, o build e o que mais a app tiver |
 | `<app>_reports` | Os relatórios das suítes que o aceite confere |
+| `<app>_contract_drift` | Opcional, só na app com contrato planejado: o desvio do contrato e do schema em relação ao commit de plano (etapa 8). O motor o chama nas apps que o definem |
 
 O registro `APPS`, no topo do motor, lista as apps. O nome de cada uma é o da pasta em `apps/` e o do serviço no Compose. O `full` sem apps, o `fast` sem apps e o hook de fim de turno percorrem esse registro.
 
@@ -199,7 +202,7 @@ O formato da seção do PR e do arquivo de aceite está no `AGENTS.md` da raiz, 
 - **Sem corpo de PR:** a cobertura dos critérios roda sempre, também numa branch sem `ACCEPTANCE_BODY_FILE` e num push na `main`. O que depende do corpo é só a seção `## Aceite`.
 - **Onde é conferido:** no fim do `scripts/verify.sh full`, pelo `scripts/check-acceptance.cjs`, que lê os arquivos de `docs/aceite/`, o corpo do PR e os relatórios JSON das suítes da própria execução. Faz parte do `Veredito`. Os contêineres só montam a pasta da própria app, então o `verify.sh` entrega ao conferidor, pela entrada padrão, o corpo do PR e os arquivos de aceite, como já fazia com os relatórios.
 - **Marcas:** são seis, e quatro exigem teste: teste HTTP, teste no Playwright, teste de unidade e teste de integração. A marca é uma promessa sobre o nível do teste, que o revisor lê. O conferidor não a confere, nem a camada do teste: ele lê os relatórios no formato do Vitest e no do Playwright e liga o teste ao critério só pelo ID no título.
-- **Testes do harness:** o conferidor tem testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. Um repórter próprio do `node:test` (`scripts/test/node-test-report.cjs`) grava o relatório deles em `reports/harness/node-tests.json`, no formato do Vitest: o passo o confere com o mesmo `check_report` das suítes (ao menos um teste, nenhum pulado), e o `verify.sh` o entrega ao conferidor ao lado dos relatórios das apps. Assim o conferidor continua com dois formatos. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
+- **Testes do harness:** o conferidor e o renderizador da visão do contrato (etapa 8) têm testes próprios, em `scripts/test/`, com o runner nativo do Node, rodados no contêiner `api` no passo "Testes do harness" do `verify.sh full`. Teste que falha reprova o veredito. Um repórter próprio do `node:test` (`scripts/test/node-test-report.cjs`) grava o relatório deles em `reports/harness/node-tests.json`, no formato do Vitest: o passo o confere com o mesmo `check_report` das suítes (ao menos um teste, nenhum pulado), e o `verify.sh` o entrega ao conferidor ao lado dos relatórios das apps. Assim o conferidor continua com dois formatos. São os primeiros testes de uma peça do harness, porque o conferidor decide um bloqueio sobre todos os tickets, e um erro nele reprova ou libera em silêncio a matriz inteira.
 - **ID no título, e não nas `tags` do Vitest:** com `strictTags`, cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`. No Playwright, o conferidor lê o ID no título e nas tags. O formato é o token `@<ticket>-CA<n>` no título.
 - **Todos os tickets:** a cobertura confere todos os arquivos de aceite, e não só o do PR. Um ticket futuro que apague ou enfraqueça o teste de um critério antigo é reprovado.
 - **Quando a seção é exigida:** quando o PR altera algum arquivo em `apps/`. O critério é o caminho, e não o nome da branch, que é o agente quem escolhe. Um documento dentro de `apps/`, como o `AGENTS.md` de um projeto, conta como mudança na aplicação.
@@ -219,7 +222,7 @@ O princípio é que quem faz não avalia. A separação é de papel, e não de m
 | Aspecto | Como é |
 | --- | --- |
 | Quem revisa | O subagente `revisor`, definido em `.claude/agents/revisor.md` |
-| O que ele recebe | O arquivo de diff, com a mudança já em commit, e o identificador do ticket. Em PR sem ticket, os critérios de aceite no lugar dele. Nunca o resumo nem a opinião de quem implementou |
+| O que ele recebe | O arquivo de diff, com a mudança já em commit, o identificador do ticket e o caminho do `contract-drift.txt` (etapa 8), ou o aviso de que ele não existe. Em PR sem ticket, os critérios de aceite no lugar do identificador. Nunca o resumo nem a opinião de quem implementou |
 | O que ele pode fazer | Ler o repositório e o ticket. Não tem ferramenta de escrita nem de shell |
 | O que ele confere | Se o diff entrega cada critério de aceite, se os IDs dos critérios do ticket estão todos no arquivo de aceite, se cada teste prova o cenário aprovado do ID dele, defeitos, regras do projeto e documentos desatualizados |
 | Onde fica o resultado | Num comentário no PR, com cada achado marcado como corrigido ou não, o motivo e o relatório na íntegra |
@@ -353,6 +356,28 @@ Implementada. O contrato e o schema das tabelas e rotas que já existem passaram
 - **O que o snapshot descreve:** entrada (pelos DTOs), resposta de sucesso e erros de cada rota, como `application/problem+json` (decorator `ApiProblem`). Não descreve as regras do `class-validator` escritas em decorators próprios, como o formato do e-mail: o plugin só lê os decorators padrão.
 - **Limite:** a conferência prova que o snapshot bate com o código, e não que o código implementa o contrato do LLD. Os testes de ponta a ponta e o revisor cobrem isso.
 
+#### Visão do contrato e desvio do plano
+
+O commit de plano escreve o delta do contrato no snapshot, que é um JSON difícil de revisar, e nada conferia se o contrato implementado é o planejado: o implementador podia regenerar o snapshot com outro desenho e a verificação aprovava. A visão legível resolve a leitura, e o aviso de desvio, a conferência.
+
+| Peça | Como é |
+| --- | --- |
+| Visão | `scripts/verify.sh contract [<de> [<para>]]`, que chama o `api_contract_view` do `scripts/verify/api.sh`. Junta três coisas entre os dois pontos: o `oasdiff changelog` (o que mudou, com a severidade de cada mudança), o contrato completo de cada rota nova ou alterada, no formato da seção 3 do LLD, e o diff do `schema.prisma`. Sem `<para>`, o segundo ponto é a pasta de trabalho. Com o snapshot igual nos dois pontos, diz que o contrato não muda, sem rodar o `oasdiff` nem o renderizador. Não é versionada, nem na mensagem do commit: é gerada na hora |
+| Renderizador | O `scripts/contract-view.cjs` monta o contrato completo, com os `$ref` resolvidos. Roda no contêiner `api`, que recebe ele e os dois snapshots pela entrada padrão. Uma rota conta como alterada quando a operação dela, com os `$ref` resolvidos e sem descrições, resumos e exemplos, muda, mesmo que a mudança não apareça no texto renderizado (o changelog do `oasdiff` a detalha). Uma rota que não mudou não aparece |
+| Snapshot ilegível | O `oasdiff` não lê o JSON, e o comando sai com 1, com a saída dele e o que corrigir. Na parada da `/plan-ticket`, isso pega o JSON escrito à mão antes do commit de plano |
+| Na aprovação | A `/plan-ticket` roda a visão do `HEAD` até a pasta de trabalho e a mostra com os IDs e os cenários do arquivo de aceite |
+| Commit de plano | O commit da branch (de `HEAD` até a base) que criou o arquivo de aceite citado na seção `## Aceite` do corpo do PR; se mais de um o criou, o mais recente, que é o plano em vigor. O arquivo citado é lido pelo próprio conferidor do aceite (`scripts/check-acceptance.cjs --cited`), e o commit, pelo `git log` da branch (`plan_commit`, no `verify.sh`). Se o `git log` falha, o passo diz isso e como corrigir |
+| Desvio | No modo completo, depois do passo "Aceite", se o contrato ou o schema da pasta de trabalho é diferente do commit de plano, o passo "Contrato e schema contra o commit de plano" (`api_contract_drift`, no `scripts/verify/api.sh`) mostra a visão entre os dois, grava-a em `$(git rev-parse --git-dir)/harness/contract-drift.txt` e emite `::warning title=Contrato diferente do planejado::`, que vira aviso no PR. O contrato é comparado como na igualdade com o código (`oasdiff diff`, ignorando descrições, resumos e exemplos), e o schema, pelo `git diff`. Se a visão não pôde ser montada, o arquivo e o aviso dizem isso. Sem desvio, diz que estão iguais ao planejado. Sem corpo, com "nenhum" ou com um arquivo de aceite criado fora da branch, diz que não há commit de plano para comparar. O passo nunca falha, e o modo completo apaga o arquivo no começo, para não sobrar o de uma execução interrompida |
+| Na CI | Num pull request, o checkout é o merge da branch na `main`, e as mudanças da `main` pareceriam desvio. A CI aponta o último commit da branch na variável `HARNESS_HEAD_REF`, e o desvio compara o commit de plano com ele; sem a variável, como na máquina, compara com a pasta de trabalho |
+| Revisor | Recebe o `contract-drift.txt`, como em "Revisor em contexto novo" |
+
+- **Por que um renderizador próprio:** numa rota nova, o `oasdiff changelog` só diz que ela foi acrescentada, sem parâmetros, corpo, cabeçalhos nem erros. Ele detalha bem as rotas alteradas, e por isso a visão mostra os dois.
+- **Por que aviso, e não bloqueio:** desvio legítimo acontece no ciclo da `tdd`, como um erro que só aparece ao escrever o teste. A decisão é do humano no merge, com o achado do revisor.
+- **Por que só a branch:** um arquivo de aceite de um ticket já integrado levaria a um commit de plano antigo, e o aviso mostraria todo o contrato que mudou desde então.
+- **Testes:** o renderizador e a leitura do arquivo citado no corpo do PR estão nos testes do harness (seção "Aceite"). O resto depende do `git` e do `oasdiff`, não bloqueia nada e foi demonstrado no PR do LUI-172.
+- **Os formatos:** o `docs/lld.md` define o que toda rota planejada traz no snapshot (seção 3) e o que toda tabela planejada traz no schema (seção 2). A `/plan-ticket` os segue, e o revisor confere o delta contra eles.
+- **Limite:** a visão mostra o que mudou entre o plano e o fim da branch, e não se o plano estava certo. Isso continua com a aprovação humana do plano.
+
 ## O que ficou de fora
 
 | Peça | Por quê |
@@ -365,3 +390,4 @@ Implementada. O contrato e o schema das tabelas e rotas que já existem passaram
 | Credencial própria para o agente | Fecharia de vez o merge pelo agente, mas é excessivo para o escopo. |
 | Sensores contínuos (deriva, código morto, sinais de produção) | O projeto não tem ambiente de produção nem volume de código que os justifique. |
 | Limite forçado de rodadas de correção | Fica como regra no `AGENTS.md`, sem mecanismo. |
+| Lint do snapshot da OpenAPI (conferir por máquina que cada rota traz os itens do formato da seção 3 do LLD) | Muitos itens dependem do que a rota faz: um cabeçalho que ela lê ou um erro que ela devolve não aparecem no snapshot quando faltam, então um lint só pegaria o que é sempre exigido, como o `unauthenticated` da rota protegida. Por ora, quem confere é o revisor. O sinal para trazê-lo é o revisor apontar a mesma omissão de formato em mais de um ticket. |
