@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente quatro
-# comandos: o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
+# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente cinco
+# comandos: o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
+# o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
 # `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; o que mexe
 # na pasta de estado do harness (`.git/harness`), onde ficam a trava e a aprovação; e o `git push`
 # que o `scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
@@ -33,6 +34,11 @@ deny_ci() {
     "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`scripts/verify.sh\` sem elas."
 }
 
+deny_subagent_full() {
+  deny "O comando foi negado: subagente não roda o \`scripts/verify.sh full\`, nem o de algumas apps; o \`full\` é de quem o chamou." \
+    "Termine com os testes ligados aos arquivos que mudou, com os comandos do AGENTS.md do projeto, e devolva o resultado dizendo o que rodou (AGENTS.md da raiz, \"Definição de pronto\")."
+}
+
 deny_state() {
   deny "O comando foi negado: a pasta de estado do harness (\`.git/harness\`) guarda a trava (\`full-lock\`) e a aprovação (\`full-ok\`) do modo completo, e o estado é da verificação, não do agente." \
     "Não leia, não apague e não grave nada nela: quem mexe nesse estado é o scripts/verify.sh. Se o modo completo travou: ${FULL_LOCK_ASK:-}"
@@ -48,6 +54,8 @@ at_command=$'(^|[;&|(\n])[[:space:]]*('"$assignment"')*'
 # pegar também o que vem embrulhado (`timeout`, `nohup`, `bash -c`, `eval`, um `if`). Uma mensagem
 # que cite os dois também é negada: o hook falha fechado.
 verify_unlock='verify\.sh.*unlock'
+# O modo completo do `verify.sh`, com ou sem apps, em qualquer ponto do comando, como o `unlock`.
+verify_full="verify\\.sh[\"']?[[:space:]]+[\"']?full([^[:alnum:]_-]|\$)"
 # A pasta de estado do harness: pelo `.git/harness`, pelos arquivos `full-*` dela ou pela pasta do Git
 # que o `git rev-parse` devolve (`--git-dir`, `--absolute-git-dir`, `--git-common-dir`).
 harness_state='\.git/harness|harness/full-|git(-common)?-dir.*/harness'
@@ -120,6 +128,9 @@ fi
 
 [[ "$command" =~ $verify_unlock ]] && deny_unlock
 [[ "$command" =~ $harness_state ]] && deny_state
+# O Claude Code põe o `agent_id` na entrada quando o comando vem de um subagente.
+[[ -n "$(jq -r '.agent_id // empty' <<<"$input" 2>/dev/null)" && "$command" =~ $verify_full ]] &&
+  deny_subagent_full
 sets_ci "$command" && deny_ci
 [[ "$command" =~ $git_push ]] || exit 0
 

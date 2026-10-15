@@ -129,7 +129,8 @@ scripts/verify.sh full
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `scripts/verify.sh fast`. O `scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
-- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha. No fluxo de ticket, quem o roda é a sessão principal, depois da `/simplify` e da `/code-review`, e nunca o subagente que implementa.
+- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify` e da `/code-review`.
+- **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
 - **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava. O desenho está no `docs/harness.md`, seção "Trava das reprovações repetidas".
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.

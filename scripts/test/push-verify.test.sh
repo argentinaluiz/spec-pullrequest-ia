@@ -28,6 +28,25 @@ command_input() {
   jq -n --arg command "$1" '{tool_input: {command: $command}}'
 }
 
+# A mesma entrada, vinda de um subagente: o Claude Code acrescenta o `agent_id` dele.
+# subagent_input <comando>
+subagent_input() {
+  jq -n --arg command "$1" '{agent_id: "a1b2c3", agent_type: "general-purpose", tool_input: {command: $command}}'
+}
+
+expect 2 "nega o full a um subagente, e diz que o full é de quem o chamou" \
+  "$(subagent_input 'scripts/verify.sh full')" "o \`full\` é de quem o chamou"
+expect 2 "nega a um subagente o full de algumas apps" \
+  "$(subagent_input 'scripts/verify.sh full web api 2>&1 | tail -40')" "o \`full\` é de quem o chamou"
+expect 2 "nega a um subagente o full embrulhado ou com o corpo do PR" \
+  "$(subagent_input 'ACCEPTANCE_BODY_FILE=x timeout 900 "./scripts/verify.sh" full')" "o \`full\` é de quem o chamou"
+expect 0 "libera a um subagente o modo rápido" \
+  "$(subagent_input 'scripts/verify.sh fast web')"
+expect 0 "libera a um subagente um comando que só cita o full" \
+  "$(subagent_input 'git commit -m "roda o full no fim"')"
+expect 0 "libera o full à sessão principal, que não traz o agent_id" \
+  "$(command_input 'scripts/verify.sh full')"
+
 expect 2 "nega o unlock, diz que só o usuário destrava e manda pedir o \`! scripts/verify.sh unlock\`" \
   "$(command_input 'scripts/verify.sh unlock')" "só o usuário destrava o modo completo."$'\n'"Como resolver: pare e peça ao usuário"
 expect 2 "nega o unlock pelo caminho relativo, com aspas, por outro shell ou depois de outro comando" \
