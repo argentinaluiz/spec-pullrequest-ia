@@ -82,11 +82,22 @@ check "na CI, a trava não vale" not lock true "$state/ci" full_lock_enabled
 # O verify.sh, com o estado de um repositório temporário e a variável CI dada.
 repo="$state/repo"
 git init -q "$repo"
-harness="$repo/.git/harness"
+harness="$repo/.harness"
 mkdir -p "$harness"
-# verify <CI> <argumentos...>
+# A definição única da pasta de estado (scripts/harness-dir.sh): a pasta de estado do checkout, achada
+# pelo lugar do script ou pelo CLAUDE_PROJECT_DIR, e nunca pela pasta em que quem chama está.
+mkdir -p "$repo/sub"
+check "a pasta de estado é a do checkout do script, mesmo com a pasta atual fora de um repositório" \
+  env -u CLAUDE_PROJECT_DIR bash -c 'cd / && source "$1/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$1/.harness" ]]' _ "$ROOT"
+check "a pasta de estado não segue a pasta atual de outro repositório" \
+  env -u CLAUDE_PROJECT_DIR bash -c 'cd "$1/sub" && source "$2/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$2/.harness" ]]' _ "$repo" "$ROOT"
+check "o CLAUDE_PROJECT_DIR, quando definido, é a raiz do checkout" \
+  env CLAUDE_PROJECT_DIR="$repo" bash -c 'cd / && source "$1/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$(cd "$2" && pwd -P)/.harness" ]]' _ "$ROOT" "$repo"
+check "um CLAUDE_PROJECT_DIR que não é uma pasta deixa a pasta de estado vazia" \
+  env CLAUDE_PROJECT_DIR="$state/nao-existe" bash -c 'source "$1/scripts/harness-dir.sh" && [[ -z "$HARNESS_DIR" ]]' _ "$ROOT"
+# verify <CI> <argumentos...>: o STATE_ROOT, quando definido, troca a raiz do checkout do estado.
 verify() {
-  CI="$1" GIT_DIR="$repo/.git" HARNESS_BASE_REF=nao-existe "$ROOT/scripts/verify.sh" "${@:2}"
+  CI="$1" CLAUDE_PROJECT_DIR="${STATE_ROOT:-$repo}" GIT_DIR="$repo/.git" GIT_WORK_TREE="$repo" HARNESS_BASE_REF=nao-existe "$ROOT/scripts/verify.sh" "${@:2}"
 }
 
 # Travado: o `full` recusa com 2, antes de tudo, e manda pedir o destravamento ao usuário.
@@ -118,5 +129,15 @@ code=$?
 check "o full que não deu para verificar sai com 2" test "$code" = 2
 count="$(fail "$harness/full-lock" "Web: lint")"
 check "o full que não deu para verificar não mexe na contagem" test "$count" = 3
+
+# Sem a pasta de estado, só os modos que gravam estado abortam; os outros seguem.
+out="$(STATE_ROOT="$state/nao-existe" verify "" apps 2>&1)"
+check "sem a pasta de estado, o modo apps segue" test "$out" = $'api\nweb'
+for mode in prepush unlock full; do
+  out="$(STATE_ROOT="$state/nao-existe" verify "" "$mode" 2>&1)"
+  code=$?
+  check "sem a pasta de estado, o modo $mode sai com 2 e diz que não verificou" \
+    bash -c '[[ "$1" == 2 && "$2" == *"NÃO VERIFICADO"*"pasta de estado"* ]]' _ "$code" "$out"
+done
 
 finish "da trava"

@@ -4,7 +4,7 @@
 # comandos: o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
 # o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
 # `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; o que mexe
-# na pasta de estado do harness (`.git/harness`), onde ficam a trava e a aprovação; e o `git push`
+# na pasta de estado do harness (`.harness/`), onde ficam a trava e a aprovação; e o `git push`
 # que o `scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
 # não aprovou o último commit. As guardas são para um agente que coopera, e não uma barreira de
 # segurança. O desenho está no docs/harness.md, seções "Bloqueio no push" e "Trava das reprovações
@@ -18,6 +18,9 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 # A instrução de destravar, a mesma das mensagens do verify.sh (FULL_LOCK_ASK).
 # shellcheck source=../../scripts/full-lock.sh
 source scripts/full-lock.sh 2>/dev/null
+# A leitura do que é mexer na pasta de estado do harness e a das aspas, definidas num lugar só.
+# shellcheck source=../../scripts/harness-state-guard.sh
+source scripts/harness-state-guard.sh
 
 # Nega o comando com as linhas dadas.
 deny() {
@@ -40,7 +43,7 @@ deny_subagent_full() {
 }
 
 deny_state() {
-  deny "O comando foi negado: a pasta de estado do harness (\`.git/harness\`) guarda a trava (\`full-lock\`) e a aprovação (\`full-ok\`) do modo completo, e o estado é da verificação, não do agente." \
+  deny "O comando foi negado: a pasta de estado do harness (\`.harness/\`) guarda a trava (\`full-lock\`) e a aprovação (\`full-ok\`) do modo completo, e o estado é da verificação, não do agente." \
     "Não leia, não apague e não grave nada nela: quem mexe nesse estado é o scripts/verify.sh. Se o modo completo travou: ${FULL_LOCK_ASK:-}"
 }
 
@@ -56,42 +59,13 @@ at_command=$'(^|[;&|(\n])[[:space:]]*('"$assignment"')*'
 verify_unlock='verify\.sh.*unlock'
 # O modo completo do `verify.sh`, com ou sem apps, em qualquer ponto do comando, como o `unlock`.
 verify_full="verify\\.sh[\"']?[[:space:]]+[\"']?full([^[:alnum:]_-]|\$)"
-# A pasta de estado do harness: pelo `.git/harness`, pelos arquivos `full-*` dela ou pela pasta do Git
-# que o `git rev-parse` devolve (`--git-dir`, `--absolute-git-dir`, `--git-common-dir`).
-harness_state='\.git/harness|harness/full-|git(-common)?-dir.*/harness'
 # Uma atribuição da variável CI ou GITHUB_ACTIONS: no começo, depois de um espaço (o que cobre o
 # `export` e o `env`) ou depois de `;`, `&`, `|` ou `(`.
 ci_assignment='(^|[[:space:];&|(])(CI|GITHUB_ACTIONS)='
 # A mesma atribuição em qualquer ponto, para a entrada que o hook não consegue ler.
 ci_mention='(^|[^[:alnum:]_])(CI|GITHUB_ACTIONS)='
 
-# Separa o comando no texto fora das aspas, em `unquoted`, e no conteúdo de cada trecho entre aspas
-# simples ou duplas, em `quoted`. Cada trecho entre aspas vira um espaço no texto de fora.
-# split_quotes <comando>
-split_quotes() {
-  local text="$1" char quote="" segment="" i
-  unquoted=""
-  quoted=()
-  for ((i = 0; i < ${#text}; i++)); do
-    char="${text:i:1}"
-    if [[ -z "$quote" ]]; then
-      case "$char" in
-        "'" | '"') quote="$char" segment="" unquoted+=" " ;;
-        '\') unquoted+="$char${text:i+1:1}" i=$((i + 1)) ;;
-        *) unquoted+="$char" ;;
-      esac
-    elif [[ "$char" == "$quote" ]]; then
-      quoted+=("$segment")
-      quote=""
-    elif [[ "$quote" == '"' && "$char" == '\' ]]; then
-      segment+="$char${text:i+1:1}"
-      i=$((i + 1))
-    else
-      segment+="$char"
-    fi
-  done
-  [[ -z "$quote" ]] || quoted+=("$segment")
-}
+# O `split_quotes` é do scripts/harness-state-guard.sh.
 
 # Se o comando roda o `verify.sh` com `CI=` ou `GITHUB_ACTIONS=`: a atribuição fora das aspas, com o
 # `verify.sh` em qualquer ponto, ou um trecho entre aspas que traga os dois, como o de um `bash -c`.
@@ -120,14 +94,14 @@ input="$(cat)"
 # a falha do `jq` não liberá-lo.
 if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; then
   [[ "$input" =~ $verify_unlock ]] && deny_unlock
-  [[ "$input" =~ $harness_state ]] && deny_state
+  harness_state_in_raw "$input" && deny_state
   [[ "$input" == *verify.sh* && "$input" =~ $ci_mention ]] && deny_ci
   [[ "$input" =~ git.*push ]] || exit 0
   command="git push"
 fi
 
 [[ "$command" =~ $verify_unlock ]] && deny_unlock
-[[ "$command" =~ $harness_state ]] && deny_state
+harness_state_touched "$command" && deny_state
 # O Claude Code põe o `agent_id` na entrada quando o comando vem de um subagente.
 [[ -n "$(jq -r '.agent_id // empty' <<<"$input" 2>/dev/null)" && "$command" =~ $verify_full ]] &&
   deny_subagent_full
