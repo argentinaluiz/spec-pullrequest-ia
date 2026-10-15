@@ -6,6 +6,7 @@ import {
   signIn,
 } from "./support/account";
 import { seedRootFiles } from "./support/items";
+import { chooseFiles } from "./support/uploads";
 import { uniqueEmail } from "./support/mailpit";
 import {
   expectSessionExpiredNotice,
@@ -115,4 +116,61 @@ test("a lista mostra nome, tipo, tamanho e data, e \"Carregar mais\" acrescenta 
   await expect(rows.nth(49)).toContainText("relatorio-049.txt");
   expect(page.url()).toBe(url);
   await expect(loadMore).toHaveCount(0);
+});
+
+test("depois de um envio, a lista volta à primeira página do servidor: \"Carregar mais\" aparece e nenhuma linha se repete", async ({
+  page,
+}) => {
+  const email = uniqueEmail();
+  await signIn(page, email);
+  await seedRootFiles(
+    email,
+    Array.from({ length: 60 }, (_, index) => ({
+      name: `relatorio-${String(index + 1).padStart(3, "0")}.txt`,
+    })),
+  );
+  await page.reload();
+  const files = page.getByRole("table", { name: "Meus arquivos" });
+  const rows = files.getByRole("row").filter({ has: page.getByRole("cell") });
+  const loadMore = page.getByRole("button", { name: "Carregar mais" });
+  await expect(rows).toHaveCount(50);
+  // O clique pode chegar antes da hidratação e se perder: repete até a página acrescentar.
+  await expect(async () => {
+    if (await loadMore.count()) await loadMore.click({ timeout: 1_000 });
+    await expect(rows).toHaveCount(60, { timeout: 1_000 });
+  }).toPass();
+  await expect(loadMore).toHaveCount(0);
+
+  // "a-novo.txt" ordena antes de todos, e empurra o último arquivo para a segunda página.
+  await chooseFiles(page, [
+    { name: "a-novo.txt", mimeType: "text/plain", buffer: Buffer.from("novo") },
+  ]);
+
+  await expect(rows.first()).toContainText("a-novo.txt");
+  await expect(rows).toHaveCount(50);
+  await expect(loadMore).toBeVisible();
+  await loadMore.click();
+  await expect(rows).toHaveCount(61);
+  await expect(loadMore).toHaveCount(0);
+  const names = await rows.evaluateAll((elements) =>
+    elements.map((element) => /[\w-]+\.txt/.exec(element.textContent ?? "")?.[0]),
+  );
+  expect(new Set(names).size).toBe(61);
+});
+
+test("a gaveta aberta no celular se fecha quando a janela cresce para o desktop, e a página volta a responder", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await signIn(page, uniqueEmail());
+  await page.getByRole("button", { name: "Abrir navegação" }).click();
+  await expect(page.getByRole("dialog", { name: "Navegação" })).toBeVisible();
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await page.getByRole("link", { name: "Meus arquivos" }).first().focus();
+  await expect(page.getByRole("link", { name: "Meus arquivos" }).first()).toBeFocused();
+  // O clique chega ao botão: com a página inerte, ele ficaria sem efeito.
+  await page.getByRole("button", { name: "Enviar" }).click({ trial: true, timeout: 2000 });
 });

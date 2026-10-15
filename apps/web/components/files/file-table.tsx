@@ -8,6 +8,7 @@ import {
   type LoadMoreResult,
 } from "@/components/files/load-more";
 import type { Item } from "@/lib/api/types";
+import { firstPageKey } from "@/lib/first-page-key";
 
 /**
  * A lista de uma pasta montada: a primeira página, desenhada no servidor, as páginas que o
@@ -26,7 +27,13 @@ export function FileTable({
   load: (cursor: string) => Promise<LoadMoreResult>;
 }) {
   return (
-    <LoadMoreProvider initialCursor={nextCursor} load={load}>
+    <LoadMoreProvider
+      // A primeira página nova do servidor descarta as páginas acrescentadas antes dela.
+      key={firstPageKey(
+        items.map((item) => item.id),
+        nextCursor,
+      )}
+      initialCursor={nextCursor} load={load}>
       <FileList label={label}>
         <div role="rowgroup">
           {items.map((item) => (
