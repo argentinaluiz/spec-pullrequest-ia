@@ -102,6 +102,6 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 
 </issue-template>
 
-In a criterion, `CA<n>` is its stable ID and `(check)` is how it is verified: HTTP test, Playwright test, unit test, human review or document. The ID rules and the checks are owned by the root `AGENTS.md`, section "Plano do ticket"; follow them. The definition of done is not a criterion.
+In a criterion, `CA<n>` is its stable ID and `(check)` is how it is verified. The ID rules and the checks are owned by the `plan-ticket` skill, in `formatos/aceite.md`; follow them. The definition of done is not a criterion.
 
 In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.

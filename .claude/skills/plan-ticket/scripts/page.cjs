@@ -1,49 +1,42 @@
 // Monta a página de revisão do plano de um ticket: um HTML estático, com uma aba por parte do plano
 // (Aceite, Contrato, Schema, Documentos, Arquivos e interfaces e Decisões), para o humano aprovar o
-// plano antes do commit de plano. O desenho está no docs/harness.md, etapa 7.
+// plano antes do commit de plano. O que cada aba mostra está no SKILL.md da skill de plano.
 //
 // O construtor (`build`) não lê nada sozinho: recebe as fontes e devolve o HTML. Todo texto das fontes
-// é escapado, e a página não carrega nenhum recurso externo nem tem script: as abas são de CSS.
+// é escapado, e a página não carrega nenhum recurso externo nem tem script: as abas são de CSS. As
+// abas Contrato e Schema vêm do Markdown que o comando do contrato do projeto imprime, no formato
+// de formatos/contrato.md. Só usa a biblioteca padrão do Node.
 //
-// Roda dentro do contêiner `api` (ver o modo `plan` do scripts/verify.sh), com a pasta das fontes
-// que o verify.sh monta:
-//   node plan-page.cjs <pasta das fontes>
-// A pasta traz `ticket` e `origem` (uma linha cada), `aceite.md`, `plano.msg`, `documentos.diff` e,
-// quando a pasta de trabalho tem mudanças que o índice não tem nos caminhos do plano, `pendentes.txt`
-// (uma por linha, como o `git status --porcelain` as escreve), e as fontes da API que o
-// `api_plan_sources` grava (`base.json`, `novo.json`, `changelog.txt` e `schema.diff`). O que falta
-// conta como ausente.
+// Quem o chama é o plan-page.sh, pelo comando do Node do projeto, com a pasta das fontes que ele
+// monta, relativa à raiz do repositório:
+//   node page.cjs <pasta das fontes>
+// A pasta traz `ticket`, `origem` e `caminho-do-aceite` (uma linha cada; o último, o caminho do
+// arquivo de aceite no repositório), `aceite.md`, `contrato.md` (só quando o projeto declara um
+// comando do contrato), `plano.msg`, `documentos.diff` e, quando a pasta de trabalho tem mudanças que
+// o índice não tem, `pendentes.txt` (uma por linha, como o `git status --porcelain` as escreve). O
+// que falta conta como ausente.
 
-const { parseAcceptanceFile, CHECKS } = require('./check-acceptance.cjs');
-const {
-  routeChanges,
-  routeTitle,
-  fieldText,
-  parameterTable,
-  headerTable,
-  errorTable,
-  reader,
-  PHRASES,
-} = require('./contract-view.cjs');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const { parseAcceptanceFile, CHECKS, parseMessage, DECISION, FILE_BLOCKS } = require('./plan.cjs');
 
 // As abas, nesta ordem: o id, o rótulo e o que monta o painel, a partir das fontes do `build`.
 const TABS = [
-  { id: 'aceite', label: 'Aceite', panel: (s) => acceptanceTab(s.ticket, s.acceptance) },
-  { id: 'contrato', label: 'Contrato', panel: (s) => contractTab(s.routes, s.changelog) },
-  { id: 'schema', label: 'Schema', panel: (s) => schemaTab(s.schemaDiff) },
+  { id: 'aceite', label: 'Aceite', panel: (s) => acceptanceTab(s.ticket, s.acceptancePath, s.acceptance) },
+  { id: 'contrato', label: 'Contrato', panel: (s) => contractTab(s.contract) },
+  { id: 'schema', label: 'Schema', panel: (s) => schemaTab(s.contract) },
   { id: 'documentos', label: 'Documentos', panel: (s) => documentsTab(s.docsDiff) },
   { id: 'arquivos', label: 'Arquivos e interfaces', panel: (s) => filesTab(s.parsed) },
   { id: 'decisoes', label: 'Decisões', panel: (s) => decisionsTab(s.parsed) },
 ];
 
-// Os blocos da mensagem do commit de plano, no formato do AGENTS.md da raiz ("Arquivo de aceite"):
-// o rótulo com que o parágrafo começa e, nos da aba "Arquivos e interfaces", o título dele na aba.
-const DECISION = 'Decision:';
-const FILE_BLOCKS = [
-  { key: 'files', label: 'Files and interfaces the implementation will touch:', heading: 'Arquivos e interfaces que a implementação vai tocar' },
-  { key: 'tests', label: 'Existing tests whose behavior changes:', heading: 'Testes existentes cujo comportamento muda' },
-  { key: 'data', label: 'Data changes:', heading: 'Mudança de dados' },
-];
+// O título de cada bloco da mensagem na aba "Arquivos e interfaces".
+const HEADINGS = {
+  files: 'Arquivos e interfaces que a implementação vai tocar',
+  tests: 'Testes existentes cujo comportamento muda',
+  data: 'Mudança de dados',
+};
 
 function escape(value) {
   return String(value)
@@ -70,15 +63,6 @@ function inline(value) {
     .replace(/\0(\d+)\0/g, (_, index) => `<code>${escape(codes[Number(index)])}</code>`);
 }
 
-/** Os parágrafos de um texto (separados por linha em branco), cada um com as quebras de linha desfeitas. */
-function paragraphs(value) {
-  return String(value)
-    .trim()
-    .split(/\n\s*\n/)
-    .map((paragraph) => `<p>${inline(paragraph.replace(/\s*\n\s*/g, ' '))}</p>`)
-    .join('\n');
-}
-
 /** Uma lista aninhada pela profundidade de cada item: `[{ depth, html }]`. */
 function nestedList(items) {
   let html = '';
@@ -95,7 +79,7 @@ function nestedList(items) {
   return html + '</li></ul>'.repeat(depth + 1);
 }
 
-/** Uma tabela do contrato (`{ head, rows }`, do contract-view.cjs), com as células de Markdown em HTML. */
+/** Uma tabela (`{ head, rows }`), com as células de Markdown de uma linha em HTML. */
 function table({ head, rows }) {
   return (
     `<div class="rolagem"><table><thead><tr>${head.map((value) => `<th>${inline(value)}</th>`).join('')}</tr></thead><tbody>` +
@@ -139,16 +123,16 @@ function empty(message) {
   return `<p class="vazio">${inline(message)}</p>`;
 }
 
-function acceptanceTab(ticket, acceptance) {
-  if (acceptance === null) return empty(`O plano não tem o arquivo de aceite \`docs/aceite/${ticket}.md\`.`);
+function acceptanceTab(ticket, acceptancePath, acceptance) {
+  if (acceptance === null) return empty(`O plano não tem o arquivo de aceite \`${acceptancePath}\`.`);
   const { intro, criteria } = parseAcceptanceFile(`${ticket}.md`, acceptance);
-  const head = intro ? `${paragraphs(intro)}\n` : '';
+  const head = intro ? `${markdown(intro)}\n` : '';
   if (!criteria.length) return `${head}${empty('O arquivo de aceite não tem nenhum critério.')}`;
   const rows = criteria.map((criterion) => {
     const check = CHECKS.get(criterion.check)?.name ?? criterion.check ?? 'marca ausente';
-    const scenario = criterion.scenario ? paragraphs(criterion.scenario) : empty('Sem cenário.');
+    const scenario = criterion.scenario ? markdown(criterion.scenario) : empty('Sem cenário.');
     const planned = criterion.plannedTest
-      ? `<details><summary>Teste previsto</summary>${paragraphs(criterion.plannedTest)}</details>`
+      ? `<details><summary>Teste previsto</summary>${markdown(criterion.plannedTest)}</details>`
       : '';
     return `<tr class="criterio"><td class="id">${escape(criterion.id)}</td><td>${escape(check)}</td><td>${scenario}${planned}</td></tr>`;
   });
@@ -157,45 +141,135 @@ ${rows.join('\n')}
 </tbody></table></div>`;
 }
 
-/** Os campos de um corpo, numa lista aninhada, como na visão do terminal. */
-function fieldList(fields) {
-  return nestedList(fields.map((entry) => ({ depth: entry.depth, html: inline(fieldText(entry)) })));
+// Um bloco de código abre numa cerca com ou sem a linguagem, e fecha só numa cerca sem nada.
+const FENCE = /^\s*```\s*(\S*)\s*$/;
+const CLOSING_FENCE = /^\s*```\s*$/;
+// Um título: os `#` e um espaço. A sequência de `#` do fim só é de fechamento, e sai, quando tem um
+// espaço antes (como no CommonMark): `## x-c#` mantém o `#`.
+const HEADING = /^(#{1,6})(?=\s)(.*?)(?:\s+#+)?\s*$/;
+const ROW = /^\s*\|/;
+const SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+const LIST_ITEM = /^(\s*)[-*]\s+(.*)$/;
+// Um parágrafo que é um só trecho em itálico, com um asterisco de cada lado e nenhum dentro, é uma
+// nota de vazio, como "o contrato não muda" (formatos/contrato.md).
+const NOTE = /^\*(?=[^*\s])([^*]*[^*\s])\*$/;
+
+/** As células de uma linha de tabela do Markdown: as barras das pontas tiradas e a `\|` como texto. */
+function cells(line) {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/(?<!\\)\|$/, '')
+    .split(/(?<!\\)\|/)
+    .map((value) => value.trim().replaceAll('\\|', '|'));
 }
 
-/** A seção de uma rota do modelo do `routeChanges`, em HTML: a mesma da visão do terminal (`section`, no contract-view.cjs). */
-function routeHtml(route) {
-  const parts = [`<h3>${escape(routeTitle(route))}</h3>`];
-  if (route.change === 'removida') return parts.join('\n');
-  if (route.deprecated) parts.push('<p>Obsoleta (deprecated).</p>');
-  if (route.parameters.length) parts.push('<h4>Parâmetros</h4>', table(parameterTable(route)));
-  if (route.inputHeaders.length) parts.push('<h4>Cabeçalhos de entrada</h4>', table(headerTable('Nome', route.inputHeaders)));
-  for (const body of route.bodies) {
-    parts.push(`<h4>Corpo (${escape(body.types.join(', '))}), ${body.required ? 'obrigatório' : 'opcional'}</h4>`);
-    if (body.fields.length) parts.push(fieldList(body.fields));
-  }
-  for (const response of route.success) {
-    if (!response.bodies.length) parts.push(`<h4>Sucesso ${escape(response.status)} (sem corpo)</h4>`);
-    for (const body of response.bodies) {
-      parts.push(`<h4>Sucesso ${escape(response.status)} (${escape(body.types.join(', '))})</h4>`);
-      if (body.fields.length) parts.push(fieldList(body.fields));
+/**
+ * Um Markdown em HTML, o de todas as abas que vêm de texto (o aceite, o contrato e a mensagem), com o
+ * que o contrato de um projeto usa (formatos/contrato.md): títulos, parágrafos, notas de vazio,
+ * tabelas, listas aninhadas (dois espaços por nível) e blocos de código; o bloco `diff` sai com as
+ * linhas marcadas, como na aba Documentos. Todo texto é escapado, e o que não é desses blocos sai
+ * como parágrafo.
+ */
+function markdown(value) {
+  const lines = String(value).replace(/\r\n/g, '\n').split('\n');
+  const html = [];
+  let index = 0;
+  const startsBlock = (line) => FENCE.test(line) || HEADING.test(line) || ROW.test(line) || LIST_ITEM.test(line);
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
     }
-    if (response.headers.length) parts.push(table(headerTable('Cabeçalho de resposta', response.headers)));
+    const fence = line.match(FENCE);
+    if (fence) {
+      const code = [];
+      index += 1;
+      while (index < lines.length && !CLOSING_FENCE.test(lines[index])) code.push(lines[index++]);
+      index += 1;
+      html.push(fence[1] === 'diff' ? diff(code.join('\n')) : `<pre>${escape(code.join('\n'))}</pre>`);
+      continue;
+    }
+    const heading = line.match(HEADING);
+    if (heading) {
+      const level = heading[1].length;
+      html.push(`<h${level}>${inline(heading[2].trim())}</h${level}>`);
+      index += 1;
+      continue;
+    }
+    if (ROW.test(line) && SEPARATOR.test(lines[index + 1] ?? '')) {
+      const head = cells(line);
+      const rows = [];
+      index += 2;
+      while (index < lines.length && ROW.test(lines[index])) rows.push(cells(lines[index++]));
+      html.push(table({ head, rows }));
+      continue;
+    }
+    // A lista vai até uma linha em branco ou um bloco que não é item (um título, uma cerca, uma linha
+    // de tabela); a linha que não é nada disso continua o último item.
+    if (LIST_ITEM.test(line)) {
+      const items = [];
+      const ends = (next) => !next.trim() || FENCE.test(next) || HEADING.test(next) || ROW.test(next);
+      while (index < lines.length && !ends(lines[index])) {
+        const item = lines[index].match(LIST_ITEM);
+        if (item) items.push({ depth: Math.floor(item[1].length / 2), text: item[2] });
+        else items[items.length - 1].text += ` ${lines[index].trim()}`;
+        index += 1;
+      }
+      html.push(nestedList(items.map((item) => ({ depth: item.depth, html: inline(item.text) }))));
+      continue;
+    }
+    const paragraph = [];
+    while (index < lines.length && lines[index].trim() && !(paragraph.length && startsBlock(lines[index]))) {
+      paragraph.push(lines[index++]);
+    }
+    const joined = paragraph.join('\n').trim().replace(/\s*\n\s*/g, ' ');
+    const note = joined.match(NOTE);
+    html.push(note ? empty(note[1]) : `<p>${inline(joined)}</p>`);
   }
-  if (route.errors.length) parts.push('<h4>Erros</h4>', table(errorTable(route)));
-  return parts.join('\n');
+  return html.join('\n');
 }
 
-function contractTab(routes, changelog) {
-  if (changelog === null) return empty(PHRASES.sameSnapshot);
-  const log = changelog.trim() ? `<pre>${escape(changelog.trimEnd())}</pre>` : empty('O `oasdiff changelog` não listou mudanças.');
-  return `<h2>${escape(PHRASES.changelog)}</h2>
-${log}
-<h2>${escape(PHRASES.routes)}</h2>
-${routes.length ? routes.map(routeHtml).join('\n') : empty(PHRASES.unchanged)}`;
+const NO_CONTRACT = 'O projeto não declara contrato.';
+
+/**
+ * As seções `# Contrato` e `# Schema` do Markdown do contrato, cada uma sem o título: `{ contrato,
+ * schema }`, com `null` na que não aparece. O que vem antes da primeira seção fica de fora, e um `#`
+ * dentro de um bloco de código não abre seção. O bloco abre e fecha como no `markdown`: dentro dele,
+ * só uma cerca sem nada o fecha.
+ */
+function sections(contract) {
+  const found = { contrato: null, schema: null };
+  let current = null;
+  let fenced = false;
+  for (const line of String(contract).replace(/\r\n/g, '\n').split('\n')) {
+    if (fenced) fenced = !CLOSING_FENCE.test(line);
+    else fenced = FENCE.test(line);
+    const title = !fenced && line.match(/^#\s+(Contrato|Schema)\s*$/i);
+    if (title) {
+      current = title[1].toLowerCase();
+      found[current] ??= [];
+      continue;
+    }
+    if (current) found[current].push(line);
+  }
+  return { contrato: found.contrato?.join('\n') ?? null, schema: found.schema?.join('\n') ?? null };
 }
 
-function schemaTab(schemaDiff) {
-  return schemaDiff.trim() ? diff(schemaDiff) : empty(PHRASES.schemaUnchanged);
+/** Uma aba do contrato: o projeto sem contrato, a seção que não veio (nada muda) ou o Markdown dela. */
+function contractSection(contract, key, unchanged) {
+  if (contract === null) return empty(NO_CONTRACT);
+  const section = sections(contract)[key];
+  return section?.trim() ? markdown(section) : empty(unchanged);
+}
+
+function contractTab(contract) {
+  return contractSection(contract, 'contrato', 'O contrato não muda.');
+}
+
+function schemaTab(contract) {
+  return contractSection(contract, 'schema', 'O schema não muda.');
 }
 
 const ESCAPES = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 };
@@ -227,8 +301,8 @@ function unquote(value) {
  * O arquivo de um trecho do diff (as linhas de um `diff --git` até o seguinte): o caminho novo, do
  * `rename to` ou do `+++ b/`, ou o antigo, do `--- a/`, quando o arquivo foi apagado. Sem essas linhas
  * (um arquivo binário, um modo que muda), o caminho sai do próprio `diff --git a/<x> b/<x>`, cujas
- * duas metades são iguais. O diff vem com os prefixos `a/` e `b/` fixos (ver o modo `plan` do
- * scripts/verify.sh), e o `git` só põe o caminho entre aspas quando ele tem um caractere especial.
+ * duas metades são iguais. O diff vem com os prefixos `a/` e `b/` fixos (ver o `plain_diff` do
+ * plan-page.sh), e o `git` só põe o caminho entre aspas quando ele tem um caractere especial.
  */
 function fileOf([header, ...lines]) {
   const hunk = lines.findIndex((line) => line.startsWith('@@'));
@@ -273,92 +347,19 @@ function documentsTab(docsDiff) {
   return files.map(({ file, text }) => `<h2><code>${escape(file)}</code></h2>\n${diff(text)}`).join('\n');
 }
 
-const LABELS = [DECISION, ...FILE_BLOCKS.map(({ label }) => label)];
-// Uma linha de atribuição do fim da mensagem, como `Co-Authored-By: ...`: uma palavra sem espaço e
-// os dois-pontos.
-const TRAILER = /^[A-Za-z0-9-]+:\s/;
-
-/** O rótulo com que a linha começa, ou `undefined`. */
-function labelOf(line) {
-  return LABELS.find((label) => line.startsWith(label));
-}
-
-/**
- * Onde começam as linhas de atribuição: o último parágrafo, quando todas as linhas dele são de
- * atribuição e nenhuma começa por um rótulo de bloco (um `Decision:` também tem a forma de uma).
- * Sem elas, o fim da mensagem.
- */
-function trailersStart(lines) {
-  let start = lines.length;
-  while (start > 0 && lines[start - 1].trim() !== '') start -= 1;
-  const last = lines.slice(start);
-  const trailers = start > 1 && last.every((line) => TRAILER.test(line) && !labelOf(line));
-  return trailers ? start : lines.length;
-}
-
-/**
- * Os blocos da mensagem proposta: o texto inteiro, o assunto, cada `Decision:` e as listas de
- * arquivos, de testes e de mudança de dados. Um bloco começa na linha que abre com o rótulo dele e
- * vai até a próxima linha que abre com um rótulo, ou até as linhas de atribuição do fim, então pode
- * ter mais de um parágrafo e uma linha em branco entre o rótulo e a lista. O texto antes do primeiro
- * rótulo não é de nenhum bloco. `null` quando não há mensagem.
- */
-function parseMessage(message) {
-  if (message === null) return null;
-  const lines = message.trim().split('\n');
-  const parsed = { text: message, subject: lines[0], decisions: [], files: null, tests: null, data: null };
-  const blocks = [];
-  for (const line of lines.slice(1, trailersStart(lines))) {
-    const label = labelOf(line);
-    if (label) blocks.push({ label, lines: [line.slice(label.length)] });
-    else if (blocks.length) blocks[blocks.length - 1].lines.push(line);
-  }
-  for (const { label, lines: own } of blocks) {
-    const content = own.join('\n').trim();
-    if (label === DECISION) parsed.decisions.push(content);
-    else parsed[FILE_BLOCKS.find((entry) => entry.label === label).key] = content;
-  }
-  return parsed;
-}
-
-const ITEM = /^\s*-\s/;
-
-/**
- * O conteúdo de um bloco da mensagem, parágrafo a parágrafo: a lista de itens que começam por `- `,
- * com o texto que vem antes dela, ou o parágrafo.
- */
-function block(content) {
-  return content
-    .trim()
-    .split(/\n\s*\n/)
-    .map((part) => {
-      const lines = part.split('\n');
-      const start = lines.findIndex((line) => ITEM.test(line));
-      if (start === -1) return paragraphs(part);
-      const before = lines.slice(0, start).join('\n');
-      const items = [];
-      for (const line of lines.slice(start)) {
-        if (ITEM.test(line)) items.push(line.replace(/^\s*-\s+/, ''));
-        else items[items.length - 1] += ` ${line.trim()}`;
-      }
-      return `${before.trim() ? paragraphs(before) : ''}<ul>${items.map((value) => `<li>${inline(value)}</li>`).join('')}</ul>`;
-    })
-    .join('\n');
-}
-
 function absent(label) {
   return empty(`Ausente na mensagem proposta: falta o bloco \`${label}\`.`);
 }
 
 function filesTab(parsed) {
   if (!parsed) return empty('Não há mensagem proposta.');
-  return FILE_BLOCKS.map(({ key, label, heading }) => `<h2>${heading}</h2>\n${parsed[key] ? block(parsed[key]) : absent(label)}`).join('\n');
+  return FILE_BLOCKS.map(({ key, label }) => `<h2>${HEADINGS[key]}</h2>\n${parsed[key] ? markdown(parsed[key]) : absent(label)}`).join('\n');
 }
 
 function decisionsTab(parsed) {
   if (!parsed) return empty('Não há mensagem proposta.');
   const decisions = parsed.decisions.length
-    ? `<ol class="decisoes">${parsed.decisions.map((decision) => `<li>${block(decision)}</li>`).join('')}</ol>`
+    ? `<ol class="decisoes">${parsed.decisions.map((decision) => `<li>${markdown(decision)}</li>`).join('')}</ol>`
     : absent(DECISION);
   return `${decisions}
 <details><summary>Mensagem proposta, na íntegra</summary><pre>${escape(parsed.text.replace(/\n$/, ''))}</pre></details>`;
@@ -431,19 +432,18 @@ function pendingNotice(pending) {
 }
 
 /**
- * A página do plano. `ticket` e `origin` (de onde ela foi montada) são texto; `acceptance`, o texto
- * do arquivo de aceite; `routes`, o modelo do `routeChanges`; `changelog`, a saída do `oasdiff
- * changelog`, ausente quando o snapshot não muda; `schemaDiff` e `docsDiff`, diffs unificados;
- * `message`, a mensagem proposta do commit de plano; e `pending`, as mudanças da pasta de trabalho que
- * o índice não tem nos caminhos do plano, uma por item. A fonte ausente pode vir `null` ou faltar.
+ * A página do plano. `ticket` e `origin` (de onde ela foi montada) são texto; `acceptancePath`, o
+ * caminho do arquivo de aceite no repositório, e `acceptance`, o texto dele; `contract`, o Markdown que o comando do contrato do projeto imprime, `null`
+ * quando o projeto não declara contrato; `docsDiff`, um diff unificado; `message`, a mensagem
+ * proposta do commit de plano; e `pending`, as mudanças da pasta de trabalho que o índice não tem nos
+ * caminhos do plano, uma por item. A fonte ausente pode vir `null` ou faltar.
  */
-function build({ ticket, origin, acceptance, routes, changelog, schemaDiff, docsDiff, message, pending }) {
+function build({ ticket, origin, acceptancePath, acceptance, contract, docsDiff, message, pending }) {
   const sources = {
     ticket,
+    acceptancePath: acceptancePath ?? `${ticket}.md`,
     acceptance: acceptance ?? null,
-    routes: routes ?? [],
-    changelog: changelog ?? null,
-    schemaDiff: schemaDiff ?? '',
+    contract: contract ?? null,
     docsDiff: docsDiff ?? '',
     parsed: parseMessage(message ?? null),
   };
@@ -474,10 +474,15 @@ ${TABS.map(({ id, label, panel }) => `<section class="painel" id="aba-${id}" ari
 `;
 }
 
+/** O leitor da pasta das fontes: devolve o texto de uma fonte, ou `null` quando ela não está lá. */
+function reader(dir) {
+  return (name) => (fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : null);
+}
+
 if (require.main === module) {
   const [dir] = process.argv.slice(2);
   if (!dir) {
-    console.error('Uso: node plan-page.cjs <pasta das fontes>');
+    console.error('Uso: node page.cjs <pasta das fontes>');
     process.exit(2);
   }
   const read = reader(dir);
@@ -485,10 +490,9 @@ if (require.main === module) {
     build({
       ticket: read('ticket').trim(),
       origin: read('origem').trim(),
+      acceptancePath: read('caminho-do-aceite')?.trim(),
       acceptance: read('aceite.md'),
-      routes: routeChanges(JSON.parse(read('base.json')), JSON.parse(read('novo.json'))),
-      changelog: read('changelog.txt'),
-      schemaDiff: read('schema.diff'),
+      contract: read('contrato.md'),
       docsDiff: read('documentos.diff'),
       message: read('plano.msg'),
       pending: (read('pendentes.txt') ?? '').split('\n').filter(Boolean),

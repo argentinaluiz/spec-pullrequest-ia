@@ -10,7 +10,9 @@ const os = require('node:os');
 const path = require('node:path');
 
 const CHECKER = path.join(__dirname, '..', 'check-acceptance.cjs');
+const SKILL_PARSER = path.join(__dirname, '..', '..', '.claude', 'skills', 'plan-ticket', 'scripts', 'plan.cjs');
 const { parseAcceptanceFile } = require(CHECKER);
+const { parseMessage } = require(SKILL_PARSER);
 
 function acceptanceFile(criteria) {
   return criteria
@@ -128,6 +130,139 @@ test('passa quando todos os IDs de teste estão cobertos por testes que passaram
   });
   assert.equal(code, 0, out);
   assert.match(out, /2 critério\(s\) com teste/);
+});
+
+const PARSER_ACCEPTANCE = [
+  '# Aceite do LUI-901',
+  '',
+  'Introdução do aceite, com `código`.',
+  '',
+  'Segundo parágrafo da introdução.',
+  '',
+  '## LUI-901-CA1',
+  '',
+  '### Contexto',
+  '',
+  '**Marca:** teste de unidade',
+  '',
+  '**Cenário:** Dado um parser, quando ele lê o arquivo,',
+  'então devolve os critérios.',
+  '',
+  'Outro parágrafo do cenário.',
+  '',
+  '**Teste previsto:** testes do harness, `plan.test.cjs`, "lê o aceite @LUI-901-CA1".',
+  '',
+  '## LUI-901-CA2',
+  '',
+  '**Marca:** Documento.',
+  '',
+  '**Cenário:** Dado o LLD, quando se lê, então descreve a regra.',
+  '',
+].join('\n');
+
+const PARSER_MESSAGE = [
+  'docs: plan the parser (LUI-901)',
+  '',
+  'Acceptance file docs/aceite/LUI-901.md (CA1-CA2).',
+  '',
+  'Decision: the parser lives in the skill, so the page and the checker',
+  'read the same rules.',
+  '',
+  'A second paragraph of the same decision.',
+  '',
+  'Files and interfaces the implementation will touch:',
+  '',
+  '- plan.cjs: parseAcceptanceFile(name, text).',
+  '- page.cjs: build(sources) -> HTML.',
+  '',
+  'Existing tests whose behavior changes: none.',
+  '',
+  'Data changes: none.',
+  '',
+  'Co-Authored-By: Someone <someone@example.com>',
+  'Claude-Session: https://example.com/session',
+  '',
+].join('\n');
+
+// O parser do aceite e da mensagem é o da skill de plano, que o conferidor importa. O esperado é o que
+// o parser que morava no conferidor e na página do plano devolvia para as mesmas entradas, gravado
+// antes de ele ir para a skill.
+test('lê o aceite e a mensagem como o parser do conferidor, que o importa da skill @LUI-175-CA1', () => {
+  assert.deepEqual(parseAcceptanceFile('LUI-901.md', PARSER_ACCEPTANCE), {
+    intro: 'Introdução do aceite, com `código`.\n\nSegundo parágrafo da introdução.',
+    criteria: [
+      {
+        id: 'LUI-901-CA1',
+        file: 'LUI-901.md',
+        check: 'teste de unidade',
+        scenario: 'Dado um parser, quando ele lê o arquivo,\nentão devolve os critérios.\n\nOutro parágrafo do cenário.',
+        plannedTest: 'testes do harness, `plan.test.cjs`, "lê o aceite @LUI-901-CA1".',
+      },
+      {
+        id: 'LUI-901-CA2',
+        file: 'LUI-901.md',
+        check: 'documento',
+        scenario: 'Dado o LLD, quando se lê, então descreve a regra.',
+        plannedTest: null,
+      },
+    ],
+  });
+
+  assert.deepEqual(parseMessage(PARSER_MESSAGE), {
+    text: PARSER_MESSAGE,
+    subject: 'docs: plan the parser (LUI-901)',
+    decisions: [
+      'the parser lives in the skill, so the page and the checker\nread the same rules.\n\nA second paragraph of the same decision.',
+    ],
+    files: '- plan.cjs: parseAcceptanceFile(name, text).\n- page.cjs: build(sources) -> HTML.',
+    tests: 'none.',
+    data: 'none.',
+  });
+  assert.equal(parseMessage(null), null);
+});
+
+test('o conferidor importa o parser da pasta da skill de plano: aprova o critério cujo teste passou e reprova sem o teste @LUI-175-CA1', () => {
+  assert.equal(require(CHECKER).parseAcceptanceFile, require(SKILL_PARSER).parseAcceptanceFile);
+  assert.equal(require(CHECKER).CHECKS, require(SKILL_PARSER).CHECKS);
+
+  // Uma cópia do conferidor só com o parser na pasta da skill: aprova com o teste que passou e
+  // reprova pelo critério sem teste.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'conferidor-'));
+  const copy = path.join(root, 'scripts', 'check-acceptance.cjs');
+  const parser = path.join(root, '.claude', 'skills', 'plan-ticket', 'scripts', 'plan.cjs');
+  fs.mkdirSync(path.dirname(copy), { recursive: true });
+  fs.mkdirSync(path.dirname(parser), { recursive: true });
+  fs.copyFileSync(CHECKER, copy);
+  fs.copyFileSync(SKILL_PARSER, parser);
+  const acceptDir = path.join(root, 'aceite');
+  fs.mkdirSync(acceptDir);
+  fs.writeFileSync(path.join(acceptDir, 'LUI-1.md'), TICKET['LUI-1.md']);
+  fs.writeFileSync(path.join(root, 'body.md'), '## Aceite\n\ndocs/aceite/LUI-1.md\n');
+  const run = (tests) => {
+    fs.writeFileSync(path.join(root, 'unit.json'), JSON.stringify(vitestReport(tests)));
+    const result = spawnSync(
+      process.execPath,
+      [copy, '--required', path.join(root, 'body.md'), acceptDir, `vitest:${path.join(root, 'unit.json')}`],
+      { encoding: 'utf8' },
+    );
+    return { code: result.status, out: result.stdout + result.stderr };
+  };
+
+  try {
+    const approved = run([['@LUI-1-CA1 devolve 201', 'passed']]);
+    assert.equal(approved.code, 0, approved.out);
+    assert.match(approved.out, /LUI-1-CA1: coberto por 1 teste/);
+
+    const rejected = run([]);
+    assert.equal(rejected.code, 1, rejected.out);
+    assert.match(rejected.out, /LUI-1-CA1 \(docs\/aceite\/LUI-1\.md\) não tem nenhum teste/);
+
+    // Sem o parser na pasta da skill, o conferidor não roda: é de lá que ele o importa.
+    fs.rmSync(parser);
+    assert.notEqual(run([['@LUI-1-CA1 devolve 201', 'passed']]).code, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('reprova uma marca desconhecida no arquivo de aceite', () => {

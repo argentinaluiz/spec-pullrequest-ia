@@ -141,7 +141,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/` ou em `docs/aceite/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou em `docs/aceite/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -245,45 +245,27 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado. O desenho e os motivos estão em `docs/harness.md`, seção "Plano do ticket (planejado)".
 
 1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
-2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo está na skill, e a página, no `docs/harness.md`, etapa 7.
+2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill, e o desenho, no `docs/harness.md`, etapa 7.
 3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
-**Critérios do ticket**
+**Os formatos são da skill.** A skill de plano, em `.claude/skills/plan-ticket/`, é a dona dos formatos do plano: o ID e a marca do critério, o arquivo de aceite e o token do ID no título do teste (`formatos/aceite.md`), a mensagem do commit de plano (`formatos/mensagem.md`) e o contrato de rota e de tabela, com a saída do comando do contrato (`formatos/contrato.md`). Siga-os; aqui fica só o que é deste projeto.
 
-- **ID:** `CA<n>` no ticket, e `<ticket>-CA<n>` fora do Linear, como `LUI-146-CA3`. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago.
-- **Marca de conferência:** teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento. Só as quatro primeiras são provadas por teste. A definição de pronto não é critério de ticket.
-- **Formato:** `- [ ] **CA3** · Texto do critério (teste HTTP).`
+**Valores da skill de plano**
 
-**Arquivo de aceite**
+- **Pasta dos aceites:** `docs/aceite`.
+- **Pasta dos tickets:** `docs/tickets`, que o `.gitignore` ignora inteira.
+- **Pasta dos documentos:** `docs`.
+- **Comando do Node:** `scripts/node-in-api.sh`, que leva ao contêiner `api` os scripts do harness e os da skill, a pasta do script e os arquivos do repositório citados nos argumentos e roda o Node lá, porque a máquina não roda `node`.
+- **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
+- **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
-- **Onde:** `docs/aceite/<ticket>.md`, um por ticket, permanente. O texto do critério fica só no Linear.
-- **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das seis), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome).
-- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Cada rota e cada tabela segue o formato do `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces fica só na mensagem do commit de plano, e a mudança de dados (seed, backfill) também: ela não cabe no schema nem no snapshot.
-- **Mensagem do commit de plano:** a página de revisão do plano lê dela as abas "Arquivos e interfaces" e "Decisões", então ela segue este formato. Cada bloco começa numa linha que abre com o rótulo dele e vai até a próxima linha que abre com um rótulo, ou até as linhas de atribuição do fim, então pode ter mais de um parágrafo:
+O atalho `scripts/verify.sh plan <ticket> [<commit de plano>]` chama o script da página da skill com esses valores; use-o nos passos de parada e de commit da skill.
 
-  ```text
-  docs: plan <o que o ticket entrega> (<ticket>)
+**Neste projeto**
 
-  Acceptance file docs/aceite/<ticket>.md (CA1-CA<n>). <O que muda no contrato e no schema, ou que nada muda.>
-
-  Decision: <uma decisão do plano e o motivo>. Um bloco por decisão.
-
-  Files and interfaces the implementation will touch:
-  - <arquivo>: <interface que muda ou nasce>.
-
-  Existing tests whose behavior changes: <os testes, ou none>.
-
-  Data changes: <seed ou backfill, ou none>.
-  ```
-
-  Um bloco que falta aparece na aba como ausente.
-- **Congelado depois do commit de plano:** não altere o arquivo de aceite. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID.
-- **Mecanismo:** a cobertura do ID no teste é conferida pela CI. O congelamento do arquivo de aceite é imposto por um hook que nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
-
-**Teste de aceite**
-
-- **ID no título:** cada teste de aceite leva no título o token `@<ticket>-CA<n>`, com o `@`, como `@LUI-146-CA3`. O nome e o arquivo podem mudar durante o ciclo da `tdd`, porque a ligação com o critério é o ID.
-- **Cobertura:** a CI confere o ID, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`.
+- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
+- **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
+- **Cobertura:** a CI confere o ID no título do teste, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`.
 
 ## Convenções de Git
 
@@ -291,7 +273,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
-- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/` e `scripts/` só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
 

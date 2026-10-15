@@ -1,7 +1,7 @@
 // Confere o aceite dos tickets contra os relatórios das suítes: todo critério que exige teste (os
 // arquivos de aceite) tem de ter um teste com o ID dele no título, e esse teste tem de ter rodado
 // e passado. Confere também a seção `## Aceite` do corpo do pull request. O desenho está no
-// docs/harness.md, e o formato do arquivo de aceite, no AGENTS.md da raiz.
+// docs/harness.md, e o formato do arquivo de aceite, na skill de plano (formatos/aceite.md).
 //
 // Roda dentro do contêiner `api` (ver o `node_in_api`, no scripts/verify.sh):
 //   node check-acceptance.cjs <--required|--optional> <corpo do PR> <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
@@ -9,31 +9,18 @@
 // O segundo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
 // plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
-// O parser do arquivo de aceite (`parseAcceptanceFile`) e as marcas (`CHECKS`) são exportados para
-// a página de revisão do plano (scripts/plan-page.cjs), que lê o aceite com as mesmas regras.
+// O parser do arquivo de aceite (`parseAcceptanceFile`) e as marcas (`CHECKS`) são os da skill de
+// plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de revisão do plano também usa:
+// os dois leem o aceite com as mesmas regras. O `node_in_api` leva a pasta da skill ao contêiner.
 
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { parseAcceptanceFile, CHECKS } = require('../.claude/skills/plan-ticket/scripts/plan.cjs');
+
 const HEADING = /^#{1,6}\s*aceite\s*$/i;
-const CRITERION_HEADING = /^#{1,6}\s*([A-Z][A-Z0-9]*-\d+-CA\d+)\b/;
 const TEST_TOKEN = /@([A-Z][A-Z0-9]*-\d+-CA\d+)/g;
 const ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]]+\.md)/;
-
-// As marcas de conferência, pela forma normalizada (em minúsculas): o nome como se escreve e se
-// exige teste. Só as quatro primeiras exigem.
-const CHECKS = new Map([
-  ['teste http', { name: 'teste HTTP', test: true }],
-  ['teste no playwright', { name: 'teste no Playwright', test: true }],
-  ['teste de unidade', { name: 'teste de unidade', test: true }],
-  ['teste de integração', { name: 'teste de integração', test: true }],
-  ['revisão humana', { name: 'revisão humana', test: false }],
-  ['documento', { name: 'documento', test: false }],
-]);
-// As linhas de um critério, no formato do AGENTS.md da raiz. O texto de cada uma vai até a próxima
-// linha rotulada ou o próximo título, e pode ter mais de um parágrafo.
-const FIELD = /^\s*[-*]?\s*\*\*(marca|cenário|teste previsto):\*\*\s*(.*)$/i;
-const FIELD_KEYS = { marca: 'check', cenário: 'scenario', 'teste previsto': 'plannedTest' };
 
 const errors = [];
 function error(message) {
@@ -92,57 +79,6 @@ function checkSection(section, files) {
         'Escreva o caminho do arquivo (docs/aceite/<ticket>.md) ou "nenhum" seguido do motivo (refatoração, harness, documento).',
     );
   }
-}
-
-/**
- * Um arquivo de aceite: a introdução (o texto antes do primeiro critério, sem os títulos) e os
- * critérios, lidos dos títulos `## <ticket>-CA<n>`: o ID, o arquivo, a marca (normalizada, em
- * minúsculas), o cenário e o teste previsto, nulo no critério que não o tem. Um critério só termina
- * no título do próximo critério. O texto de cada linha rotulada fica como está no arquivo, com as
- * quebras de linha. Não confere nada: a marca desconhecida é do `unknownChecks`.
- */
-function parseAcceptanceFile(name, text) {
-  const criteria = [];
-  const intro = [];
-  let current = null;
-  let field = null;
-  let lines = [];
-  const close = () => {
-    if (current && field) current[field] = lines.join('\n').trim() || null;
-    field = null;
-    lines = [];
-  };
-  for (const line of text.split(/\r?\n/)) {
-    const heading = line.trim().match(CRITERION_HEADING);
-    if (heading) {
-      close();
-      current = { id: heading[1], file: name, check: null, scenario: null, plannedTest: null };
-      criteria.push(current);
-      continue;
-    }
-    // Outro título encerra a linha rotulada em curso, e não o critério: uma linha rotulada depois de
-    // um subtítulo ainda é do critério.
-    if (/^#{1,6}\s/.test(line.trim())) {
-      close();
-      continue;
-    }
-    if (!criteria.length) intro.push(line);
-    const labeled = current && line.match(FIELD);
-    if (labeled) {
-      close();
-      field = FIELD_KEYS[labeled[1].toLowerCase()];
-      lines = [labeled[2]];
-      // A marca é só a própria linha.
-      if (field === 'check') close();
-    } else if (field) {
-      lines.push(line);
-    }
-  }
-  close();
-  for (const criterion of criteria) {
-    if (criterion.check) criterion.check = normalize(criterion.check).toLowerCase().replace(/[.;]+$/, '');
-  }
-  return { intro: intro.join('\n').trim(), criteria };
 }
 
 /** Reprova os critérios com marca desconhecida, dizendo as marcas que valem. */

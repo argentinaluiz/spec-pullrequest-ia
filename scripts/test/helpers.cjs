@@ -1,5 +1,6 @@
-// Auxiliares dos testes do renderizador do contrato e da página de revisão do plano. Não termina em
-// `.test.cjs`, então o `node --test` não o roda como teste.
+// Auxiliares dos testes do harness deste projeto: o renderizador do contrato e o aceite da skill de
+// plano (a página e o parser, testados aqui pelos módulos da skill). Não termina em `.test.cjs`,
+// então o `node --test` não o roda como teste.
 
 const assert = require('node:assert/strict');
 
@@ -24,7 +25,7 @@ function snapshot(paths, schemas = {}) {
   };
 }
 
-/** O conteúdo de uma aba da página: o painel com o id dela, até o fim dele. */
+/** O conteúdo de uma aba da página do plano: o painel com o id dela, até o fim dele. */
 function panel(html, id) {
   const start = html.indexOf(`<section class="painel" id="aba-${id}"`);
   assert.notEqual(start, -1, `a página não tem a aba ${id}`);

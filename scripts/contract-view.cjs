@@ -1,16 +1,16 @@
 // Renderiza, em Markdown, o contrato completo de cada rota nova ou alterada entre dois snapshots da
-// OpenAPI, no formato da seção 3 do docs/lld.md: uma seção por rota, com tabelas de parâmetros, de
-// cabeçalhos e de erros. É a parte da visão do contrato que o `oasdiff changelog` não dá: numa rota
-// nova, ele só diz que ela foi acrescentada. O desenho está no docs/harness.md, etapa 8.
+// OpenAPI, no formato de rota da skill de plano (formatos/contrato.md): uma seção por rota, com
+// tabelas de parâmetros, de cabeçalhos e de erros. É a parte da visão do contrato que o `oasdiff
+// changelog` não dá: numa rota nova, ele só diz que ela foi acrescentada. O desenho está no
+// docs/harness.md, etapa 8.
 //
-// `routeChanges` monta o modelo das rotas que mudaram, e `render` o escreve em Markdown. A aba
-// "Contrato" da página de revisão do plano (scripts/plan-page.cjs) escreve o mesmo modelo em HTML,
-// com o mesmo título de rota (`routeTitle`), o mesmo texto de campo (`fieldText`), as mesmas tabelas
-// (`parameterTable`, `headerTable` e `errorTable`), as mesmas frases e títulos de seção (`PHRASES`) e
-// o mesmo leitor da pasta das fontes (`reader`).
+// `routeChanges` monta o modelo das rotas que mudaram, e `render` o escreve em Markdown. A visão
+// inteira (`view`) é a saída do comando do contrato deste projeto, no formato que a skill de plano
+// lê (formatos/contrato.md, "Saída do comando do contrato"): as seções `# Contrato` e `# Schema`, que
+// viram as abas de mesmo nome da página de revisão do plano.
 //
 // Roda dentro do contêiner `api` (ver o `api_contract_view`, no scripts/verify/api.sh), sobre a
-// pasta das fontes que o `api_plan_sources` grava:
+// pasta das fontes que o `api_contract_sources` grava:
 //   node contract-view.cjs <pasta das fontes>
 // A pasta traz `base.json` e `novo.json` (os snapshots), `changelog.txt` (o `oasdiff changelog`,
 // só quando os snapshots diferem) e `schema.diff` (o diff do schema do Prisma).
@@ -18,14 +18,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// As frases e os títulos de seção que a visão no terminal e a página de revisão do plano mostram.
+// As frases e os títulos de seção da visão.
 const PHRASES = {
   sameSnapshot: 'O snapshot da OpenAPI é o mesmo nos dois pontos: o contrato não muda.',
   unchanged: 'O contrato não muda.',
   schemaUnchanged: 'O schema do Prisma não muda.',
   changelog: 'O que mudou no contrato (oasdiff changelog)',
   routes: 'Contrato completo das rotas novas ou alteradas',
-  schema: 'Schema do Prisma',
+  emptyChangelog: 'O `oasdiff changelog` não listou mudanças.',
 };
 
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
@@ -320,8 +320,7 @@ function fieldText(entry) {
 }
 
 // As tabelas da seção de uma rota: `{ head, rows }`, com o cabeçalho e as células em Markdown de uma
-// linha (o nome e o `code` entre crases). A visão no terminal e a página de revisão do plano montam as
-// células daqui, e só as escapam e formatam, cada uma no seu formato.
+// linha (o nome e o `code` entre crases).
 
 function parameterTable(route) {
   return {
@@ -351,9 +350,9 @@ function errorTable(route) {
   };
 }
 
-/** Uma célula de tabela do Markdown: a barra vertical escapada, e o traço no lugar do vazio. */
+/** Uma célula de tabela do Markdown, com a barra vertical escapada. A vazia fica vazia. */
 function cell(value) {
-  return value === '' ? '—' : String(value).replaceAll('|', '\\|');
+  return String(value).replaceAll('|', '\\|');
 }
 
 function table({ head, rows }) {
@@ -382,28 +381,31 @@ function section(route) {
   const blocks = [`### ${routeTitle(route)}`];
   if (route.change === 'removida') return blocks;
   if (route.deprecated) blocks.push('Obsoleta (deprecated).');
-  if (route.parameters.length) blocks.push('**Parâmetros**', table(parameterTable(route)));
-  if (route.inputHeaders.length) blocks.push('**Cabeçalhos de entrada**', table(headerTable('Nome', route.inputHeaders)));
+  if (route.parameters.length) blocks.push('#### Parâmetros', table(parameterTable(route)));
+  if (route.inputHeaders.length) blocks.push('#### Cabeçalhos de entrada', table(headerTable('Nome', route.inputHeaders)));
   for (const body of route.bodies) {
-    blocks.push(`**Corpo** (${body.types.join(', ')}), ${body.required ? 'obrigatório' : 'opcional'}`);
+    blocks.push(`#### Corpo (${body.types.join(', ')}), ${body.required ? 'obrigatório' : 'opcional'}`);
     if (body.fields.length) blocks.push(list(body.fields));
   }
   for (const response of route.success) {
-    if (!response.bodies.length) blocks.push(`**Sucesso ${response.status}** (sem corpo)`);
+    if (!response.bodies.length) blocks.push(`#### Sucesso ${response.status} (sem corpo)`);
     for (const body of response.bodies) {
-      blocks.push(`**Sucesso ${response.status}** (${body.types.join(', ')})`);
+      blocks.push(`#### Sucesso ${response.status} (${body.types.join(', ')})`);
       if (body.fields.length) blocks.push(list(body.fields));
     }
     if (response.headers.length) blocks.push(table(headerTable('Cabeçalho de resposta', response.headers)));
   }
-  if (route.errors.length) blocks.push('**Erros**', table(errorTable(route)));
+  if (route.errors.length) blocks.push('#### Erros', table(errorTable(route)));
   return blocks;
 }
 
-/** O contrato das rotas que mudaram entre dois snapshots, em Markdown: uma seção por rota. */
+/**
+ * O contrato das rotas que mudaram entre dois snapshots, em Markdown: uma seção por rota, ou a nota
+ * de que o contrato não muda.
+ */
 function render(base, head) {
   const changes = routeChanges(base, head);
-  if (!changes.length) return `${PHRASES.unchanged}\n`;
+  if (!changes.length) return `${note(PHRASES.unchanged)}\n`;
   return `${changes.map((route) => section(route).join('\n\n')).join('\n\n')}\n`;
 }
 
@@ -412,26 +414,34 @@ function reader(dir) {
   return (name) => (fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : null);
 }
 
+/** Uma nota de vazio, no formato da skill de plano: um parágrafo todo em itálico. */
+function note(text) {
+  return `*${text}*`;
+}
+
 /**
- * A visão no terminal, a partir da pasta das fontes: o changelog e o contrato das rotas, ou a frase
- * de que o snapshot é o mesmo, e o diff do schema.
+ * A visão, a partir da pasta das fontes, no formato de saída do comando do contrato da skill de plano:
+ * a seção `# Contrato`, com o changelog e o contrato das rotas, ou a nota de que o snapshot é o
+ * mesmo, e a seção `# Schema`, com o diff do schema, ou a nota de que ele não muda.
  */
 function view(dir) {
   const read = reader(dir);
   const changelog = read('changelog.txt');
   const schemaDiff = read('schema.diff') ?? '';
-  const blocks = [];
+  const blocks = ['# Contrato'];
   if (changelog === null) {
-    blocks.push('## Contrato', PHRASES.sameSnapshot);
+    blocks.push(note(PHRASES.sameSnapshot));
   } else {
     blocks.push(
       `## ${PHRASES.changelog}`,
-      `\`\`\`text\n${changelog.trimEnd()}\n\`\`\``,
+      changelog.trim() ? `\`\`\`text\n${changelog.trimEnd()}\n\`\`\`` : note(PHRASES.emptyChangelog),
       `## ${PHRASES.routes}`,
       render(JSON.parse(read('base.json')), JSON.parse(read('novo.json'))).trimEnd(),
     );
   }
-  blocks.push(`## ${PHRASES.schema}`, schemaDiff.trim() ? `\`\`\`diff\n${schemaDiff.trimEnd()}\n\`\`\`` : PHRASES.schemaUnchanged);
+  // O diff vai inteiro, só sem a quebra de linha do fim: uma linha de contexto em branco no fim dele
+  // continua lá.
+  blocks.push('# Schema', schemaDiff.trim() ? `\`\`\`diff\n${schemaDiff.replace(/\n$/, '')}\n\`\`\`` : note(PHRASES.schemaUnchanged));
   return `${blocks.join('\n\n')}\n`;
 }
 
@@ -444,4 +454,4 @@ if (require.main === module) {
   process.stdout.write(view(dir));
 }
 
-module.exports = { routeChanges, render, routeTitle, fieldText, parameterTable, headerTable, errorTable, reader, PHRASES };
+module.exports = { routeChanges, render };

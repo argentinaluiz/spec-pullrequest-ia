@@ -46,8 +46,11 @@ while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   total=$((total + 1))
   case "$file" in
-    # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin.
-    .github/* | .claude/settings.json | .claude/hooks/* | .claude/agents/* | scripts/*)
+    # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin. Os
+    # scripts da skill de plano entram porque o conferidor do aceite importa o parser deles; o texto
+    # da skill (o SKILL.md e os formatos) muda em tarefa normal.
+    .github/* | .claude/settings.json | .claude/hooks/* | .claude/agents/* | scripts/* | \
+      .claude/skills/plan-ticket/scripts/*)
       blocked+=("$file")
       ;;
     # Aceite congelado: um arquivo de aceite que já existe na `main` (a versão do diretório atual)

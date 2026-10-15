@@ -134,12 +134,14 @@ erDiagram
 
 **Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
-**Formato de uma tabela no schema:** toda tabela planejada ou alterada traz, no `schema.prisma`:
+**Formato de uma tabela no schema:** toda tabela planejada ou alterada traz os itens do formato de tabela da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Tabela"). Neste projeto, o dono é o `schema.prisma`, e cada item se escreve assim:
 
-- as colunas, com o tipo, se aceita nulo e o padrão, e a observação de cada coluna num comentário `///`;
-- a chave primária, as únicas e as chaves estrangeiras, com a regra de exclusão (`onDelete`);
-- os índices, inclusive os parciais (`where`);
-- toda restrição que o Prisma não expressa, como um `CHECK`, numa nota `///` na coluna ou no modelo, dizendo que ela é escrita à mão na migração. A verificação do schema não enxerga essas restrições, então a nota é o que as liga ao schema.
+| Item do formato | No `schema.prisma` |
+| --- | --- |
+| Colunas | O tipo do Prisma com o nativo (`@db.Uuid`, `@db.Timestamptz`), o `?` da coluna que aceita nulo, o `@default`, o `@map` para o nome em `snake_case` e a observação num comentário `///` |
+| Chaves | `@id`, `@unique` e `@relation`, com a regra de exclusão (`onDelete`) |
+| Índices | `@@index` e `@@unique`, e os parciais com `where` (prévia `partialIndexes`) |
+| Restrição que o Prisma não expressa | Uma nota `///` obrigatória, na coluna ou no modelo, dizendo que ela é escrita à mão na migração, como um `CHECK` |
 
 ### items
 
@@ -201,20 +203,20 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 
 **Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base (`docs/harness.md`, etapa 8). As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
 
-**Formato de uma rota no snapshot:** toda rota planejada ou alterada traz, no snapshot, os itens abaixo que ela usa. Um item que a rota usa e o snapshot não traz é um contrato incompleto.
+**Formato de uma rota no snapshot:** toda rota planejada ou alterada traz, no snapshot, os itens do formato de rota da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Rota") que ela usa. Neste projeto, cada item é assim:
 
-| Item | O que descreve |
+| Item do formato | Neste projeto |
 | --- | --- |
 | Método e caminho | Com o prefixo `/v1` |
 | Autenticação | Rota protegida (`bearer`) ou pública |
-| Parâmetros de caminho e de consulta | Nome, tipo, se é obrigatório e os limites (como `limit` de 1 a 200) |
-| Corpo da requisição | Os campos, os tipos e quais são obrigatórios |
+| Parâmetros de caminho e de consulta | Com os limites, como `limit` de 1 a 200 |
+| Corpo da requisição | Os campos do DTO, lidos pelo plugin do `@nestjs/swagger` |
 | Cabeçalhos de entrada | Os que a rota lê além do `Authorization`, como `Idempotency-Key` |
-| Resposta de sucesso | O status e o corpo |
-| Cabeçalhos de resposta | Os que a rota devolve e o cliente lê, como `Retry-After` ou `Location` |
-| Erros | Cada status com os `code` que a rota pode devolver (tabela abaixo), inclusive o `validation_error`, quando a rota valida entrada, e o `unauthenticated`, quando ela é protegida |
+| Resposta de sucesso | O DTO de resposta, uma classe, no tipo de retorno ou no decorator da resposta |
+| Cabeçalhos de resposta | Como `Retry-After` ou `Location` |
+| Erros | Cada status com os `code` da tabela de 3.1 que a rota pode devolver, inclusive o `validation_error`, quando a rota valida entrada, e o `unauthenticated`, quando ela é protegida |
 
-Fica fora do formato o que uma OpenAPI não descreve: as regras de negócio, as transições de estado e as validades, como os 5 minutos da URL de download. Elas ficam nas seções 3.2 a 4 e são provadas pelos critérios de aceite do ticket.
+Neste projeto, o que fica fora do formato (as regras de negócio, as transições de estado e as validades, como os 5 minutos da URL de download) fica nas seções 3.2 a 4. Como declarar um cabeçalho para que ele entre no snapshot está no `apps/api/AGENTS.md`, seção "Contrato OpenAPI".
 
 ### 3.1 Convenções
 

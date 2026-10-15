@@ -14,7 +14,8 @@
       "Edit(./.claude/settings.json)",
       "Edit(./.claude/hooks/**)",
       "Edit(./.claude/agents/**)",
-      "Edit(./scripts/**)"
+      "Edit(./scripts/**)",
+      "Edit(./.claude/skills/plan-ticket/scripts/**)"
     ]
   },
   "hooks": {

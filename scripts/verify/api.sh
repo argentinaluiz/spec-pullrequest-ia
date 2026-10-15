@@ -109,13 +109,12 @@ api_changelog() {
   return 1
 }
 
-# As fontes da API entre dois pontos, gravadas em <pasta>, de onde a visão do contrato e a página de
-# revisão do plano (o modo `plan` do scripts/verify.sh) são montadas: os dois snapshots (base.json e
-# novo.json); o changelog do oasdiff (changelog.txt), só quando os snapshots diferem; e o diff do
+# As fontes da visão do contrato entre dois pontos, gravadas em <pasta>: os dois snapshots (base.json
+# e novo.json); o changelog do oasdiff (changelog.txt), só quando os snapshots diferem; e o diff do
 # schema do Prisma (schema.diff). Os pontos são commits ou árvores do Git; sem <para>, o segundo é a
 # pasta de trabalho. Sai com 1, com o erro, quando um snapshot é ilegível ou o diff do schema falha.
-# api_plan_sources <de> <para, ou vazio> <pasta>
-api_plan_sources() {
+# api_contract_sources <de> <para, ou vazio> <pasta>
+api_contract_sources() {
   local from="$1" to="$2" dir="$3"
   local refs=("$from")
   [[ -n "$to" ]] && refs+=("$to")
@@ -131,17 +130,18 @@ api_plan_sources() {
   }
 }
 
-# A visão legível do contrato e do schema entre dois pontos, em Markdown: o changelog do oasdiff (o
-# que mudou, com a severidade), o contrato completo de cada rota nova ou alterada e o diff do schema
-# do Prisma, escritos pelo scripts/contract-view.cjs sobre as fontes do `api_plan_sources`. Sem
-# <to>, o segundo ponto é a pasta de trabalho. Não é versionada. O desenho está no docs/harness.md,
-# etapa 8.
+# A visão legível do contrato e do schema entre dois pontos (commits ou árvores), em Markdown: o
+# changelog do oasdiff (o que mudou, com a severidade), o contrato completo de cada rota nova ou
+# alterada e o diff do schema do Prisma, escritos pelo scripts/contract-view.cjs sobre as fontes do
+# `api_contract_sources`, nas seções `# Contrato` e `# Schema` que a página do plano da skill lê. A
+# primeira linha, antes delas, diz os dois pontos. Sem <to>, o segundo ponto é a pasta de trabalho.
+# Não é versionada. O desenho está no docs/harness.md, etapa 8.
 # api_contract_view <from> [<to>]
 api_contract_view() {
   local from="$1" to="${2:-}" dir code=0
   dir="$(mktemp -d)" || return 1
-  printf '# Contrato e schema de %s para %s\n\n' "$from" "${to:-a pasta de trabalho}"
-  api_plan_sources "$from" "$to" "$dir" &&
+  printf 'Contrato e schema de %s para %s.\n\n' "$from" "${to:-a pasta de trabalho}"
+  api_contract_sources "$from" "$to" "$dir" &&
     node_in_api contract-view "$dir" scripts/contract-view.cjs . || code=1
   rm -rf "$dir"
   return $code
