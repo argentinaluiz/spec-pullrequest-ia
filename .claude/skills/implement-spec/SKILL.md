@@ -17,7 +17,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 ## Steps
 
-1. Read the spec and tickets to understand the task graph. For each ticket, start from its plan commit and its acceptance file (`docs/tickets/<ticket>/aceite.md`), as the root `AGENTS.md`, section "Plano do ticket", describes. If a ticket has no plan commit, stop and ask for `/plan-ticket` first. Every acceptance test carries its criterion ID in the title.
+1. Read the spec and tickets to understand the task graph. For each ticket, start from its plan commit and its acceptance file (`docs/tickets/<issue>/<ticket>/aceite.md`), as the root `AGENTS.md`, section "Plano do ticket", describes. If a ticket has no plan commit, stop and ask for `/plan-ticket` first. Every acceptance test carries its criterion ID in the title.
 
 2. (optional) Use an **exploration subagent** to conduct any exploration required by the tickets - relevant codebase files or external documentation. Ensure the exploration subagent can save files - it should save its markdown notes in a directory outside the repo, accessible by all future subagents. This lets **implementer subagents** focus on implementation rather than exploration.
 

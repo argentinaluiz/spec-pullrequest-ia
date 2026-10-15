@@ -52,15 +52,19 @@ function playwrightReport(tests) {
   };
 }
 
+// A issue pai dos tickets dos testes, quando a chave de `files` não traz a própria (`<pai>/<ticket>`).
+const PARENT = 'LUI-100';
+
 /**
- * Grava a pasta dos tickets: cada ticket numa pasta com o nome dele, com o arquivo de aceite em
- * `aceite.md`, como o `verify.sh` a entrega.
+ * Grava a pasta dos tickets: cada ticket numa pasta com o nome dele, dentro da pasta da issue pai,
+ * com o arquivo de aceite em `aceite.md`, como o `verify.sh` a entrega.
  */
 function writeTickets(ticketsDir, files) {
   fs.mkdirSync(ticketsDir, { recursive: true });
-  for (const [ticket, text] of Object.entries(files)) {
-    fs.mkdirSync(path.join(ticketsDir, ticket), { recursive: true });
-    fs.writeFileSync(path.join(ticketsDir, ticket, 'aceite.md'), text);
+  for (const [key, text] of Object.entries(files)) {
+    const folder = path.join(ticketsDir, key.includes('/') ? key : `${PARENT}/${key}`);
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'aceite.md'), text);
   }
 }
 
@@ -135,15 +139,18 @@ test('reprova o teste apagado que cobria o critério de outro ticket', () => {
   };
   const { code, out } = check({ files, vitest: [['@LUI-1-CA1 ok', 'passed']] });
   assert.equal(code, 1);
-  assert.match(out, /LUI-2-CA1 \(docs\/tickets\/LUI-2\/aceite\.md\) não tem nenhum teste/);
+  assert.match(out, /LUI-2-CA1 \(docs\/tickets\/LUI-100\/LUI-2\/aceite\.md\) não tem nenhum teste/);
 });
 
 test('lê só o aceite.md de cada pasta de ticket: os outros arquivos da pasta dos tickets não são aceite', () => {
   const extra = {
-    'LUI-1/plano.msg': acceptanceFile([['LUI-1-CA9', 'teste HTTP']]),
-    'LUI-3/review.diff': acceptanceFile([['LUI-3-CA1', 'teste HTTP']]),
-    'LUI-4.md': acceptanceFile([['LUI-4-CA1', 'teste HTTP']]),
-    'sem-ticket/review.diff': 'diff',
+    'LUI-100/LUI-1/plano.msg': acceptanceFile([['LUI-1-CA9', 'teste HTTP']]),
+    'LUI-100/LUI-3/review.diff': acceptanceFile([['LUI-3-CA1', 'teste HTTP']]),
+    'LUI-100/LUI-4.md': acceptanceFile([['LUI-4-CA1', 'teste HTTP']]),
+    'LUI-5/aceite.md': acceptanceFile([['LUI-5-CA1', 'teste HTTP']]),
+    // O trabalho sem ticket não tem aceite: a pasta `sem-ticket` não quebra a leitura.
+    'sem-ticket/rascunho/review.diff': 'diff',
+    'sem-ticket/vazio/.gitkeep': '',
   };
   const { code, out } = check({ files: TICKET, extra, vitest: [['@LUI-1-CA1 ok', 'passed']] });
   assert.equal(code, 0, out);
@@ -152,14 +159,14 @@ test('lê só o aceite.md de cada pasta de ticket: os outros arquivos da pasta d
 
 test('a pasta dos tickets é a do argumento: o caminho citado e as mensagens saem dela', () => {
   const files = { 'LUI-1': acceptanceFile([['LUI-1-CA1', 'teste HTTP']]) };
-  const cited = check({ tickets: 'qa/tickets/', files, body: '## Aceite\n\nqa/tickets/LUI-1/aceite.md\n' });
+  const cited = check({ tickets: 'qa/tickets/', files, body: '## Aceite\n\nqa/tickets/LUI-100/LUI-1/aceite.md\n' });
   assert.equal(cited.code, 1);
-  assert.match(cited.out, /LUI-1-CA1 \(qa\/tickets\/LUI-1\/aceite\.md\) não tem nenhum teste/);
+  assert.match(cited.out, /LUI-1-CA1 \(qa\/tickets\/LUI-100\/LUI-1\/aceite\.md\) não tem nenhum teste/);
   assert.doesNotMatch(cited.out, /que não existe/);
 
-  const other = check({ tickets: 'qa/tickets', files, body: '## Aceite\n\ndocs/tickets/LUI-1/aceite.md\n' });
+  const other = check({ tickets: 'qa/tickets', files, body: '## Aceite\n\ndocs/tickets/LUI-100/LUI-1/aceite.md\n' });
   assert.equal(other.code, 1);
-  assert.match(other.out, /Escreva o caminho do arquivo \(qa\/tickets\/<ticket>\/aceite\.md\)/);
+  assert.match(other.out, /Escreva o caminho do arquivo \(qa\/tickets\/<issue>\/<ticket>\/aceite\.md\)/);
 });
 
 test('passa quando todos os IDs de teste estão cobertos por testes que passaram, no Vitest e no Playwright', () => {
@@ -206,7 +213,7 @@ const PARSER_ACCEPTANCE = [
 const PARSER_MESSAGE = [
   'docs: plan the parser (LUI-901)',
   '',
-  'Acceptance file docs/tickets/LUI-901/aceite.md (CA1-CA2).',
+  'Acceptance file docs/tickets/LUI-900/LUI-901/aceite.md (CA1-CA2).',
   '',
   'Decision: the parser lives in the skill, so the page and the checker',
   'read the same rules.',
@@ -282,7 +289,7 @@ test('o conferidor importa o parser da pasta da skill de plano: aprova o critér
     fs.writeFileSync(path.join(root, 'unit.json'), JSON.stringify(vitestReport(tests)));
     const result = spawnSync(process.execPath, [copy, '--required', '-', 'docs/tickets', `vitest:${path.join(root, 'unit.json')}`], {
       cwd: root,
-      input: '## Aceite\n\ndocs/tickets/LUI-1/aceite.md\n',
+      input: '## Aceite\n\ndocs/tickets/LUI-100/LUI-1/aceite.md\n',
       encoding: 'utf8',
     });
     return { code: result.status, out: result.stdout + result.stderr };
@@ -295,7 +302,7 @@ test('o conferidor importa o parser da pasta da skill de plano: aprova o critér
 
     const rejected = run([]);
     assert.equal(rejected.code, 1, rejected.out);
-    assert.match(rejected.out, /LUI-1-CA1 \(docs\/tickets\/LUI-1\/aceite\.md\) não tem nenhum teste/);
+    assert.match(rejected.out, /LUI-1-CA1 \(docs\/tickets\/LUI-100\/LUI-1\/aceite\.md\) não tem nenhum teste/);
 
     // Sem o parser na pasta da skill, o conferidor não roda: é de lá que ele o importa.
     fs.rmSync(parser);
@@ -327,13 +334,13 @@ test('passa o PR com "nenhum" e o motivo, e reprova "nenhum" sem motivo', () => 
 
 test('passa o PR que cita um arquivo de aceite existente e reprova o que cita um inexistente', () => {
   const ok = check({
-    body: '## Aceite\n\n`docs/tickets/LUI-1/aceite.md`\n',
+    body: '## Aceite\n\n`docs/tickets/LUI-100/LUI-1/aceite.md`\n',
     files: { 'LUI-1': acceptanceFile([['LUI-1-CA1', 'revisão humana']]) },
   });
   assert.equal(ok.code, 0, ok.out);
-  const missing = check({ body: '## Aceite\n\ndocs/tickets/LUI-7/aceite.md\n' });
+  const missing = check({ body: '## Aceite\n\ndocs/tickets/LUI-100/LUI-7/aceite.md\n' });
   assert.equal(missing.code, 1);
-  assert.match(missing.out, /docs\/tickets\/LUI-7\/aceite\.md, que não existe/);
+  assert.match(missing.out, /docs\/tickets\/LUI-100\/LUI-7\/aceite\.md, que não existe/);
 });
 
 test('reprova o PR que cita o caminho antigo do aceite, apontando o caminho novo na pasta do ticket', () => {
@@ -343,7 +350,18 @@ test('reprova o PR que cita o caminho antigo do aceite, apontando o caminho novo
   });
   assert.equal(code, 1);
   assert.match(out, /cita docs\/aceite\/LUI-1\.md, o caminho antigo/);
-  assert.match(out, /Cite docs\/tickets\/LUI-1\/aceite\.md/);
+  assert.match(out, /Cite docs\/tickets\/<issue>\/LUI-1\/aceite\.md/);
+  assert.doesNotMatch(out, /não cita/);
+});
+
+test('reprova o PR que cita o caminho de um nível, sem a pasta da issue pai, apontando o caminho novo', () => {
+  const { code, out } = check({
+    body: '## Aceite\n\n`docs/tickets/LUI-1/aceite.md`\n',
+    files: { 'LUI-1': acceptanceFile([['LUI-1-CA1', 'revisão humana']]) },
+  });
+  assert.equal(code, 1);
+  assert.match(out, /cita docs\/tickets\/LUI-1\/aceite\.md, o caminho antigo/);
+  assert.match(out, /Cite docs\/tickets\/<issue>\/LUI-1\/aceite\.md/);
   assert.doesNotMatch(out, /não cita/);
 });
 
@@ -417,7 +435,7 @@ test('um subtítulo dentro do critério não o encerra: a marca depois dele aind
   const files = { 'LUI-1': text };
   const missing = check({ files });
   assert.equal(missing.code, 1);
-  assert.match(missing.out, /LUI-1-CA1 \(docs\/tickets\/LUI-1\/aceite\.md\) não tem nenhum teste/);
+  assert.match(missing.out, /LUI-1-CA1 \(docs\/tickets\/LUI-100\/LUI-1\/aceite\.md\) não tem nenhum teste/);
   assert.doesNotMatch(missing.out, /marca "ausente"/);
   const covered = check({ files, vitest: [['@LUI-1-CA1 ok', 'passed']] });
   assert.equal(covered.code, 0, covered.out);
@@ -460,15 +478,24 @@ test('no modo --cited, imprime só o arquivo de aceite citado na seção do corp
     return result.stdout;
   };
 
-  assert.equal(cited('Resumo.\n\n## Aceite\n\ndocs/tickets/LUI-2/aceite.md\n\n## Testes\n'), 'docs/tickets/LUI-2/aceite.md\n');
+  assert.equal(cited('Resumo.\n\n## Aceite\n\ndocs/tickets/LUI-100/LUI-2/aceite.md\n\n## Testes\n'), 'docs/tickets/LUI-100/LUI-2/aceite.md\n');
   // A quebra de linha do GitHub e o caminho entre crases.
-  assert.equal(cited('## Aceite\r\n\r\n`docs/tickets/LUI-2/aceite.md`\r\n'), 'docs/tickets/LUI-2/aceite.md\n');
+  assert.equal(cited('## Aceite\r\n\r\n`docs/tickets/LUI-100/LUI-2/aceite.md`\r\n'), 'docs/tickets/LUI-100/LUI-2/aceite.md\n');
   // O arquivo citado fora da seção não conta.
-  assert.equal(cited('Ver docs/tickets/LUI-2/aceite.md.\n\n## Aceite\n\nnenhum: só documento.\n'), '');
+  assert.equal(cited('Ver docs/tickets/LUI-100/LUI-2/aceite.md.\n\n## Aceite\n\nnenhum: só documento.\n'), '');
   assert.equal(cited('## Aceite\n\nnenhum: refatoração sem mudança de comportamento.\n'), '');
-  assert.equal(cited('Resumo sem a seção, citando docs/tickets/LUI-2/aceite.md.\n'), '');
-  // O caminho antigo, de antes da pasta do ticket, não é citado.
-  assert.equal(cited('## Aceite\n\ndocs/aceite/LUI-2.md\n'), '');
+  assert.equal(cited('Resumo sem a seção, citando docs/tickets/LUI-100/LUI-2/aceite.md.\n'), '');
+  // Os caminhos antigos, de antes da pasta do ticket e de antes da pasta da issue pai, não são citados.
+  for (const old of ['docs/aceite/LUI-2.md', 'docs/tickets/LUI-2/aceite.md']) {
+    const result = spawnSync(process.execPath, [CHECKER, '--cited', '-', 'docs/tickets'], {
+      input: `## Aceite\n\n${old}\n`,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 1, old);
+    assert.equal(result.stderr.includes('Aceite: 1 problema(s)'), true);
+    assert.match(result.stdout, /docs\/tickets\/<issue>\/LUI-2\/aceite\.md/);
+    assert.match(result.stdout, /o caminho antigo/);
+  }
   // Sem corpo de PR.
   assert.equal(cited(null), '');
 });
@@ -490,7 +517,7 @@ test('aceita a marca teste de integração e exige o teste com o ID que rodou e 
 
   const none = check({ files });
   assert.equal(none.code, 1);
-  assert.match(none.out, /LUI-1-CA1 \(docs\/tickets\/LUI-1\/aceite\.md\) não tem nenhum teste/);
+  assert.match(none.out, /LUI-1-CA1 \(docs\/tickets\/LUI-100\/LUI-1\/aceite\.md\) não tem nenhum teste/);
 
   const failed = check({ files, vitest: [['@LUI-1-CA1 grava', 'failed']] });
   assert.equal(failed.code, 1);

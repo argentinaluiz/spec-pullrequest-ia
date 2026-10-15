@@ -154,7 +154,7 @@ const DOCS_DIFF = [
 const MESSAGE = [
   'docs: plan the item copy (LUI-900)',
   '',
-  'Acceptance file docs/tickets/LUI-900/aceite.md (CA1-CA2).',
+  'Acceptance file docs/tickets/LUI-899/LUI-900/aceite.md (CA1-CA2).',
   '',
   'Decision: the copy reserves quota before writing, so a full Disk fails early.',
   '',

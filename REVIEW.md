@@ -4,7 +4,7 @@ O que toda revisão deste repositório confere além dos defeitos de código: se
 
 ## Onde está o padrão
 
-- **O aceite:** o arquivo citado na seção `## Aceite` do corpo do PR, `docs/tickets/<ticket>/aceite.md`. Cada critério é um título `## <ticket>-CA<n>`, com a marca, o cenário (Dado, Quando, Então) e, nos de teste, o teste previsto. O formato é o da skill de plano, `.claude/skills/plan-ticket/formatos/aceite.md`. Com `nenhum`, não há arquivo de aceite: os critérios, quando há, vêm no pedido de revisão; confira o motivo dado.
+- **O aceite:** o arquivo citado na seção `## Aceite` do corpo do PR, `docs/tickets/<issue>/<ticket>/aceite.md`. Cada critério é um título `## <ticket>-CA<n>`, com a marca, o cenário (Dado, Quando, Então) e, nos de teste, o teste previsto. O formato é o da skill de plano, `.claude/skills/plan-ticket/formatos/aceite.md`. Com `nenhum`, não há arquivo de aceite: os critérios, quando há, vêm no pedido de revisão; confira o motivo dado.
 - **O plano:** o commit da branch que criou esse arquivo. A mensagem dele traz as decisões, os arquivos e interfaces e a mudança de dados; na máquina, ela chega ao revisor como arquivo.
 - **O contrato e o schema:** `apps/api/openapi.json` e `apps/api/prisma/schema.prisma`. O formato de cada rota está no `docs/lld.md`, seção 3, "Formato de uma rota no snapshot", e o de cada tabela, na seção 2, "Formato de uma tabela no schema".
 

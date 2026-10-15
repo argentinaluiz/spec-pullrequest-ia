@@ -9,8 +9,9 @@
 // O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A
 // pasta dos tickets vai relativa à raiz do repositório, onde o Node roda, porque é o caminho que o
 // corpo do PR cita e o que as mensagens mostram. O arquivo de aceite de cada ticket fica na pasta
-// dele, com o nome que a skill de plano define (`ACCEPTANCE_NAME`); o resto da pasta dos tickets não
-// é lido. O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o
+// dele, dentro da pasta da issue pai (`<pasta dos tickets>/<issue>/<ticket>/`), com o nome que a
+// skill de plano define (`ACCEPTANCE_NAME`); o resto da pasta dos tickets não é lido, e a pasta de
+// trabalho sem ticket (`sem-ticket/<nome>/`), que não tem aceite, passa sem ser notada. O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o
 // commit de plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
 // O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`) e o nome do arquivo de
@@ -32,9 +33,14 @@ function literal(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** O caminho de um arquivo de aceite na pasta dos tickets dada, como o corpo do PR o cita. */
+/** O caminho de um arquivo de aceite na pasta dos tickets dada (`<issue>/<ticket>/aceite.md`), como o corpo do PR o cita. */
 function acceptancePath(tickets) {
-  return new RegExp(`${literal(tickets)}/[^\\s\`)\\]/]+/${literal(ACCEPTANCE_NAME)}`);
+  return new RegExp(`${literal(tickets)}/[^\\s\`)\\]/]+/[^\\s\`)\\]/]+/${literal(ACCEPTANCE_NAME)}`);
+}
+
+/** O caminho de um nível, de antes da pasta da issue pai (`<ticket>/aceite.md`), com o ticket. */
+function flatAcceptancePath(tickets) {
+  return new RegExp(`${literal(tickets)}/([^\\s\`)\\]/]+)/${literal(ACCEPTANCE_NAME)}`);
 }
 
 /** A pasta dos tickets como o corpo do PR e as mensagens a escrevem: sem `./` nem barra no fim. */
@@ -74,6 +80,30 @@ function acceptSection(body) {
   return normalize((end === -1 ? rest : rest.slice(0, end)).join(' ').replace(/\*/g, ''));
 }
 
+/**
+ * Reprova a citação de um caminho de aceite de antes do desenho atual (um nível, ou `docs/aceite/`),
+ * dizendo o caminho novo. Devolve se havia uma.
+ */
+function reportLegacyCitation(section, tickets) {
+  const flat = section.match(flatAcceptancePath(tickets));
+  if (flat) {
+    error(
+      `a seção "Aceite" cita ${flat[0]}, o caminho antigo, de antes da pasta da issue pai. ` +
+        `Cite ${tickets}/<issue>/${flat[1]}/${ACCEPTANCE_NAME}, com a issue pai do ticket no gerenciador de issues.`,
+    );
+    return true;
+  }
+  const old = section.match(OLD_ACCEPTANCE_PATH);
+  if (old) {
+    error(
+      `a seção "Aceite" cita ${old[0]}, o caminho antigo, de antes do aceite ir para a pasta do ticket. ` +
+        `Cite ${tickets}/<issue>/${old[1]}/${ACCEPTANCE_NAME}, com a issue pai do ticket no gerenciador de issues.`,
+    );
+    return true;
+  }
+  return false;
+}
+
 /** Confere a seção `## Aceite` do corpo do PR contra os arquivos de aceite, pelo caminho de cada um. */
 function checkSection(section, files, tickets) {
   const cited = section.match(acceptancePath(tickets));
@@ -86,19 +116,12 @@ function checkSection(section, files, tickets) {
     }
     return;
   }
-  const old = section.match(OLD_ACCEPTANCE_PATH);
-  if (old) {
-    error(
-      `a seção "Aceite" cita ${old[0]}, o caminho antigo, de antes do aceite ir para a pasta do ticket. ` +
-        `Cite ${tickets}/${old[1]}/${ACCEPTANCE_NAME}.`,
-    );
-    return;
-  }
+  if (reportLegacyCitation(section, tickets)) return;
   const none = section.match(/^nenhum\b[\s:.\-–—,]*(.*)$/i);
   if (!none || none[1].trim() === '') {
     error(
       'a seção "Aceite" não cita um arquivo de aceite nem diz "nenhum" com o motivo. ' +
-        `Escreva o caminho do arquivo (${tickets}/<ticket>/${ACCEPTANCE_NAME}) ou "nenhum" seguido do motivo (refatoração, harness, documento).`,
+        `Escreva o caminho do arquivo (${tickets}/<issue>/<ticket>/${ACCEPTANCE_NAME}) ou "nenhum" seguido do motivo (refatoração, harness, documento).`,
     );
   }
 }
@@ -160,9 +183,12 @@ function idsOf(test) {
 /** A linha de comando: os dois modos do cabeçalho. */
 function main([mode, body, ticketsDir, ...reportSpecs]) {
   if (mode === '--cited' && body === '-' && ticketsDir && reportSpecs.length === 0) {
-    const cited = acceptSection(fs.readFileSync(0, 'utf8'))?.match(acceptancePath(ticketsFolder(ticketsDir)));
+    const folder = ticketsFolder(ticketsDir);
+    const section = acceptSection(fs.readFileSync(0, 'utf8'));
+    const cited = section?.match(acceptancePath(folder));
     if (cited) console.log(cited[0]);
-    process.exit(0);
+    else if (section !== null) reportLegacyCitation(section, folder);
+    finish();
   }
 
   if (!['--required', '--optional'].includes(mode) || body !== '-' || !ticketsDir || reportSpecs.length === 0) {
@@ -179,9 +205,13 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
   const tickets = ticketsFolder(ticketsDir);
   const files = new Map();
   if (fs.existsSync(tickets)) {
-    for (const entry of fs.readdirSync(tickets, { withFileTypes: true }).filter((item) => item.isDirectory())) {
-      const file = path.posix.join(tickets, entry.name, ACCEPTANCE_NAME);
-      if (fs.existsSync(file)) files.set(file, fs.readFileSync(file, 'utf8'));
+    const folders = (dir) => fs.readdirSync(dir, { withFileTypes: true }).filter((item) => item.isDirectory());
+    // `sem-ticket` guarda o trabalho sem ticket, e não é uma issue pai.
+    for (const issue of folders(tickets).filter((item) => item.name !== 'sem-ticket')) {
+      for (const ticket of folders(path.posix.join(tickets, issue.name))) {
+        const file = path.posix.join(tickets, issue.name, ticket.name, ACCEPTANCE_NAME);
+        if (fs.existsSync(file)) files.set(file, fs.readFileSync(file, 'utf8'));
+      }
     }
   }
 
