@@ -17,3 +17,15 @@ export async function fillQuota(email: string) {
     );
   });
 }
+
+/** Quantos bytes a Cota do Usuário conta, pelo banco da API. Sem a linha de `quotas`, 0. */
+export async function usedBytesOf(email: string): Promise<number> {
+  return withDatabase(async (client) => {
+    const { rows } = await client.query<{ used_bytes: string }>(
+      `SELECT quotas.used_bytes FROM quotas JOIN users ON users.id = quotas.user_id
+        WHERE users.email = $1`,
+      [email],
+    );
+    return rows[0] ? Number(rows[0].used_bytes) : 0;
+  });
+}

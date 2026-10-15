@@ -47,7 +47,7 @@ Todo componente nasce como Server Component. O `"use client"` precisa de um moti
 - **Estado na URL antes de estado no cliente.** Filtro, ordenação, pasta atual e termo de busca ficam em `params` e `searchParams`, lidos no servidor. Só vira `useState` o que é efêmero, como menu aberto ou item em foco.
 - **Código só de servidor é marcado com `import 'server-only'`,** para que um import acidental num componente de cliente quebre o build em vez de vazar código ou segredo. Quais módulos levam a marca está em [Acesso a dados](#acesso-a-dados).
 
-A exceção conhecida é o upload: o navegador envia os bytes direto ao Cloud Storage, e por isso o controle do envio (progresso e, depois, pausa e retomada) é de cliente. A sessão de upload continua sendo criada e concluída por Server Action.
+A exceção conhecida é o upload: o navegador envia os bytes direto ao Cloud Storage, e por isso o controle do envio (a fila, os chunks, o progresso, a pausa e a retomada) é de cliente. A sessão de upload continua sendo criada e concluída por Server Action.
 
 ## Acesso a dados
 
@@ -155,5 +155,6 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 - **Token de acesso expirado:** o teste não espera os 15 minutos. Ele apaga o cookie do token de acesso, que é o que o navegador faz quando o token expira, e deixa o de renovação.
 - **E-mails:** `e2e/support/mailpit.ts` lê os e-mails pelo Mailpit. `uniqueEmail()` cria um destinatário que nenhum outro teste usa, `waitForMailTo()` espera o e-mail chegar e `extractLink()` tira dele o link de um caminho. Nenhum teste apaga a caixa do Mailpit, que também serve ao desenvolvimento.
 - **Exceção, prova de infraestrutura:** `e2e/storage-emulator.spec.ts` prova o emulador de storage, e não uma tela. A página só serve de origem para o navegador falar com o emulador. O teste cria a sessão por `POST /uploads`, confere o tamanho pela conclusão e pede a URL de leitura a `GET /items/{id}/download-url`, com o token da Sessão (`e2e/support/storage.ts`). O Chromium resolve `localhost` para o serviço `storage` (`playwright.config.ts`), para o endereço público do emulador (`localhost:4443`) valer no contêiner `playwright`.
+- **Envio em chunks:** o teste que envia um arquivo maior que um chunk, ou que falha, pausa ou cancela um chunk, chama antes `interceptStorageSession(page)`, de `e2e/support/storage-session.ts` (o porquê está no `docs/lld.md`, seção 4.6). `failOnce` e `hold` acham o chunk pelo tamanho total do arquivo, então arquivos enviados juntos têm tamanhos diferentes. O motor de envio, sem React, é provado por unidade (`lib/uploads/engine.spec.ts`).
 - **Seletores:** pelo papel e pelo nome acessível (`getByRole`, `getByLabel`), que é como o Usuário acha o elemento. `data-testid` fica para o que não tem papel nem rótulo.
 - **Depois de navegar por um link, prefira `getByRole`.** O Next.js mantém a tela anterior escondida na página, e `getByLabel` acha também os campos dela. `getByRole` ignora o que está escondido.

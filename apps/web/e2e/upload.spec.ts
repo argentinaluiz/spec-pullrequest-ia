@@ -2,19 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./support/account";
 import { uniqueEmail } from "./support/mailpit";
 import { fillQuota } from "./support/quota";
+import { chooseFiles, panelOf } from "./support/uploads";
 
 const CONTENT = "conteudo do relatorio";
 
 /** Clica em "Enviar" e escolhe `relatorio.txt` no seletor, como a pessoa faz. */
-async function sendReport(page: Page) {
-  const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("button", { name: "Enviar" }).click();
-  await (await chooser).setFiles({
-    name: "relatorio.txt",
-    mimeType: "text/plain",
-    buffer: Buffer.from(CONTENT),
-  });
-}
+const sendReport = (page: Page) =>
+  chooseFiles(page, [
+    { name: "relatorio.txt", mimeType: "text/plain", buffer: Buffer.from(CONTENT) },
+  ]);
 
 test("o Usuário envia um arquivo pelo botão Enviar, vê o envio no painel e o arquivo na lista sem recarregar @LUI-167-CA12", async ({
   page,
@@ -27,7 +23,7 @@ test("o Usuário envia um arquivo pelo botão Enviar, vê o envio no painel e o 
 
   await sendReport(page);
 
-  const panel = page.getByRole("region", { name: "Envios" });
+  const panel = panelOf(page);
   await expect(panel.getByText("relatorio.txt")).toBeVisible();
   await expect(panel.getByRole("img", { name: "Concluído" })).toBeVisible();
   const row = page.getByRole("row", { name: /relatorio\.txt/ });
@@ -48,7 +44,7 @@ test("um envio sem espaço na Cota aparece no painel como erro daquele arquivo @
 
   await sendReport(page);
 
-  const panel = page.getByRole("region", { name: "Envios" });
+  const panel = panelOf(page);
   await expect(panel.getByText("relatorio.txt")).toBeVisible();
   await expect(
     panel.getByText("Não há espaço na sua cota para este arquivo"),

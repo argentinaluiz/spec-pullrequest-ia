@@ -27,3 +27,14 @@ export function completeUpload(
     accessToken,
   });
 }
+
+/** Cancela o upload pendente: apaga o que o storage recebeu e devolve o espaço reservado. */
+export function cancelUpload(
+  accessToken: string,
+  itemId: string,
+): Promise<ApiResult<void>> {
+  return apiRequest(`/uploads/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}

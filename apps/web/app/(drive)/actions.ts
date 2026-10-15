@@ -7,11 +7,13 @@ import type { LoadMoreResult } from "@/components/files/load-more";
 import * as authApi from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/error-messages";
 import type {
+  CancelUploadResult,
   CompleteUploadResult,
+  StartUploadInput,
   StartUploadResult,
-} from "@/components/uploads/types";
+} from "@/lib/uploads/types";
 import { getRootItems } from "@/lib/dal/items";
-import { finishUpload, startRootUpload } from "@/lib/dal/uploads";
+import { discardUpload, finishUpload, startUpload as beginUpload } from "@/lib/dal/uploads";
 import { LOGIN_PATH } from "@/lib/session/paths";
 import { clearSession, refreshToken } from "@/lib/session/tokens";
 
@@ -57,27 +59,29 @@ export async function loadMoreRootItems(cursor: string): Promise<LoadMoreResult>
   };
 }
 
+/** O id de um Item, ou `root` como destino. A API confere o resto. */
+const itemIdSchema = z.string().min(1).max(64);
+
 /** A Server Action é um endpoint público: o que vem do navegador é conferido antes de ir à API. */
 const startUploadSchema = z.object({
   name: z.string().min(1).max(255),
   sizeBytes: z.number().int().min(0),
   mimeType: z.string().max(255),
+  parentId: itemIdSchema,
 });
 
 /**
- * Começa o envio de um arquivo para a Pasta raiz: a API reserva o espaço e devolve o endereço
- * para onde o navegador manda os bytes. A Sessão é conferida pela própria chamada à API.
+ * Começa o envio de um arquivo para a pasta de destino: a API reserva o espaço e devolve o
+ * endereço para onde o navegador manda os bytes. A Sessão é conferida pela própria chamada à API.
  */
-export async function startUpload(input: {
-  name: string;
-  sizeBytes: number;
-  mimeType: string;
-}): Promise<StartUploadResult> {
+export async function startUpload(
+  input: StartUploadInput,
+): Promise<StartUploadResult> {
   const parsed = startUploadSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, message: errorMessage("validation_error") };
   }
-  const result = await startRootUpload(parsed.data);
+  const result = await beginUpload(parsed.data);
   if (!result.ok) {
     return { ok: false, message: errorMessage(result.error.code) };
   }
@@ -89,12 +93,43 @@ export async function startUpload(input: {
 export async function completeUpload(
   itemId: string,
 ): Promise<CompleteUploadResult> {
-  const parsed = z.string().min(1).max(64).safeParse(itemId);
+  const parsed = itemIdSchema.safeParse(itemId);
   if (!parsed.success) {
-    return { ok: false, message: errorMessage("validation_error") };
+    return {
+      ok: false,
+      message: errorMessage("validation_error"),
+      incomplete: false,
+    };
   }
   const result = await finishUpload(parsed.data);
   if (!result.ok) {
+    return {
+      ok: false,
+      message: errorMessage(result.error.code),
+      incomplete: result.error.code === "upload_incomplete",
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Cancela o envio: a API apaga o upload pendente e devolve o espaço. Um erro aqui não muda o
+ * destino do envio na tela, e o que ficou pendente é removido pela limpeza (docs/lld.md, seção 5).
+ * O resultado volta ao motor de envio.
+ */
+export async function cancelUpload(itemId: string): Promise<CancelUploadResult> {
+  const parsed = itemIdSchema.safeParse(itemId);
+  if (!parsed.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await discardUpload(parsed.data);
+  if (!result.ok) {
+    // `not_found` é o upload que já foi concluído ou removido: não há o que desfazer.
+    if (result.error.code !== "not_found") {
+      console.error(
+        `A API não cancelou o upload ${parsed.data} (${result.error.status} ${result.error.code}).`,
+      );
+    }
     return { ok: false, message: errorMessage(result.error.code) };
   }
   return { ok: true };

@@ -13,11 +13,15 @@ import { UploadButton } from "@/components/uploads/upload-button";
 import { UploadItem } from "@/components/uploads/upload-item";
 import { UploadPanel } from "@/components/uploads/upload-panel";
 import { UploadProvider } from "@/components/uploads/upload-provider";
+import { Dropzone } from "@/components/files/dropzone";
+import { Banner } from "@/components/ui/banner";
+import { FOLDER_DROPPED_MESSAGE } from "@/lib/uploads/panel";
 import type {
+  CancelUploadResult,
   CompleteUploadResult,
   StartUploadResult,
   UploadEntry,
-} from "@/components/uploads/types";
+} from "@/lib/uploads/types";
 import type { Item } from "@/lib/api/types";
 
 /** Os arquivos das telas do Figma, para comparar a lista com o desenho. */
@@ -69,19 +73,42 @@ async function completeUploadNoop(): Promise<CompleteUploadResult> {
   return { ok: true };
 }
 
-/** Um item do painel em cada estado que o envio de um único `PUT` tem. */
+async function cancelUploadNoop(): Promise<CancelUploadResult> {
+  "use server";
+  return { ok: true };
+}
+
+/** Um item do painel em cada estado do envio. */
 const UPLOAD_ENTRIES: UploadEntry[] = [
   {
     key: "enviando",
     name: "Apresentação final.mp4",
     mimeType: "video/mp4",
+    sizeBytes: 1_288_490_189,
     status: "uploading",
     progress: 42,
+  },
+  {
+    key: "pausado",
+    name: "backup-2026.zip",
+    mimeType: "application/zip",
+    sizeBytes: 600_000_000,
+    status: "paused",
+    progress: 48,
+  },
+  {
+    key: "fila",
+    name: "Podcast episódio 12.mp3",
+    mimeType: "audio/mpeg",
+    sizeBytes: 40_370_176,
+    status: "queued",
+    progress: 0,
   },
   {
     key: "concluido",
     name: "Férias na praia.jpg",
     mimeType: "image/jpeg",
+    sizeBytes: 5_033_165,
     status: "done",
     progress: 100,
   },
@@ -89,17 +116,31 @@ const UPLOAD_ENTRIES: UploadEntry[] = [
     key: "cota",
     name: "Fotos de 2025.zip",
     mimeType: "application/zip",
+    sizeBytes: 900_000_000,
     status: "failed",
     progress: 0,
     message: "Não há espaço na sua cota para este arquivo",
+    failure: "rejected",
+  },
+  {
+    key: "rede",
+    name: "Gravação da aula.mp4",
+    mimeType: "video/mp4",
+    sizeBytes: 300_000_000,
+    status: "failed",
+    progress: 64,
+    message: "A conexão falhou durante o envio",
+    failure: "connection",
   },
   {
     key: "grande",
     name: "Backup completo.iso",
     mimeType: "application/octet-stream",
+    sizeBytes: 6_000_000_000,
     status: "failed",
     progress: 0,
     message: "O arquivo passa do limite de 5 GB",
+    failure: "rejected",
   },
 ];
 
@@ -118,6 +159,7 @@ export default function VitrineDrivePage() {
     <UploadProvider
       startUpload={startUploadWithoutQuota}
       completeUpload={completeUploadNoop}
+      cancelUpload={cancelUploadNoop}
     >
       <main className="flex flex-1 flex-col gap-12 bg-canvas py-6">
         <h1 className="px-6 text-display text-ink">Drive</h1>
@@ -154,9 +196,35 @@ export default function VitrineDrivePage() {
         <Section title="upload-item">
           <ul className="w-90 rounded-lg border border-hairline bg-surface-raised">
             {UPLOAD_ENTRIES.map((entry) => (
-              <UploadItem key={entry.key} entry={entry} onDismiss={noop} />
+              <UploadItem
+                key={entry.key}
+                entry={entry}
+                onPause={noop}
+                onResume={noop}
+                onCancel={noop}
+                onRetry={noop}
+                onDismiss={noop}
+              />
             ))}
           </ul>
+        </Section>
+
+        <Section title="upload-panel: aviso de pasta solta">
+          <div className="w-90 rounded-lg border border-hairline bg-surface-raised p-3">
+            <Banner variant="warning" layout="narrow">
+              {FOLDER_DROPPED_MESSAGE}
+            </Banner>
+          </div>
+        </Section>
+
+        <Section title="dropzone (arraste um arquivo sobre esta área)">
+          <div className="flex h-80 px-4 py-4 lg:px-6">
+            <Dropzone folderName={ROOT_FOLDER_LABEL} parentId="root">
+              <div className="flex flex-1 items-center justify-center text-ink-muted">
+                Arraste um arquivo sobre esta área para ver a zona de soltar.
+              </div>
+            </Dropzone>
+          </div>
         </Section>
 
         <Section title="empty-state">

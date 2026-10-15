@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   Param,
   Post,
@@ -9,6 +10,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -38,6 +40,18 @@ export class UploadsController {
     @CurrentUserId() userId: string,
   ): Promise<UploadDto> {
     return this.uploads.start(userId, body);
+  }
+
+  @Delete(':itemId')
+  @HttpCode(204)
+  @ApiNoContentResponse()
+  @ApiProblem(401, 'unauthenticated')
+  @ApiProblem(404, 'not_found')
+  cancel(
+    @Param('itemId') itemId: string,
+    @CurrentUserId() userId: string,
+  ): Promise<void> {
+    return this.uploads.cancel(userId, itemId);
   }
 
   @Post(':itemId/complete')

@@ -6,8 +6,11 @@ import { authRoutes } from './support/auth-routes.js';
 import { storageConfig } from '../src/config/storage.config.js';
 import { createTestApp } from './support/create-test-app.js';
 import { itemRoutes } from './support/items.js';
-import { uniqueEmail } from './support/mailpit.js';
-import { expectProblem, expectValidationError } from './support/problem.js';
+import {
+  NOT_FOUND,
+  expectProblem,
+  expectValidationError,
+} from './support/problem.js';
 import { uploadRoutes } from './support/uploads.js';
 
 describe('Início do envio de um arquivo', () => {
@@ -27,15 +30,8 @@ describe('Início do envio de um arquivo', () => {
     await app.close();
   });
 
-  /** Um Usuário verificado, com Sessão, e o id dele. */
-  const signedInUser = async () => {
-    const { accessToken } = await auth.openSession(uniqueEmail());
-    const { body } = await auth.me(accessToken).expect(200);
-    return { accessToken, userId: (body as { id: string }).id };
-  };
-
   it('cria o upload, recebe os bytes no storage e conclui, e o arquivo aparece na lista da raiz @LUI-167-CA1', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const before = Date.now();
     const created = await uploads
       .create(accessToken, {
@@ -82,7 +78,7 @@ describe('Início do envio de um arquivo', () => {
   });
 
   it('recusa com quota_exceeded um upload que não cabe, sem criar Item nem gastar espaço @LUI-167-CA2', async () => {
-    const { accessToken, userId } = await signedInUser();
+    const { accessToken, userId } = await auth.signedInUser();
     await uploads.leaveFreeBytes(userId, 9);
 
     const refused = await uploads.create(accessToken, {
@@ -110,7 +106,7 @@ describe('Início do envio de um arquivo', () => {
   });
 
   it('aceita só os uploads simultâneos que cabem na Cota @LUI-167-CA3', async () => {
-    const { accessToken, userId } = await signedInUser();
+    const { accessToken, userId } = await auth.signedInUser();
     const GiB = 1024 ** 3;
     await uploads.leaveFreeBytes(userId, 2.5 * GiB);
 
@@ -148,9 +144,9 @@ describe('Início do envio de um arquivo', () => {
 
   it('recusa com file_too_large o arquivo acima de 5 GB, antes de reservar espaço @LUI-167-CA4', async () => {
     const GiB = 1024 ** 3;
-    const full = await signedInUser();
+    const full = await auth.signedInUser();
     await uploads.leaveFreeBytes(full.userId, 0);
-    const roomy = await signedInUser();
+    const roomy = await auth.signedInUser();
     await uploads.leaveFreeBytes(roomy.userId, 6 * GiB);
 
     const tooLargeForFullQuota = await uploads.create(full.accessToken, {
@@ -187,8 +183,8 @@ describe('Início do envio de um arquivo', () => {
   });
 
   it('recusa nome, tamanho e destino inválidos, sem criar Item @LUI-167-CA5', async () => {
-    const { accessToken, userId } = await signedInUser();
-    const other = await signedInUser();
+    const { accessToken, userId } = await auth.signedInUser();
+    const other = await auth.signedInUser();
     const prisma = app.get(PrismaService);
     const root = await items.rootId(accessToken, userId);
     const otherRoot = await items.rootId(other.accessToken, other.userId);
@@ -247,12 +243,7 @@ describe('Início do envio de um arquivo', () => {
       expectValidationError(response, invalidFields[index][0]);
     });
     for (const response of notFoundResponses) {
-      expectProblem(response, {
-        title: 'Not Found',
-        status: 404,
-        code: 'not_found',
-        detail: expect.any(String),
-      });
+      expectProblem(response, NOT_FOUND);
     }
     expectProblem(unauthenticated, {
       title: 'Unauthorized',

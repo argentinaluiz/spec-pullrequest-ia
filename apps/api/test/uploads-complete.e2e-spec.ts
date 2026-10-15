@@ -4,8 +4,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { authRoutes } from './support/auth-routes.js';
 import { createTestApp } from './support/create-test-app.js';
 import { itemRoutes } from './support/items.js';
-import { uniqueEmail } from './support/mailpit.js';
-import { expectProblem } from './support/problem.js';
+import { NOT_FOUND, expectProblem } from './support/problem.js';
 import { uploadRoutes } from './support/uploads.js';
 
 describe('Conclusão do envio de um arquivo', () => {
@@ -25,22 +24,8 @@ describe('Conclusão do envio de um arquivo', () => {
     await app.close();
   });
 
-  /** Um Usuário verificado, com Sessão, e o id dele. */
-  const signedInUser = async () => {
-    const { accessToken } = await auth.openSession(uniqueEmail());
-    const { body } = await auth.me(accessToken).expect(200);
-    return { accessToken, userId: (body as { id: string }).id };
-  };
-
-  const notFound = {
-    title: 'Not Found',
-    status: 404,
-    code: 'not_found',
-    detail: expect.any(String),
-  };
-
   it('recusa a conclusão com tamanho diferente, apaga o objeto e devolve o espaço @LUI-167-CA6', async () => {
-    const { accessToken, userId } = await signedInUser();
+    const { accessToken, userId } = await auth.signedInUser();
     await uploads.leaveFreeBytes(userId, 10);
     const { itemId, uploadUrl } = await uploads.start(accessToken, {
       name: 'curto.txt',
@@ -66,11 +51,11 @@ describe('Conclusão do envio de um arquivo', () => {
     });
     expect(objectAfter).toBe(404);
     expect(retry.status).toBe(201);
-    expectProblem(completeAgain, notFound);
+    expectProblem(completeAgain, NOT_FOUND);
   });
 
   it('responde upload_incomplete antes de o objeto chegar e conclui depois do envio completo @LUI-167-CA7', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const { itemId, uploadUrl } = await uploads.start(accessToken, {
       name: 'ola.txt',
       sizeBytes: 5,
@@ -97,7 +82,7 @@ describe('Conclusão do envio de um arquivo', () => {
   });
 
   it('devolve o mesmo Item ativo na conclusão repetida, sem reservar espaço de novo @LUI-167-CA8', async () => {
-    const { accessToken, userId } = await signedInUser();
+    const { accessToken, userId } = await auth.signedInUser();
     await uploads.leaveFreeBytes(userId, 20);
     const { itemId, uploadUrl } = await uploads.start(accessToken, {
       name: 'dez.txt',
@@ -121,7 +106,7 @@ describe('Conclusão do envio de um arquivo', () => {
   });
 
   it('devolve o mesmo Item nas conclusões simultâneas do mesmo upload @LUI-167-CA8', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const { itemId, uploadUrl } = await uploads.start(accessToken, {
       name: 'dez.txt',
       sizeBytes: 10,
@@ -139,7 +124,7 @@ describe('Conclusão do envio de um arquivo', () => {
   });
 
   it('envia e conclui um arquivo de 0 bytes, com o tipo padrão @LUI-167-CA9', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const { body } = await uploads
       .create(accessToken, { name: 'vazio', sizeBytes: 0, parentId: 'root' })
       .expect(201);
@@ -165,8 +150,8 @@ describe('Conclusão do envio de um arquivo', () => {
   });
 
   it('responde not_found à conclusão do upload de outro Usuário @LUI-167-CA10', async () => {
-    const owner = await signedInUser();
-    const stranger = await signedInUser();
+    const owner = await auth.signedInUser();
+    const stranger = await auth.signedInUser();
     const { itemId, uploadUrl } = await uploads.start(owner.accessToken, {
       name: 'meu.txt',
       sizeBytes: 5,
@@ -177,7 +162,7 @@ describe('Conclusão do envio de um arquivo', () => {
     const unknown = await uploads.complete(stranger.accessToken, uuidv7());
     const byOwner = await uploads.complete(owner.accessToken, itemId);
 
-    expectProblem(byStranger, notFound);
+    expectProblem(byStranger, NOT_FOUND);
     expect(byStranger.body).toEqual(unknown.body);
     expect(byOwner.status).toBe(200);
   });

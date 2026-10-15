@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
-  ExpiredPendingUpload,
+  PendingUpload,
   FileUpload,
   Item,
   ItemPosition,
@@ -19,6 +19,21 @@ const ITEM_FIELDS = {
   mimeType: true,
   updatedAt: true,
 } satisfies Prisma.ItemSelect;
+
+/** O que o cancelamento e a limpeza leem de um upload `pending`. */
+const PENDING_UPLOAD_FIELDS = {
+  id: true,
+  ownerId: true,
+  sizeBytes: true,
+  objectKey: true,
+  uploadSessionUri: true,
+} satisfies Prisma.ItemSelect;
+
+function toPendingUpload(
+  row: Prisma.ItemGetPayload<{ select: typeof PENDING_UPLOAD_FIELDS }>,
+): PendingUpload {
+  return { ...row, sizeBytes: Number(row.sizeBytes) };
+}
 
 @Injectable()
 export class ItemsRepository {
@@ -142,6 +157,18 @@ export class ItemsRepository {
     };
   }
 
+  /** O upload `pending` do Usuário, ou `null` (outro dono, inexistente ou que já não está `pending`). */
+  async findPendingUpload(
+    ownerId: string,
+    id: string,
+  ): Promise<PendingUpload | null> {
+    const row = await this.prisma.item.findFirst({
+      where: { id, ownerId, type: 'file', status: 'pending' },
+      select: PENDING_UPLOAD_FIELDS,
+    });
+    return row && toPendingUpload(row);
+  }
+
   /** Ativa o Item `pending`. Devolve `false` se ele já não estava `pending`. */
   async activatePending(id: string): Promise<boolean> {
     const { count } = await this.prisma.item.updateMany({
@@ -171,7 +198,7 @@ export class ItemsRepository {
     before: Date,
     afterId: string | undefined,
     limit: number,
-  ): Promise<ExpiredPendingUpload[]> {
+  ): Promise<PendingUpload[]> {
     const rows = await this.prisma.item.findMany({
       where: {
         status: 'pending',
@@ -181,15 +208,9 @@ export class ItemsRepository {
       },
       orderBy: { id: 'asc' },
       take: limit,
-      select: {
-        id: true,
-        ownerId: true,
-        sizeBytes: true,
-        objectKey: true,
-        uploadSessionUri: true,
-      },
+      select: PENDING_UPLOAD_FIELDS,
     });
-    return rows.map((row) => ({ ...row, sizeBytes: Number(row.sizeBytes) }));
+    return rows.map(toPendingUpload);
   }
 
   /** Guarda o endereço da sessão de upload no Item `pending`. */

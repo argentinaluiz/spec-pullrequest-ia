@@ -21,6 +21,14 @@ export function expectProblem(
   expect(response.body).toEqual({ type: 'about:blank', ...expected });
 }
 
+/** O corpo do `not_found`, para qualquer recurso. */
+export const NOT_FOUND = {
+  title: 'Not Found',
+  status: 404,
+  code: 'not_found',
+  detail: expect.any(String),
+};
+
 /** Confere que a resposta é o `validation_error` de um único campo recusado. */
 export function expectValidationError(response: Response, field: string): void {
   expectProblem(response, {

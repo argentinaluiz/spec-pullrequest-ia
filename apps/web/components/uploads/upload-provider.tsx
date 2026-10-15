@@ -3,137 +3,172 @@
 import { useRouter } from "next/navigation";
 import {
   createContext,
-  useCallback,
   useContext,
+  useEffect,
   useMemo,
-  useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { putBytes } from "@/components/uploads/put-bytes";
+import {
+  createUploadEngine,
+  INITIAL_SNAPSHOT,
+  isFinished,
+} from "@/lib/uploads/engine";
+import { createRefreshBatcher } from "@/lib/uploads/refresh";
+import { fetchTransport, timerSleep } from "@/lib/uploads/transport";
 import type {
-  CompleteUpload,
-  StartUpload,
+  CancelUploadResult,
+  CompleteUploadResult,
+  StartUploadInput,
+  StartUploadResult,
   UploadEntry,
-} from "@/components/uploads/types";
+} from "@/lib/uploads/types";
 
-/** A mensagem de um envio cujos bytes não chegaram ao storage. */
-const CONNECTION_FAILED = "A conexão falhou durante o envio";
-
-type UploadsContextValue = {
+/** O que o painel mostra. Muda a cada progresso. */
+type UploadsState = {
   entries: UploadEntry[];
-  /** Envia o arquivo para a Pasta raiz e o acompanha no painel. */
-  send: (file: File) => void;
-  /** Tira do painel o envio que terminou ou falhou. */
-  dismiss: (key: string) => void;
-  /** Esvazia o painel dos envios que terminaram ou falharam. */
-  clearFinished: () => void;
+  /** Soltaram uma pasta: ela não é enviada, e o painel avisa. */
+  folderDropped: boolean;
 };
 
-const UploadsContext = createContext<UploadsContextValue | null>(null);
+/** O que a tela pede ao motor. Não muda de identidade, então quem só envia não renderiza a cada progresso. */
+type UploadsActions = {
+  /** Põe os arquivos na fila, com `parentId` como destino. */
+  send: (files: File[], parentId: string) => void;
+  /** Acende o aviso de pasta solta. */
+  notifyFolderDropped: () => void;
+  pause: (key: string) => void;
+  resume: (key: string) => void;
+  cancel: (key: string) => void;
+  retry: (key: string) => void;
+  /** Tira do painel o envio que terminou ou falhou. */
+  dismiss: (key: string) => void;
+  /** Fecha o painel: tira os envios que terminaram ou falharam e o aviso de pasta. Os em andamento continuam. */
+  close: () => void;
+};
 
-export function useUploads(): UploadsContextValue {
-  const value = useContext(UploadsContext);
-  if (!value) {
-    throw new Error("useUploads só funciona dentro do UploadProvider.");
-  }
+const UploadsStateContext = createContext<UploadsState | null>(null);
+const UploadsActionsContext = createContext<UploadsActions | null>(null);
+
+function required<T>(value: T | null): T {
+  if (!value) throw new Error("Os envios só funcionam dentro do UploadProvider.");
   return value;
 }
 
+export function useUploadsState(): UploadsState {
+  return required(useContext(UploadsStateContext));
+}
+
+export function useUploadActions(): UploadsActions {
+  return required(useContext(UploadsActionsContext));
+}
+
 type UploadProviderProps = {
-  startUpload: StartUpload;
-  completeUpload: CompleteUpload;
+  startUpload: (input: StartUploadInput) => Promise<StartUploadResult>;
+  completeUpload: (itemId: string) => Promise<CompleteUploadResult>;
+  cancelUpload: (itemId: string) => Promise<CancelUploadResult>;
   children: ReactNode;
 };
 
+/** Conclusões dentro deste intervalo dividem um `router.refresh()`. */
+const REFRESH_DELAY_MS = 500;
+
 /**
- * Guarda os envios da casca do Drive e conduz cada um: a API reserva o espaço e cria a sessão
- * (Server Action), o navegador manda os bytes direto ao storage e a API confere o arquivo
+ * Liga o motor de envio (`lib/uploads`) ao painel: a API reserva o espaço e cria a sessão
+ * (Server Action), o navegador manda os chunks direto ao storage e a API confere o arquivo
  * (Server Action). O estado vive no layout, então um envio continua enquanto a pessoa navega.
  */
 export function UploadProvider({
   startUpload,
   completeUpload,
+  cancelUpload,
   children,
 }: UploadProviderProps) {
   const router = useRouter();
-  const [entries, setEntries] = useState<UploadEntry[]>([]);
-  // Uma chave por envio da sessão da página. `crypto.randomUUID` só existe em contexto seguro (HTTPS).
-  const nextKey = useRef(0);
+  const [folderDropped, setFolderDropped] = useState(false);
+  // O motor fica com as primeiras ações e o primeiro roteador: uma Server Action é chamada pelo
+  // id, então uma referência antiga chama a mesma ação, e o roteador do App Router não muda.
+  const [{ engine, refresher }] = useState(() => {
+    // A lista é do servidor: ela é pedida de novo para trazer o arquivo e a Cota.
+    const refresher = createRefreshBatcher(() => router.refresh(), REFRESH_DELAY_MS);
+    const engine = createUploadEngine({
+      transport: fetchTransport,
+      sleep: timerSleep,
+      api: { start: startUpload, complete: completeUpload, cancel: cancelUpload },
+      onDone: refresher.request,
+    });
+    return { engine, refresher };
+  });
 
-  const update = useCallback((key: string, change: Partial<UploadEntry>) => {
-    setEntries((current) =>
-      current.map((entry) =>
-        entry.key === key ? { ...entry, ...change } : entry,
-      ),
-    );
-  }, []);
-
-  const send = useCallback(
-    (file: File) => {
-      const key = String(nextKey.current++);
-      const fail = (message: string) =>
-        update(key, { status: "failed", message });
-      setEntries((current) => [
-        ...current,
-        {
-          key,
-          name: file.name,
-          mimeType: file.type,
-          status: "uploading",
-          progress: 0,
-        },
-      ]);
-
-      void (async () => {
-        try {
-          await run();
-        } catch {
-          // Uma Server Action que falha de vez (rede, 5xx) não pode deixar o envio preso em "enviando".
-          fail(CONNECTION_FAILED);
-        }
-      })();
-
-      async function run() {
-        const started = await startUpload({
-          name: file.name,
-          sizeBytes: file.size,
-          mimeType: file.type,
-        });
-        if (!started.ok) return fail(started.message);
-
-        const sent = await putBytes(started.uploadUrl, file, (progress) =>
-          update(key, { progress }),
-        );
-        if (!sent.ok) return fail(CONNECTION_FAILED);
-
-        const completed = await completeUpload(started.itemId);
-        if (!completed.ok) return fail(completed.message);
-
-        update(key, { status: "done", progress: 100 });
-        // A lista é do servidor: ela é pedida de novo para trazer o arquivo.
-        router.refresh();
-      }
+  // Sair do `(drive)` para os envios (docs/lld.md, seção 7.4): os uploads ficam `pending`, como
+  // ao fechar a aba. O motor continua usável, então a montagem dupla do modo estrito não o quebra.
+  useEffect(
+    () => () => {
+      engine.stop();
+      refresher.dispose();
     },
-    [startUpload, completeUpload, update, router],
+    [engine, refresher],
   );
 
-  const dismiss = useCallback((key: string) => {
-    setEntries((current) => current.filter((entry) => entry.key !== key));
+  // Soltar arquivos fora da lista não os envia, mas também não deixa o navegador abri-los na aba.
+  useEffect(() => {
+    const block = (event: DragEvent) => {
+      if (event.defaultPrevented || !event.dataTransfer?.types.includes("Files")) return;
+      event.preventDefault();
+      if (event.type === "dragover") event.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", block);
+    window.addEventListener("drop", block);
+    return () => {
+      window.removeEventListener("dragover", block);
+      window.removeEventListener("drop", block);
+    };
   }, []);
 
-  const clearFinished = useCallback(() => {
-    setEntries((current) =>
-      current.filter((entry) => entry.status === "uploading"),
-    );
-  }, []);
+  const { entries } = useSyncExternalStore(
+    engine.subscribe,
+    engine.getSnapshot,
+    () => INITIAL_SNAPSHOT,
+  );
 
-  const value = useMemo(
-    () => ({ entries, send, dismiss, clearFinished }),
-    [entries, send, dismiss, clearFinished],
+  // Fechar ou recarregar a aba com envio em andamento pede confirmação (docs/lld.md, seção 7.4).
+  const unfinished = entries.some((entry) => !isFinished(entry));
+  useEffect(() => {
+    if (!unfinished) return;
+    const confirm = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", confirm);
+    return () => window.removeEventListener("beforeunload", confirm);
+  }, [unfinished]);
+
+  const actions = useMemo<UploadsActions>(
+    () => ({
+      send: (files, parentId) => {
+        if (files.length > 0) engine.add(files, parentId);
+      },
+      notifyFolderDropped: () => setFolderDropped(true),
+      pause: engine.pause,
+      resume: engine.resume,
+      cancel: engine.cancel,
+      retry: engine.retry,
+      dismiss: engine.dismiss,
+      close: () => {
+        engine.clearFinished();
+        setFolderDropped(false);
+      },
+    }),
+    [engine],
+  );
+  const state = useMemo(
+    () => ({ entries, folderDropped }),
+    [entries, folderDropped],
   );
 
   return (
-    <UploadsContext.Provider value={value}>{children}</UploadsContext.Provider>
+    <UploadsActionsContext.Provider value={actions}>
+      <UploadsStateContext.Provider value={state}>
+        {children}
+      </UploadsStateContext.Provider>
+    </UploadsActionsContext.Provider>
   );
 }

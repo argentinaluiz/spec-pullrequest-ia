@@ -52,8 +52,8 @@ export interface DownloadUrl {
   expiresAt: Date;
 }
 
-/** Um upload `pending` vencido, com o que a limpeza precisa para desfazê-lo. */
-export interface ExpiredPendingUpload {
+/** Um upload `pending`, com o que a limpeza e o cancelamento precisam para desfazê-lo. */
+export interface PendingUpload {
   id: string;
   ownerId: string;
   sizeBytes: number;

@@ -8,10 +8,7 @@ import {
   FILE_STORAGE,
   type FileStorage,
 } from '../../infra/storage/file-storage.js';
-import type {
-  ExpiredPendingUpload,
-  Item,
-} from '../items/entities/item.entity.js';
+import type { PendingUpload, Item } from '../items/entities/item.entity.js';
 import { ItemNotFoundError } from '../items/errors/item-not-found.error.js';
 import { ItemsService } from '../items/items.service.js';
 import { QuotaService } from '../quota/quota.service.js';
@@ -149,12 +146,42 @@ export class UploadsService {
     return toItem(active);
   }
 
+  /**
+   * Cancela o upload `pending` do Usuário: o Item sai primeiro, só se ainda
+   * está `pending`, junto com o espaço, e o storage depois. Assim uma conclusão
+   * simultânea ou ganha antes (e o cancelamento é `not_found`, com o objeto
+   * intacto) ou encontra o Item apagado. Outro dono, inexistente ou que já não
+   * está `pending` é `not_found`. Uma falha do storage depois disso só é
+   * registrada: o cancelamento já valeu.
+   */
+  async cancel(userId: string, itemId: string): Promise<void> {
+    const upload = await this.items.findPendingUpload(userId, itemId);
+    if (
+      !upload ||
+      !(await this.discardPending(userId, upload.id, upload.sizeBytes))
+    ) {
+      throw new ItemNotFoundError();
+    }
+    try {
+      if (upload.uploadSessionUri) {
+        await this.storage.cancelUploadSession(upload.uploadSessionUri);
+      }
+      if (upload.objectKey) {
+        await this.storage.deleteObject(upload.objectKey);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Upload ${upload.id} cancelado, mas o objeto ${upload.objectKey ?? '(sem chave)'} ficou no storage: ${String(error)}`,
+      );
+    }
+  }
+
   /** Remove os uploads `pending` vencidos, na ordem do expurgo (seção 5 do docs/lld.md). */
   async cleanupPending(): Promise<PendingCleanupResult> {
     const before = new Date(Date.now() - this.config.pendingTtlMs);
     const result: PendingCleanupResult = { removed: 0, failed: 0 };
     let afterId: string | undefined;
-    let batch: ExpiredPendingUpload[];
+    let batch: PendingUpload[];
     do {
       batch = await this.items.listExpiredPending(
         before,
@@ -162,9 +189,16 @@ export class UploadsService {
         CLEANUP_BATCH_SIZE,
       );
       for (const upload of batch) {
-        const outcome = await this.purge(upload);
-        if (outcome === 'removed') result.removed += 1;
-        if (outcome === 'failed') result.failed += 1;
+        try {
+          if ((await this.removePending(upload)) === 'removed') {
+            result.removed += 1;
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Upload pendente ${upload.id} fica para a próxima limpeza: ${String(error)}`,
+          );
+          result.failed += 1;
+        }
       }
       afterId = batch.at(-1)?.id;
     } while (batch.length === CLEANUP_BATCH_SIZE);
@@ -172,29 +206,23 @@ export class UploadsService {
   }
 
   /**
-   * Apaga um upload vencido: o storage primeiro, depois o Item e o espaço. Se o
-   * storage falhar, o Item fica para a próxima execução.
+   * Apaga um upload `pending`: o storage primeiro, depois o Item e o espaço.
+   * Devolve `skipped` se uma conclusão o ativou no meio do caminho. Um erro do
+   * storage ou do banco sobe, e o Item continua `pending`.
    */
-  private async purge(
-    upload: ExpiredPendingUpload,
-  ): Promise<'removed' | 'skipped' | 'failed'> {
-    try {
-      if (upload.uploadSessionUri) {
-        await this.storage.cancelUploadSession(upload.uploadSessionUri);
-      }
-      // Estreita a janela: uma conclusão que ativou o Item desde a listagem poupa o objeto.
-      const current = await this.items.findFile(upload.ownerId, upload.id);
-      if (current?.status !== 'pending') {
-        return 'skipped';
-      }
-      if (upload.objectKey) {
-        await this.storage.deleteObject(upload.objectKey);
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Upload pendente ${upload.id} fica para a próxima limpeza: ${String(error)}`,
-      );
-      return 'failed';
+  private async removePending(
+    upload: PendingUpload,
+  ): Promise<'removed' | 'skipped'> {
+    if (upload.uploadSessionUri) {
+      await this.storage.cancelUploadSession(upload.uploadSessionUri);
+    }
+    // Estreita a janela: uma conclusão que ativou o Item desde a leitura poupa o objeto.
+    const current = await this.items.findFile(upload.ownerId, upload.id);
+    if (current?.status !== 'pending') {
+      return 'skipped';
+    }
+    if (upload.objectKey) {
+      await this.storage.deleteObject(upload.objectKey);
     }
     // Uma conclusão que ativou o Item no meio do caminho não o perde: só apaga `pending`.
     const removed = await this.discardPending(

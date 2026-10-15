@@ -4,8 +4,7 @@ import { storageConfig } from '../src/config/storage.config.js';
 import { authRoutes } from './support/auth-routes.js';
 import { createTestApp } from './support/create-test-app.js';
 import { itemRoutes } from './support/items.js';
-import { uniqueEmail } from './support/mailpit.js';
-import { expectProblem } from './support/problem.js';
+import { NOT_FOUND, expectProblem } from './support/problem.js';
 import { getSignedUrlOnEmulator } from './support/storage-emulator.js';
 import { uploadRoutes } from './support/uploads.js';
 
@@ -30,13 +29,6 @@ describe('URL de download de um arquivo', () => {
     await app.close();
   });
 
-  /** Um Usuário verificado, com Sessão, e o id dele. */
-  const signedInUser = async () => {
-    const { accessToken } = await auth.openSession(uniqueEmail());
-    const { body } = await auth.me(accessToken).expect(200);
-    return { accessToken, userId: (body as { id: string }).id };
-  };
-
   /** Um arquivo ativo na Pasta raiz, enviado pelo caminho real, com os bytes dados. */
   const activeFile = async (
     accessToken: string,
@@ -53,7 +45,7 @@ describe('URL de download de um arquivo', () => {
   };
 
   it('devolve a URL assinada de um arquivo ativo, que entrega os bytes, com validade de 5 minutos @LUI-168-CA1', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const itemId = await activeFile(accessToken, 'ola.txt', 'ola!!');
     const requestedAt = Date.now();
 
@@ -77,7 +69,7 @@ describe('URL de download de um arquivo', () => {
   });
 
   it('leva o nome original, com acento e espaço, no Content-Disposition como anexo @LUI-168-CA2', async () => {
-    const { accessToken } = await signedInUser();
+    const { accessToken } = await auth.signedInUser();
     const itemId = await activeFile(accessToken, 'relatório do mês.pdf', 'pdf');
     const objectKey = await uploads.objectKeyOf(itemId);
     const disposition =
@@ -98,8 +90,8 @@ describe('URL de download de um arquivo', () => {
   });
 
   it('responde not_found para pasta, item pendente, item de outro Usuário e item inexistente @LUI-168-CA3', async () => {
-    const owner = await signedInUser();
-    const other = await signedInUser();
+    const owner = await auth.signedInUser();
+    const other = await auth.signedInUser();
     const rootId = await items.rootId(owner.accessToken, owner.userId);
     const [folderId] = await items.seed(owner.userId, rootId, [
       { name: 'Pasta', type: 'folder' },
@@ -110,12 +102,6 @@ describe('URL de download de um arquivo', () => {
     });
     const activeId = await activeFile(owner.accessToken, 'ativo.txt', 'ola!!');
     const othersId = await activeFile(other.accessToken, 'dele.txt', 'ola!!');
-    const notFound = {
-      title: 'Not Found',
-      status: 404,
-      code: 'not_found',
-      detail: expect.any(String),
-    };
 
     const folder = await items.downloadUrl(folderId, owner.accessToken);
     const pending = await items.downloadUrl(pendingId, owner.accessToken);
@@ -129,7 +115,7 @@ describe('URL de download de um arquivo', () => {
     const anonymous = await items.downloadUrl(activeId);
 
     for (const response of [folder, pending, others, missing, notUuid]) {
-      expectProblem(response, notFound);
+      expectProblem(response, NOT_FOUND);
     }
     expect(own.status).toBe(200);
     expectProblem(anonymous, {

@@ -454,7 +454,8 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Conclusão repetida:** num item já `active`, a conclusão devolve o item, sem conferir nem reservar de novo. Assim a chamada pode ser repetida com segurança.
 - **Arquivo vazio:** um arquivo de 0 bytes reserva 0 bytes e é enviado num único `PUT` vazio.
 - **Retomada e cancelamento:** `GET /uploads/{itemId}` devolve a `uploadUrl` de um upload `pending`, e `DELETE /uploads/{itemId}` cancela e devolve o espaço.
-- **Remoção do objeto:** no cancelamento e no `upload_size_mismatch`, a API apaga a sessão ou o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
+- **Remoção do objeto:** no `upload_size_mismatch`, a API apaga o objeto na hora, pela interface de storage. Se a remoção falhar, o item continua `pending` e a limpeza de pendentes o remove depois (seção 5).
+- **Ordem do cancelamento:** o item sai primeiro, por um `DELETE ... WHERE status = 'pending'`, com o espaço devolvido na mesma transação; só então a API cancela a sessão e apaga o objeto. Uma conclusão simultânea ou ativa o item antes (e o cancelamento responde `not_found`, sem tocar no objeto) ou o encontra apagado (`not_found`), e nunca fica um item ativo sem o objeto. Se o storage falhar depois de o item sair, o cancelamento vale e a falha fica no log, com a chave do objeto.
 
 **Como o upload de um arquivo é executado (LUI-167)**
 
@@ -494,6 +495,8 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **CORS do bucket:** não é configurável no emulador. Ele aceita qualquer origem e expõe só o cabeçalho `Location`, então o `Range` da resposta 308 fica ilegível para o navegador. A leitura do `Range` é coberta no staging.
 - **O que o emulador reproduz:** a sessão retomável com chunks (308 até o último, 200 no fim, objeto criado só então), o envio de um arquivo vazio num único `PUT`, a leitura por URL assinada com o nome do arquivo no download (`response-content-disposition` respeitado) e a remoção idempotente.
 - **O que o emulador não reproduz:** o endereço da sessão sai com o host da requisição, e não com o `-external-url`; a consulta de progresso (`Content-Range: bytes */<total>`, sem corpo) é tratada como o fim do envio; o cancelamento da sessão só responde 499 e a sessão continua aceitando bytes; a URL assinada é servida sem conferir assinatura nem validade; o tamanho do chunk não precisa ser múltiplo de 256 KiB. Esses pontos são cobertos no staging (HLD, seção 6.1).
+
+**Como os testes no navegador cobrem as duas lacunas do `Range` e da consulta de progresso:** um auxiliar de `e2e/support/` (`interceptStorageSession`) intercepta, pelo `page.route`, só os pedidos à sessão de upload. Ele repassa os chunks ao emulador e acrescenta à resposta o `Access-Control-Expose-Headers: Range`, que é o que o CORS do bucket faz no Cloud Storage, e responde ele mesmo à consulta de progresso, com 308 e o `Range` dos bytes que o emulador já confirmou. O mesmo auxiliar falha um chunk de propósito e segura outro enquanto a pessoa pausa ou cancela. A sessão, os chunks, a conclusão, a Cota e o objeto continuam sendo o emulador e a API reais. O comportamento do próprio Cloud Storage nesses dois pontos fica para o staging.
 
 ### 4.7 Cadastro, verificação e senha
 
@@ -759,7 +762,7 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 
 - **Onde mora:** num provider de cliente no layout do `(drive)`, com um painel fixo que mostra, por arquivo, o nome, o progresso, e os botões de pausar, retomar e cancelar. A fila sobrevive à navegação entre pastas, lixeira, busca e planos. Os envios só param quando a aba fecha ou a pessoa sai do `(drive)`, e a retomada de "depois de fechar a aba" cobre esse caso.
 - **Início e conclusão:** são Server Actions (`POST /uploads` e `POST /uploads/{itemId}/complete`). O provider dispara a ação e envia os chunks por conta própria.
-- **Depois de cada conclusão:** a lista da pasta atual é revalidada (`router.refresh()`), e o indicador de cota se atualiza junto.
+- **Depois de cada conclusão:** a lista da pasta atual é revalidada (`router.refresh()`), e o indicador de cota se atualiza junto. As conclusões que chegam juntas (dentro de meio segundo) dividem uma revalidação.
 - **Arrastar e soltar, e vários arquivos:** a zona de soltar é a lista da pasta atual, e os arquivos soltos entram na fila com essa pasta como destino. Até 3 enviam ao mesmo tempo, e os demais esperam. O botão "Enviar" abre o seletor com vários arquivos, sem o modo de pasta.
 - **Pasta solta:** não é enviada. Os arquivos soltos junto com ela entram na fila, e o painel avisa que pastas não podem ser enviadas e que é preciso enviar os arquivos de dentro delas.
 - **Conta somente leitura:** o envio fica desligado (seção 7.1), e `quota_exceeded` na criação do upload é tratado como na seção 7.8.

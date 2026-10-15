@@ -4,28 +4,23 @@ import { ChevronDown, X } from "lucide-react";
 import { useState } from "react";
 import { ButtonIcon } from "@/components/ui/button-icon";
 import { UploadItem } from "@/components/uploads/upload-item";
-import { useUploads } from "@/components/uploads/upload-provider";
-import type { UploadEntry } from "@/components/uploads/types";
-
-/** "Enviando 1 de 2" enquanto há envio em andamento, e "2 de 2 enviado" depois, como no Figma. */
-export function panelTitle(entries: UploadEntry[]): string {
-  const total = entries.length;
-  const done = entries.filter((entry) => entry.status === "done").length;
-  if (entries.some((entry) => entry.status === "uploading")) {
-    return `Enviando ${done + 1} de ${total}`;
-  }
-  return `${done} de ${total} enviado`;
-}
+import {
+  useUploadActions,
+  useUploadsState,
+} from "@/components/uploads/upload-provider";
+import { Banner } from "@/components/ui/banner";
+import { FOLDER_DROPPED_MESSAGE, panelTitle } from "@/lib/uploads/panel";
 
 /**
  * O `{component.upload-panel}`: o painel flutuante de envios, no canto inferior direito e, abaixo
  * de `lg`, ancorado ao pé da tela, em largura total. Some quando não há nenhum envio.
  */
 export function UploadPanel() {
-  const { entries, dismiss, clearFinished } = useUploads();
+  const { entries, folderDropped } = useUploadsState();
+  const { pause, resume, cancel, retry, dismiss, close } = useUploadActions();
   const [collapsed, setCollapsed] = useState(false);
 
-  if (entries.length === 0) return null;
+  if (entries.length === 0 && !folderDropped) return null;
 
   return (
     <section
@@ -47,20 +42,33 @@ export function UploadPanel() {
             className={`size-5 transition-transform ${collapsed ? "rotate-180" : ""}`}
           />
         </ButtonIcon>
-        <ButtonIcon aria-label="Fechar envios" onClick={clearFinished}>
+        <ButtonIcon aria-label="Fechar envios" onClick={close}>
           <X className="size-5" />
         </ButtonIcon>
       </header>
       {!collapsed && (
-        <ul className="max-h-60 overflow-y-auto">
-          {entries.map((entry) => (
-            <UploadItem
-              key={entry.key}
-              entry={entry}
-              onDismiss={() => dismiss(entry.key)}
-            />
-          ))}
-        </ul>
+        <>
+          {folderDropped && (
+            <div className="p-3">
+              <Banner variant="warning" layout="narrow">
+                {FOLDER_DROPPED_MESSAGE}
+              </Banner>
+            </div>
+          )}
+          <ul className="max-h-60 overflow-y-auto">
+            {entries.map((entry) => (
+              <UploadItem
+                key={entry.key}
+                entry={entry}
+                onPause={pause}
+                onResume={resume}
+                onCancel={cancel}
+                onRetry={retry}
+                onDismiss={dismiss}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

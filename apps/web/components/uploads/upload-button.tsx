@@ -3,14 +3,14 @@
 import { Upload } from "lucide-react";
 import { useRef } from "react";
 import { ButtonPrimary } from "@/components/ui/button-primary";
-import { useUploads } from "@/components/uploads/upload-provider";
+import { useUploadActions } from "@/components/uploads/upload-provider";
 
 /**
- * O "Enviar" da barra superior: abre o seletor de arquivos e entrega o arquivo escolhido ao
+ * O "Enviar" da barra superior: abre o seletor de arquivos (vários, sem o modo de pasta) e entrega os arquivos escolhidos ao
  * provider. Abaixo de `lg` fica só com o ícone.
  */
 export function UploadButton() {
-  const { send } = useUploads();
+  const { send } = useUploadActions();
   const input = useRef<HTMLInputElement>(null);
 
   return (
@@ -18,11 +18,12 @@ export function UploadButton() {
       <input
         ref={input}
         type="file"
+        multiple
         hidden
         tabIndex={-1}
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) send(file);
+          const files = Array.from(event.target.files ?? []);
+          if (files.length > 0) send(files, "root");
           // Sem limpar, escolher o mesmo arquivo de novo não dispara o evento.
           event.target.value = "";
         }}

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { EmptyState } from "@/components/files/empty-state";
 import { FileListSkeleton } from "@/components/files/file-list";
+import { Dropzone } from "@/components/files/dropzone";
 import { FileTable } from "@/components/files/file-table";
 import { ROOT_FOLDER_LABEL } from "@/lib/drive";
 import { getRootItems } from "@/lib/dal/items";
@@ -48,9 +49,11 @@ export default function MyFilesPage() {
       <div className="flex h-12 shrink-0 items-center">
         <h1 className="px-2 text-ui-strong text-ink">{ROOT_FOLDER_LABEL}</h1>
       </div>
-      <Suspense fallback={<FileListSkeleton />}>
-        <RootFolderContents />
-      </Suspense>
+      <Dropzone folderName={ROOT_FOLDER_LABEL} parentId="root">
+        <Suspense fallback={<FileListSkeleton />}>
+          <RootFolderContents />
+        </Suspense>
+      </Dropzone>
     </main>
   );
 }

@@ -34,6 +34,14 @@ export function uploadRoutes(app: INestApplication<App>) {
       .post(`/v1/uploads/${itemId}/complete`)
       .set('Authorization', `Bearer ${accessToken}`);
 
+  /** `DELETE /uploads/{itemId}`, com o token de acesso quando ele é passado. */
+  const cancel = (accessToken: string | undefined, itemId: string) => {
+    const call = request(app.getHttpServer()).delete(`/v1/uploads/${itemId}`);
+    return accessToken
+      ? call.set('Authorization', `Bearer ${accessToken}`)
+      : call;
+  };
+
   /**
    * O endereço da sessão que a API devolve é o público (`STORAGE_PUBLIC_URL`),
    * que o contêiner da API não alcança. No papel do navegador, o teste troca a
@@ -113,6 +121,7 @@ export function uploadRoutes(app: INestApplication<App>) {
   return {
     create,
     complete,
+    cancel,
     putBytes,
     start,
     usedBytes,

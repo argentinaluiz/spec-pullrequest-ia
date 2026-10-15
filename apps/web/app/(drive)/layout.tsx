@@ -7,7 +7,7 @@ import { getCurrentUser } from "@/lib/dal/user";
 import { UploadButton } from "@/components/uploads/upload-button";
 import { UploadPanel } from "@/components/uploads/upload-panel";
 import { UploadProvider } from "@/components/uploads/upload-provider";
-import { completeUpload, logout, startUpload } from "./actions";
+import { cancelUpload, completeUpload, logout, startUpload } from "./actions";
 
 async function CurrentAccountMenu() {
   const user = await getCurrentUser();
@@ -30,7 +30,11 @@ function AccountMenuPlaceholder() {
  */
 export default function DriveLayout({ children }: LayoutProps<"/">) {
   return (
-    <UploadProvider startUpload={startUpload} completeUpload={completeUpload}>
+    <UploadProvider
+      startUpload={startUpload}
+      completeUpload={completeUpload}
+      cancelUpload={cancelUpload}
+    >
       <div className="flex flex-1 flex-col bg-canvas">
         <AppBar
           navigation={

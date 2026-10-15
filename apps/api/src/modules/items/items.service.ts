@@ -8,7 +8,7 @@ import {
 } from '../../infra/storage/file-storage.js';
 import {
   DownloadUrl,
-  ExpiredPendingUpload,
+  PendingUpload,
   FileUpload,
   ItemPage,
   NewPendingFile,
@@ -119,6 +119,16 @@ export class ItemsService {
       : Promise.resolve(null);
   }
 
+  /** O upload `pending` do Usuário, ou `null` (outro dono, inexistente, id que não é UUID ou já concluído). */
+  findPendingUpload(
+    ownerId: string,
+    id: string,
+  ): Promise<PendingUpload | null> {
+    return isUUID(id)
+      ? this.items.findPendingUpload(ownerId, id)
+      : Promise.resolve(null);
+  }
+
   /** Ativa o Item `pending`. Devolve `false` se outra conclusão chegou antes. */
   activatePending(id: string): Promise<boolean> {
     return this.items.activatePending(id);
@@ -137,7 +147,7 @@ export class ItemsService {
     before: Date,
     afterId: string | undefined,
     limit: number,
-  ): Promise<ExpiredPendingUpload[]> {
+  ): Promise<PendingUpload[]> {
     return this.items.listExpiredPending(before, afterId, limit);
   }
 
