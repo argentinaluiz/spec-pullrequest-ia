@@ -718,6 +718,12 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 | Arquivos simultâneos | Até 3 |
 | Tentativas por chunk | 5, com espera crescente de 1 a 30 segundos |
 
+- **Espera entre tentativas:** 1, 2, 4, 8 e 16 segundos: dobra a cada tentativa e nunca passa de 30. Depois da quinta, o arquivo fica como falha, com o botão "Tentar de novo", que consulta o progresso e recomeça a contagem na mesma sessão.
+- **Progresso na tela:** o que o storage confirmou (o `Range` da 308), e não o que o navegador já mandou.
+- **Pausar e retomar:** pausar aborta o `PUT` em curso e não manda outro; o arquivo continua `pending` na API, com o espaço reservado. Retomar faz a consulta de progresso e continua do byte seguinte.
+- **Cancelar:** aborta o `PUT` em curso e chama `DELETE /uploads/{itemId}` (Server Action); o arquivo sai do painel e não aparece na lista.
+- **Motor de envio:** a fila, os chunks, as tentativas, a pausa e o cancelamento ficam num módulo sem React, que recebe o transporte (`fetch`), o relógio e as ações da API, e por isso é testado por unidade. O provider só o liga ao painel.
+
 **Envio**
 
 1. O navegador chama `POST /uploads` e recebe `itemId` e `uploadUrl`.
