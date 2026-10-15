@@ -333,6 +333,7 @@ O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez
 
 - **Entrada do upload:** `name` de 1 a 255 caracteres, sem `/` nem caracteres de controle. `sizeBytes` de 0 a 5 GB: acima disso, `file_too_large`, antes de reservar a cota. `mimeType` vazio é gravado como `application/octet-stream`. `parentId` é uma pasta `active` do usuário, e aceita `root`.
 - **Upload que não está `pending`:** `GET` e `DELETE` em `/uploads/{itemId}` respondem `not_found`.
+- **Retomada:** `GET /uploads/{itemId}` devolve a mesma `uploadUrl` e o mesmo `expiresAt` da criação, sem criar sessão nova. Um item `pending` ainda sem sessão (a criação dela não terminou ou falhou), um item `deleting`, um de outro usuário e um id inexistente ou que não é UUID respondem `not_found`, como no cancelamento.
 - **Download:** a URL assinada leva o nome do item no `Content-Disposition` (`filename*=UTF-8''…`, com acentos e espaços codificados), e não a chave do objeto. `expiresAt` é de 5 minutos a partir do pedido, a validade da URL. Pasta, item `pending`, item de outro usuário e id inexistente (ou que não é UUID) respondem `not_found`. O `disposition` entra com a pré-visualização: até lá, a rota não o recebe e é sempre `attachment`. Quem assina é o `ItemsService`, pela interface de storage (seção 4.6).
 
 ### 3.5 Compartilhamento
@@ -751,11 +752,11 @@ O navegador envia direto ao Cloud Storage, e a API participa só no início e na
 
 **Depois de fechar a aba**
 
-- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação), numa chave com o id do usuário: outra conta no mesmo navegador nunca vê esses itens. A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão.
-- Ao voltar ao `(drive)`, o painel de envios abre com os uploads incompletos, pausados, com o pedido "Selecione o arquivo de novo para continuar", o botão de selecionar o arquivo e o de cancelar. O navegador não mantém acesso ao arquivo local.
-- Se a impressão bater, o navegador chama `GET /uploads/{itemId}` para obter a `uploadUrl` e retoma pelo passo de retomada. Se não bater, o item avisa que não é o mesmo arquivo, nada é enviado e ele continua esperando.
-- Um `not_found` em `GET /uploads/{itemId}` (o upload já foi concluído, cancelado ou limpo) tira o item da lista sem aviso. Cancelar chama `DELETE /uploads/{itemId}` e limpa o `localStorage`.
-- Com um envio em andamento, fechar ou recarregar a aba pede confirmação (`beforeunload`, com o aviso padrão do navegador).
+- O navegador guarda no `localStorage` só o `itemId` e uma impressão do arquivo (nome, tamanho e data de modificação), numa chave com o id do usuário: outra conta no mesmo navegador nunca vê esses itens. A `uploadUrl` não é guardada, porque quem a tem consegue gravar na sessão. O incompleto entra no armazenamento quando a API cria o upload e sai quando ele é concluído, cancelado, descartado ou tirado do painel.
+- Ao voltar ao `(drive)`, o navegador chama `GET /uploads/{itemId}` (Server Action) para cada incompleto guardado, e faz a consulta de progresso na sessão. O painel de envios abre com eles no estado de espera, com o pedido "Selecione o arquivo de novo para continuar", a porcentagem que o storage já tem, o botão de selecionar o arquivo e o de cancelar. A `uploadUrl` fica só na memória da aba, e o navegador não mantém acesso ao arquivo local. O ícone do item é o genérico até o arquivo ser escolhido, porque o tipo não é guardado.
+- Se a impressão do arquivo escolhido bater, o envio continua pelo passo de retomada, na mesma sessão. Se não bater, o item avisa que não é o mesmo arquivo, nada é enviado e ele continua esperando.
+- Um `not_found` em `GET /uploads/{itemId}` (o upload já foi concluído, cancelado ou limpo) tira o item do painel e do `localStorage`, sem aviso. Outra falha da consulta deixa o item esperando, e ela é tentada de novo quando o arquivo é escolhido. Cancelar chama `DELETE /uploads/{itemId}` e limpa o `localStorage`.
+- Com um envio mandando bytes ou na fila, fechar ou recarregar a aba pede confirmação (`beforeunload`, com o aviso padrão do navegador). Um envio pausado, esperando o arquivo ou terminado não pede, porque fechar a aba não perde nada dele.
 
 **Erros**
 
