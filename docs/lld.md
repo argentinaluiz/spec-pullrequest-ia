@@ -331,7 +331,7 @@ O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez
 
 - **Entrada do upload:** `name` de 1 a 255 caracteres, sem `/` nem caracteres de controle. `sizeBytes` de 0 a 5 GB: acima disso, `file_too_large`, antes de reservar a cota. `mimeType` vazio é gravado como `application/octet-stream`. `parentId` é uma pasta `active` do usuário, e aceita `root`.
 - **Upload que não está `pending`:** `GET` e `DELETE` em `/uploads/{itemId}` respondem `not_found`.
-- **Download:** a URL assinada leva o nome do item no `Content-Disposition` (`filename*=UTF-8''…`), e não a chave do objeto. Pasta e item `pending` respondem `not_found`. O `disposition` entra com a pré-visualização: até lá, a rota não o recebe e é sempre `attachment`.
+- **Download:** a URL assinada leva o nome do item no `Content-Disposition` (`filename*=UTF-8''…`, com acentos e espaços codificados), e não a chave do objeto. `expiresAt` é de 5 minutos a partir do pedido, a validade da URL. Pasta, item `pending`, item de outro usuário e id inexistente (ou que não é UUID) respondem `not_found`. O `disposition` entra com a pré-visualização: até lá, a rota não o recebe e é sempre `attachment`. Quem assina é o `ItemsService`, pela interface de storage (seção 4.6).
 
 ### 3.5 Compartilhamento
 
@@ -484,7 +484,7 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam em `http://web:3000`.
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
 - **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
-- **Rota de apoio:** `/v1/dev/storage/*` existiu no LUI-165, para os testes no navegador alcançarem a interface de storage, e saiu com o `POST /uploads` (LUI-167). Os testes no navegador criam a sessão por `POST /uploads` e conferem o tamanho pela conclusão.
+- **Rota de apoio:** `/v1/dev/storage/*` existiu no LUI-165, para os testes no navegador alcançarem a interface de storage. As rotas da sessão e do tamanho saíram com o `POST /uploads` (LUI-167), e a de leitura, com o `GET /items/{id}/download-url` (LUI-168), que com ela tirou o módulo de apoio inteiro. Os testes no navegador criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
 
 **Resultado da validação contra o emulador (`fake-gcs-server` 1.56.1)**
 
@@ -654,18 +654,19 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). Baixar entra com o download. | Existe: "Meus arquivos", a lista da pasta raiz |
+| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
 | `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
 | `/planos` | Protegida | `GET /plans`, `GET /billing/subscription` | `POST /billing/checkout`, `POST /billing/subscription/cancel` | A detalhar |
 | `/planos/retorno` | Protegida | `GET /billing/subscription` | | A detalhar (seção 7.7) |
-| `/arquivos/[id]/miniatura`, `/visualizar`, `/baixar` | Protegida, rotas que só redirecionam | `GET /items/{id}/thumbnail-url`, `GET /items/{id}/download-url` | | A detalhar (seção 7.5) |
+| `/arquivos/[id]/baixar` | Protegida, rota que só redireciona | `GET /items/{id}/download-url` | | Existe (seção 7.5) |
+| `/arquivos/[id]/miniatura`, `/visualizar` | Protegida, rotas que só redirecionam | `GET /items/{id}/thumbnail-url`, `GET /items/{id}/download-url` | | A detalhar (seção 7.5) |
 | `/s/[token]` | Pública | `POST /public/links/{token}/access`, `GET /public/links/{token}/children` | Informar a senha do link | A detalhar (seção 7.6) |
 | `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
 
 - **Casca do `(drive)` hoje:** a barra superior com a marca e o menu da conta (o e-mail e "Sair"), a navegação só com "Meus arquivos", aberta como gaveta pelo botão de menu abaixo de `lg`, o botão "Enviar", que escolhe arquivos e os envia num único `PUT` ao storage (o corte em chunks, a repetição, os vários arquivos e o arrastar e soltar entram com os arquivos grandes), o painel de envios, com o nome e o estado (enviando, concluído ou falhou, com o erro em português) de cada arquivo, num provider de cliente do layout, e a área de conteúdo, com o título da pasta. O que o item seguinte descreve e ainda não existe entra com a funcionalidade dona, sem link morto nem botão desabilitado.
-- **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura, seleção nem o menu de ações. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
+- **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura nem seleção. Uma linha de arquivo tem o botão "Mais ações", que abre o menu só com "Baixar"; a linha de pasta não tem o botão, porque ainda não há ação de pasta. O duplo clique não faz nada até a pré-visualização existir. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
 - **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
 - **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL.
 - **Paginação das listas:** o Server Component mostra a primeira página, e um botão "Carregar mais", no fim da lista, busca a seguinte por Server Action e a acrescenta no cliente. O cursor não vai para a URL. Depois de um upload, o `router.refresh()` atualiza a primeira página, e as páginas acrescentadas ficam como estavam. O diálogo de compartilhar e o menu de cada item são estado de cliente.
@@ -763,6 +764,7 @@ A API devolve uma URL assinada e com prazo por item (seção 3.4). Buscá-la na 
 - **O que cada uma faz:** confere a Sessão por `lib/dal`, pede a URL à API com os cookies e responde `302` para o Cloud Storage, com `Cache-Control: private, no-store`. Os bytes vão direto do Storage ao navegador, sem passar pela web.
 - **Miniatura:** a imagem da lista usa `loading="lazy"`, e a miniatura só é pedida quando entra na tela. Um item sem miniatura (404 da API) mostra o ícone do tipo de arquivo.
 - **A URL assinada nunca entra no HTML.** Só o caminho da web entra, e por isso não vence.
+- **Hoje existe só `/arquivos/[id]/baixar`.** Sem Sessão, o Proxy leva à tela de entrar, com a rota como destino. Com Sessão, a rota pede a URL à API e responde `302`. `not_found` da API (Item que não baixa) responde `404`; qualquer outro erro, `502`, e a Sessão não é encerrada. O link do menu da linha é `<a href="/arquivos/{id}/baixar">`, sem `target`: o `Content-Disposition: attachment` mantém a pessoa na lista.
 
 ### 7.6 Página pública do link
 
