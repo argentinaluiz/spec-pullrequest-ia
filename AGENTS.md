@@ -128,8 +128,10 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 scripts/verify.sh full
 ```
 
-- **Durante o desenvolvimento, feedback curto.** Rode os testes ligados ao código alterado, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto, ou o `scripts/verify.sh full <app>` para uma app inteira. Nenhum dos dois libera o push.
-- **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura.
+- **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `scripts/verify.sh fast`. O `scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
+- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha. No fluxo de ticket, quem o roda é a sessão principal, depois da `/simplify` e da `/code-review`, e nunca o subagente que implementa.
+- **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
+- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava. O desenho está no `docs/harness.md`, seção "Trava das reprovações repetidas".
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
@@ -143,7 +145,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou em `docs/aceite/`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou num arquivo de aceite (`docs/tickets/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -153,12 +155,12 @@ Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Ac
 ```markdown
 ## Aceite
 
-docs/aceite/LUI-146.md
+docs/tickets/LUI-146/aceite.md
 ```
 
 - **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano. Os critérios e os testes não se repetem no PR.
 - **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
-- **O que a CI confere,** em todos os arquivos de `docs/aceite/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
+- **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
 - **Critério sem teste:** escreva o teste, com o ID no título. Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
 O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
@@ -175,7 +177,7 @@ Quem escreveu o código não é quem o revisa. Todo pull request que altera cód
    git diff origin/main...HEAD > docs/tickets/<ticket>/review.diff
    ```
 
-   O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso. A pasta `docs/tickets/` é ignorada pelo Git, então nada dela aparece no `git status`.
+   O diff só traz o que está em commit. O `git status --short` precisa sair sem nenhuma linha da mudança: arquivo alterado, preparado ou novo que fique de fora do commit fica também de fora da revisão, sem aviso. O `review.diff` não aparece no `git status`, porque o Git o ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
 
 2. **Chame o subagente `revisor`** passando só o caminho desse arquivo, o identificador do ticket e o caminho do `docs/tickets/<ticket>/contract-drift.txt`, que o modo completo grava quando o contrato ou o schema mudou depois do commit de plano. Se esse arquivo não existe, diga isso ao revisor. Em PR sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões.
    O que o revisor confere, inclusive o aceite do ticket, está em `.claude/agents/revisor.md` e em `docs/harness.md`. Rode a revisão no checkout da branch do PR, porque ele lê o arquivo de aceite dessa branch.
@@ -254,8 +256,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 **Valores da skill de plano**
 
-- **Pasta dos aceites:** `docs/aceite`.
-- **Pasta dos tickets:** `docs/tickets`, que o `.gitignore` ignora inteira.
+- **Pasta dos tickets:** `docs/tickets`. O que o Git versiona nela está no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket".
 - **Pasta dos documentos:** `docs`.
 - **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
 - **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
@@ -267,7 +268,7 @@ O atalho `scripts/verify.sh plan <ticket> [<commit de plano>]` chama o script da
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
 - **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
-- **Cobertura:** a CI confere o ID no título do teste, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga `docs/aceite/`.
+- **Cobertura:** a CI confere o ID no título do teste, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga os arquivos de aceite.
 
 ## Convenções de Git
 

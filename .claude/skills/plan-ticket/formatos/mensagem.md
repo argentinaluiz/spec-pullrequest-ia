@@ -5,7 +5,7 @@ A skill de plano é a dona deste formato. A página do plano lê da mensagem as 
 ```text
 docs: plan <o que o ticket entrega> (<ticket>)
 
-Acceptance file <pasta dos aceites>/<ticket>.md (CA1-CA<n>). <O que muda no contrato e no schema, ou que nada muda.>
+Acceptance file <pasta dos tickets>/<ticket>/aceite.md (CA1-CA<n>). <O que muda no contrato e no schema, ou que nada muda.>
 
 Decision: <uma decisão do plano e o motivo>. Um bloco por decisão.
 

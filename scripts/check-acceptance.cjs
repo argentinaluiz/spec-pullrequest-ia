@@ -4,24 +4,43 @@
 // docs/harness.md, e o formato do arquivo de aceite, na skill de plano (formatos/aceite.md).
 //
 // Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no scripts/verify.sh):
-//   node check-acceptance.cjs <--required|--optional> - <pasta dos arquivos de aceite> <vitest|playwright>:<relatório>...
-//   node check-acceptance.cjs --cited -
-// O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. O
-// segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de
-// plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
+//   node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <vitest|playwright>:<relatório>...
+//   node check-acceptance.cjs --cited - <pasta dos tickets>
+// O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A
+// pasta dos tickets vai relativa à raiz do repositório, onde o Node roda, porque é o caminho que o
+// corpo do PR cita e o que as mensagens mostram. O arquivo de aceite de cada ticket fica na pasta
+// dele, com o nome que a skill de plano define (`ACCEPTANCE_NAME`); o resto da pasta dos tickets não
+// é lido. O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o
+// commit de plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
-// O parser do arquivo de aceite (`parseAcceptanceFile`) e as marcas (`CHECKS`) são os da skill de
-// plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de revisão do plano também usa:
-// os dois leem o aceite com as mesmas regras.
+// O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`) e o nome do arquivo de
+// aceite são os da skill de plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de
+// revisão do plano também usa: os dois leem o aceite com as mesmas regras.
 
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { parseAcceptanceFile, CHECKS } = require('../.claude/skills/plan-ticket/scripts/plan.cjs');
+const { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME } = require('../.claude/skills/plan-ticket/scripts/plan.cjs');
 
 const HEADING = /^#{1,6}\s*aceite\s*$/i;
 const TEST_TOKEN = /@([A-Z][A-Z0-9]*-\d+-CA\d+)/g;
-const ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]]+\.md)/;
+// O caminho do aceite de antes da pasta do ticket (`docs/aceite/<ticket>.md`), com o ticket.
+const OLD_ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]/]+)\.md/;
+
+/** O texto como trecho literal de uma expressão regular. */
+function literal(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** O caminho de um arquivo de aceite na pasta dos tickets dada, como o corpo do PR o cita. */
+function acceptancePath(tickets) {
+  return new RegExp(`${literal(tickets)}/[^\\s\`)\\]/]+/${literal(ACCEPTANCE_NAME)}`);
+}
+
+/** A pasta dos tickets como o corpo do PR e as mensagens a escrevem: sem `./` nem barra no fim. */
+function ticketsFolder(dir) {
+  return path.posix.normalize(dir).replace(/\/+$/, '');
+}
 
 const errors = [];
 function error(message) {
@@ -55,23 +74,31 @@ function acceptSection(body) {
   return normalize((end === -1 ? rest : rest.slice(0, end)).join(' ').replace(/\*/g, ''));
 }
 
-/** Confere a seção `## Aceite` do corpo do PR e devolve o arquivo citado, se houver. */
-function checkSection(section, files) {
-  const cited = section.match(ACCEPTANCE_PATH);
+/** Confere a seção `## Aceite` do corpo do PR contra os arquivos de aceite, pelo caminho de cada um. */
+function checkSection(section, files, tickets) {
+  const cited = section.match(acceptancePath(tickets));
   if (cited) {
-    if (!files.has(cited[1])) {
+    if (!files.has(cited[0])) {
       error(
-        `a seção "Aceite" cita docs/aceite/${cited[1]}, que não existe. ` +
+        `a seção "Aceite" cita ${cited[0]}, que não existe. ` +
           'Cite o arquivo de aceite do ticket, criado pelo commit de plano.',
       );
     }
+    return;
+  }
+  const old = section.match(OLD_ACCEPTANCE_PATH);
+  if (old) {
+    error(
+      `a seção "Aceite" cita ${old[0]}, o caminho antigo, de antes do aceite ir para a pasta do ticket. ` +
+        `Cite ${tickets}/${old[1]}/${ACCEPTANCE_NAME}.`,
+    );
     return;
   }
   const none = section.match(/^nenhum\b[\s:.\-–—,]*(.*)$/i);
   if (!none || none[1].trim() === '') {
     error(
       'a seção "Aceite" não cita um arquivo de aceite nem diz "nenhum" com o motivo. ' +
-        'Escreva o caminho do arquivo (docs/aceite/<ticket>.md) ou "nenhum" seguido do motivo (refatoração, harness, documento).',
+        `Escreva o caminho do arquivo (${tickets}/<ticket>/${ACCEPTANCE_NAME}) ou "nenhum" seguido do motivo (refatoração, harness, documento).`,
     );
   }
 }
@@ -83,7 +110,7 @@ function unknownChecks(criteria) {
   for (const criterion of criteria) {
     if (!CHECKS.has(criterion.check)) {
       error(
-        `${criterion.id} em docs/aceite/${criterion.file}: marca "${criterion.check ?? 'ausente'}" desconhecida. ` +
+        `${criterion.id} em ${criterion.file}: marca "${criterion.check ?? 'ausente'}" desconhecida. ` +
           `Use uma destas, na linha "**Marca:**": ${valid}.`,
       );
     }
@@ -131,27 +158,30 @@ function idsOf(test) {
 }
 
 /** A linha de comando: os dois modos do cabeçalho. */
-function main([mode, body, acceptDir, ...reportSpecs]) {
-  if (mode === '--cited' && body === '-') {
-    const cited = acceptSection(fs.readFileSync(0, 'utf8'))?.match(ACCEPTANCE_PATH);
-    if (cited) console.log(`docs/aceite/${cited[1]}`);
+function main([mode, body, ticketsDir, ...reportSpecs]) {
+  if (mode === '--cited' && body === '-' && ticketsDir && reportSpecs.length === 0) {
+    const cited = acceptSection(fs.readFileSync(0, 'utf8'))?.match(acceptancePath(ticketsFolder(ticketsDir)));
+    if (cited) console.log(cited[0]);
     process.exit(0);
   }
 
-  if (!['--required', '--optional'].includes(mode) || body !== '-' || !acceptDir || reportSpecs.length === 0) {
+  if (!['--required', '--optional'].includes(mode) || body !== '-' || !ticketsDir || reportSpecs.length === 0) {
     console.error(
-      'Uso: node check-acceptance.cjs <--required|--optional> - <pasta de aceite> <tipo>:<relatório>...\n' +
-        '     node check-acceptance.cjs --cited -\n' +
+      'Uso: node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <tipo>:<relatório>...\n' +
+        '     node check-acceptance.cjs --cited - <pasta dos tickets>\n' +
         'O corpo do PR vai pela entrada padrão.',
     );
     process.exit(2);
   }
 
-  // Os arquivos de aceite de todos os tickets.
+  // Os arquivos de aceite de todos os tickets, pelo caminho, que é como o corpo do PR os cita e as
+  // mensagens os mostram.
+  const tickets = ticketsFolder(ticketsDir);
   const files = new Map();
-  if (fs.existsSync(acceptDir)) {
-    for (const name of fs.readdirSync(acceptDir).filter((entry) => entry.endsWith('.md'))) {
-      files.set(name, fs.readFileSync(path.join(acceptDir, name), 'utf8'));
+  if (fs.existsSync(tickets)) {
+    for (const entry of fs.readdirSync(tickets, { withFileTypes: true }).filter((item) => item.isDirectory())) {
+      const file = path.posix.join(tickets, entry.name, ACCEPTANCE_NAME);
+      if (fs.existsSync(file)) files.set(file, fs.readFileSync(file, 'utf8'));
     }
   }
 
@@ -168,11 +198,11 @@ function main([mode, body, acceptDir, ...reportSpecs]) {
       console.log('Aceite: seção não exigida, porque o pull request não altera nada em apps/.');
     }
   } else {
-    checkSection(section, files);
+    checkSection(section, files, tickets);
   }
 
   // Os critérios, de todos os tickets.
-  const criteria = [...files].flatMap(([name, text]) => parseAcceptanceFile(name, text).criteria);
+  const criteria = [...files].flatMap(([file, text]) => parseAcceptanceFile(file, text).criteria);
   unknownChecks(criteria);
   const known = new Set(criteria.map((criterion) => criterion.id));
   const duplicated = criteria.find((criterion, index) => criteria.findIndex((other) => other.id === criterion.id) !== index);
@@ -215,7 +245,7 @@ function main([mode, body, acceptDir, ...reportSpecs]) {
     const statuses = byId.get(criterion.id) ?? [];
     if (statuses.length === 0) {
       error(
-        `${criterion.id} (docs/aceite/${criterion.file}) não tem nenhum teste. ` +
+        `${criterion.id} (${criterion.file}) não tem nenhum teste. ` +
           `Escreva o teste e ponha @${criterion.id} no título dele. Se um teste foi apagado, restaure-o.`,
       );
     } else if (statuses.some((status) => status !== 'passed')) {

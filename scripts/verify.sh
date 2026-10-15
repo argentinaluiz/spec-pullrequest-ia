@@ -6,9 +6,13 @@
 #   scripts/verify.sh fast [app...]                tipos e lint das apps citadas (todas, se nenhuma)
 #   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, os testes do
 #                                                  harness, o aceite e a varredura de segredos; é o
-#                                                  veredito, e só ele libera o push
-#   scripts/verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas, para o dia
-#                                                  a dia; não libera o push
+#                                                  veredito, e só ele libera o push. Roda uma vez, no
+#                                                  fim da tarefa; trava na terceira reprovação igual
+#                                                  seguida, fora da CI
+#   scripts/verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas; não libera
+#                                                  o push
+#   scripts/verify.sh unlock                       tira a trava do modo completo; é do usuário, e um
+#                                                  hook nega o comando ao agente
 #   scripts/verify.sh prepush                      a varredura de segredos, e a conferência de que o
 #                                                  modo completo aprovou o que está no último commit
 #   scripts/verify.sh apps                         as apps registradas, uma por linha
@@ -54,13 +58,17 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 # contêiner `api`, ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
-VERIFIED_PATHS=(apps compose.dev.yaml scripts "$PLAN_SKILL_SCRIPTS" docs/aceite)
-# O estado interno da verificação (as aprovações) fica na pasta do Git, fora do versionamento, onde
-# ninguém precisa lê-lo.
+VERIFIED_PATHS=(apps compose.dev.yaml scripts "$PLAN_SKILL_SCRIPTS" docs/tickets)
+# O estado interno da verificação (as aprovações e a trava) fica na pasta do Git, fora do
+# versionamento, onde ninguém precisa lê-lo.
 HARNESS_DIR="$(git rev-parse --absolute-git-dir)/harness"
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
-# A pasta de cada ticket, fora do versionamento. O que fica nela está no docs/harness.md, etapa 7.
+# A trava das reprovações repetidas do modo completo, com as funções do scripts/full-lock.sh.
+FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
+# shellcheck source=full-lock.sh
+source scripts/full-lock.sh
+# A pasta dos tickets. O que fica nela está no docs/harness.md, etapa 7.
 TICKETS_DIR=docs/tickets
 
 failures=()
@@ -134,13 +142,35 @@ responds() {
     "fetch('$2').then(() => process.exit(0), () => process.exit(1))" >/dev/null 2>&1
 }
 
+# Espera o endereço responder, por até três minutos, num só Node dentro do contêiner, que tenta de
+# novo a cada segundo. Com o arquivo de PID do servidor, desiste na hora em que o processo dele para,
+# em vez de esperar o prazo: o PID gravado deixou de existir ou virou zumbi. Enquanto o arquivo não
+# tem um PID, o servidor ainda está subindo.
+# wait_for <serviço> <endereço> [arquivo de PID, no contêiner]
 wait_for() {
-  local service="$1" url="$2"
-  for _ in $(seq 1 90); do
-    responds "$service" "$url" && return 0
-    sleep 2
-  done
-  return 1
+  in_container "$1" node -e "
+    const fs = require('node:fs');
+    const deadline = Date.now() + 180000;
+    const pidFile = '${3:-}';
+    const read = (file) => {
+      try {
+        return fs.readFileSync(file, 'utf8');
+      } catch {
+        return null;
+      }
+    };
+    const stopped = () => {
+      const pid = pidFile && read(pidFile)?.trim();
+      if (!pid || !/^[0-9]+$/.test(pid)) return false;
+      const stat = read('/proc/' + pid + '/stat');
+      return stat === null || stat.slice(stat.lastIndexOf(') ') + 2, stat.lastIndexOf(') ') + 3) === 'Z';
+    };
+    const attempt = () =>
+      fetch('$2', { signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())) }).then(
+        () => process.exit(0),
+        () => (Date.now() < deadline && !stopped() ? setTimeout(attempt, 1000) : process.exit(1)),
+      );
+    attempt();" >/dev/null 2>&1
 }
 
 # O Node no contêiner `api`: o scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
@@ -154,7 +184,8 @@ node_in_api() {
 HARNESS_REPORT=reports/harness/node-tests.json
 
 # Roda os testes do harness: os do conferidor, do renderizador do contrato e os da skill de plano (o
-# parser e a página do plano) no contêiner `api`, e os do hook de congelamento na máquina.
+# parser e a página do plano) no contêiner `api`, e os dos hooks de congelamento e de antes do comando
+# e os da trava do modo completo na máquina.
 harness_tests() {
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
@@ -163,8 +194,11 @@ harness_tests() {
     --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     scripts/test/*.test.cjs "$PLAN_SKILL_SCRIPTS"/test/*.test.cjs &&
     check_report api vitest "$HARNESS_REPORT" &&
-    # O hook de congelamento usa o `git` e o `jq`, que o contêiner não tem: o teste dele roda aqui.
-    scripts/test/freeze-acceptance.test.sh
+    # Os hooks usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na
+    # máquina: os testes deles rodam aqui.
+    scripts/test/freeze-acceptance.test.sh &&
+    scripts/test/push-verify.test.sh &&
+    scripts/test/full-lock.test.sh
 }
 
 # Falha, dizendo por quê, quando o ACCEPTANCE_BODY_FILE aponta para um arquivo que não existe. Sem
@@ -178,12 +212,7 @@ require_body() {
 # O arquivo de aceite citado na seção "Aceite" do corpo do pull request, lido pelo mesmo conferidor,
 # com o corpo na entrada padrão. Não imprime nada quando não há corpo e quando a seção diz "nenhum".
 cited_acceptance() {
-  require_body && node_in_api scripts/check-acceptance.cjs --cited - <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
-}
-
-# ticket_dir <ticket>
-ticket_dir() {
-  printf '%s/%s' "$TICKETS_DIR" "$1"
+  require_body && node_in_api scripts/check-acceptance.cjs --cited - "$TICKETS_DIR" <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
 }
 
 # O `git diff` que a visão do contrato lê: sem cor nem diff externo, com os prefixos `a/` e `b/` fixos
@@ -195,11 +224,13 @@ plain_diff() {
 }
 
 # O commit mais recente de <commits> (um intervalo ou um ponto, como no `git log`) que criou o
-# <arquivo>. Não imprime nada quando nenhum o criou, e falha quando o `git log` não lê o histórico.
+# <arquivo>. O `--follow` segue o arquivo pelas renomeações: o commit que só o moveu (como o que levou
+# os arquivos de aceite de docs/aceite/ para a pasta de cada ticket) não conta como o que o criou. Não
+# imprime nada quando nenhum o criou, e falha quando o `git log` não lê o histórico.
 # added_by <commits> <arquivo>
 added_by() {
   local commits
-  commits="$(git log --diff-filter=A --format=%H "$1" -- "$2")" || return 1
+  commits="$(git log --follow --diff-filter=A --format=%H "$1" -- "$2")" || return 1
   printf '%s' "${commits%%$'\n'*}"
 }
 
@@ -227,7 +258,8 @@ contract_drift() {
   elif [[ -z "$plan" ]]; then
     echo "Não há commit de plano para comparar: nenhum commit desta branch criou o $file, citado na seção \"Aceite\" do corpo do PR."
   else
-    drift="$(ticket_dir "$(basename "$file" .md)")/contract-drift.txt"
+    # A pasta do ticket é a do arquivo de aceite citado.
+    drift="$(dirname "$file")/contract-drift.txt"
     for app in "${APPS[@]}"; do
       if declare -F "${app}_contract_drift" >/dev/null; then
         "${app}_contract_drift" "$plan" "$HEAD_REF" "$drift"
@@ -251,10 +283,11 @@ acceptance() {
 
   require_body || return
 
-  # O conferidor roda no contêiner `api` (`node_in_api`) e lê do /repo os arquivos de aceite e os
-  # relatórios, que as suítes gravam na pasta de cada app, e o dos testes do harness, na da API. O
-  # corpo do PR, que não está no repositório, vai pela entrada padrão. O relatório que falta o
-  # conferidor reprova, dizendo qual; aqui sai também o que fazer.
+  # O conferidor roda no contêiner `api` (`node_in_api`), na raiz do /repo, e lê de lá os arquivos de
+  # aceite, pela pasta dos tickets relativa a ela, e os relatórios, que as suítes gravam na pasta de
+  # cada app, e o dos testes do harness, na da API. O corpo do PR, que não está no repositório, vai
+  # pela entrada padrão. O relatório que falta o conferidor reprova, dizendo qual; aqui sai também o
+  # que fazer.
   specs+=("vitest:/repo/apps/api/$HARNESS_REPORT")
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
@@ -268,7 +301,7 @@ acceptance() {
     done
   done
 
-  node_in_api scripts/check-acceptance.cjs "$mode" - /repo/docs/aceite "${specs[@]}" <"${body:-/dev/null}"
+  node_in_api scripts/check-acceptance.cjs "$mode" - "$TICKETS_DIR" "${specs[@]}" <"${body:-/dev/null}"
 }
 
 require_base() {
@@ -388,7 +421,7 @@ require_point() {
 # run_plan <ticket> [<commit>]
 run_plan() {
   local args=(
-    --ticket "$1" --aceite docs/aceite --tickets "$TICKETS_DIR" --documentos docs
+    --ticket "$1" --tickets "$TICKETS_DIR" --documentos docs
     --node scripts/node-in-api.sh --contrato "scripts/verify.sh contract"
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
@@ -401,6 +434,8 @@ mode="${1:-}"
 
 # As apps citadas no `full`. Sem nenhuma, ele é o veredito.
 apps=()
+# Se esta execução conta na trava das reprovações repetidas: só o `full` sem apps, fora da CI.
+lock=no
 
 case "$mode" in
   fast)
@@ -421,6 +456,11 @@ case "$mode" in
       esac
     done
     if [[ ${#apps[@]} -eq 0 ]]; then
+      # A trava vale só aqui, e fora da CI. Travado, recusa antes de tudo: rodar de novo não traz
+      # informação nova.
+      full_lock_enabled && lock=yes
+      [[ $lock == yes ]] && full_lock_active &&
+        abort "o modo completo está travado: reprovou $FULL_LOCK_LIMIT vezes seguidas nos mesmos passos." "$FULL_LOCK_ASK"
       run_full
     else
       check_apps "${apps[@]}"
@@ -432,6 +472,13 @@ case "$mode" in
   prepush)
     [[ $# -eq 0 ]] || usage
     run_prepush
+    ;;
+  unlock)
+    # Do usuário, pelo `!` do prompt, que não passa pelos hooks: o hook do agente nega este modo.
+    [[ $# -eq 0 ]] || usage
+    full_lock_reset
+    printf 'Trava do modo completo tirada, e a contagem zerada.\n'
+    exit 0
     ;;
   apps)
     [[ $# -eq 0 ]] || usage
@@ -466,6 +513,21 @@ if [[ ${#failures[@]} -gt 0 ]]; then
   for failure in "${failures[@]}"; do
     printf -- '- %s\n' "$failure" >&2
   done
+  # A trava conta a reprovação pelos nomes dos passos que falharam.
+  if [[ $lock == yes ]]; then
+    names=()
+    for failure in "${failures[@]}"; do
+      names+=("${failure%%$'\n'*}")
+    done
+    count="$(full_lock_record_failure "${names[@]}")"
+    if [[ "$count" -ge $FULL_LOCK_LIMIT ]]; then
+      printf '\nTRAVADO: é a %dª reprovação seguida nos mesmos passos, e o modo completo travou. Até destravar, o `full` recusa rodar.\n' "$count" >&2
+      printf 'Como resolver: %s\n' "$FULL_LOCK_ASK" >&2
+    elif [[ "$count" -gt 1 ]]; then
+      printf '\nÉ a %dª reprovação seguida nos mesmos passos. Na %dª, o modo completo trava: rode de novo só depois de corrigir a causa.\n' \
+        "$count" "$FULL_LOCK_LIMIT" >&2
+    fi
+  fi
   exit 1
 fi
 
@@ -480,6 +542,7 @@ if [[ "$mode" == full ]]; then
   mkdir -p "$(dirname "$APPROVAL_FILE")"
   printf 'state=%s\nacceptance=%s\n' "$verified_state" \
     "$([[ -n "${ACCEPTANCE_BODY_FILE:-}" ]] && echo checked || echo skipped)" >"$APPROVAL_FILE"
+  [[ $lock == yes ]] && full_lock_reset
 fi
 
 printf '\nAPROVADO (%s).\n' "$mode"

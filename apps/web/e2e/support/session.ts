@@ -1,5 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
-import { requiredEnv } from "./env";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 /* Os cookies de token da Sessão, como o navegador os guarda (docs/lld.md, seção 7.2). */
 
@@ -28,7 +27,9 @@ export async function plantSession(
   context: BrowserContext,
   tokens: { accessToken?: string; refreshToken?: string },
 ) {
-  const url = requiredEnv("WEB_URL");
+  // A web do projeto do teste, que é onde o navegador manda o cookie.
+  const url = test.info().project.use.baseURL;
+  if (!url) throw new Error("O projeto do teste não define o baseURL da web.");
   const { accessToken, refreshToken = "token-que-nunca-existiu" } = tokens;
   await context.addCookies([
     ...(accessToken

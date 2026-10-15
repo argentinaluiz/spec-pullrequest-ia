@@ -9,7 +9,6 @@ import {
   signOut,
   signUp,
 } from "./support/account";
-import { requiredEnv } from "./support/env";
 import { uniqueEmail, waitForMailTo } from "./support/mailpit";
 import {
   expectSessionExpiredNotice,
@@ -51,6 +50,7 @@ for (const destination of [
 ]) {
   test(`o destino de retorno externo ${destination} é ignorado`, async ({
     page,
+    baseURL,
   }) => {
     const email = uniqueEmail();
     await createVerifiedUser(page, email);
@@ -59,7 +59,7 @@ for (const destination of [
     await fillLogin(page, email);
 
     await expectSignedInAs(page, email);
-    expect(new URL(page.url()).origin).toBe(requiredEnv("WEB_URL"));
+    expect(new URL(page.url()).origin).toBe(new URL(`${baseURL}`).origin);
     expect(new URL(page.url()).pathname).toBe("/");
   });
 }

@@ -4,6 +4,9 @@
 // aqui, e o conferidor do aceite de um projeto pode importá-lo, para os dois lerem com as mesmas
 // regras. Só usa a biblioteca padrão do Node.
 
+// O nome do arquivo de aceite, na pasta de cada ticket (formatos/aceite.md, "Onde").
+const ACCEPTANCE_NAME = 'aceite.md';
+
 // As marcas de conferência, pela forma normalizada (em minúsculas): o nome como se escreve e se
 // exige teste. Só as quatro primeiras exigem.
 const CHECKS = new Map([
@@ -132,4 +135,4 @@ function parseMessage(message) {
   return parsed;
 }
 
-module.exports = { parseAcceptanceFile, CHECKS, parseMessage, DECISION, FILE_BLOCKS };
+module.exports = { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME, parseMessage, DECISION, FILE_BLOCKS };

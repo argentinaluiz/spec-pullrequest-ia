@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { signIn } from "./support/account";
-import { requiredEnv } from "./support/env";
 import { uniqueEmail } from "./support/mailpit";
 import { accessTokenOf } from "./support/session";
 import { completeUpload, createUpload } from "./support/storage";
@@ -53,7 +52,8 @@ test("o Usuário baixa um arquivo pelo Baixar do menu da linha e recebe o conte�
 
   expect(download.suggestedFilename()).toBe("relatório do mês.txt");
   expect(Buffer.concat(chunks).toString()).toBe(content);
-  await expect(page).toHaveURL(requiredEnv("WEB_URL") + "/");
+  // Relativo, o endereço é resolvido contra a web do projeto (playwright.config.ts).
+  await expect(page).toHaveURL("/");
   await expect(row).toBeVisible();
 });
 
@@ -92,7 +92,7 @@ test("o HTML da lista não traz URL assinada do storage, só o caminho da web @L
   const itemId = await seedFile(page, context, "relatorio.txt", "ola!!");
   const forbidden = ["localhost:4443", "X-Goog-Signature", "response-content-disposition"];
 
-  const served = await context.request.get(requiredEnv("WEB_URL") + "/");
+  const served = await context.request.get("/");
   const servedHtml = await served.text();
   await page
     .getByRole("row", { name: /relatorio\.txt/ })

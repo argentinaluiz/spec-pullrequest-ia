@@ -4,10 +4,14 @@
 # parte da skill de plano (SKILL.md, passos 5 e 6), e os valores de cada argumento são do projeto,
 # que os declara no AGENTS.md, na lista da skill de plano.
 #
-#   plan-page.sh --ticket <ticket> --aceite <pasta dos aceites> --tickets <pasta dos tickets>
+#   plan-page.sh --ticket <ticket> --tickets <pasta dos tickets>
 #                --node <comando do Node> --contrato <comando do contrato, ou nenhum>
 #                [--contrato-arquivos "<arquivo>..."] [--documentos <pasta dos documentos>]
 #                [--commit <commit de plano>]
+#
+# Onde fica o arquivo de aceite do ticket, e o que o Git ignora na pasta dele, está no
+# formatos/aceite.md, "Onde". O script confere as regras do .gitignore antes de montar a página e, se
+# elas não batem, para dizendo o que acrescentar.
 #
 # Sem --commit, as fontes vão do HEAD até o que está preparado no índice, que é o que o commit de
 # plano vai levar, e a mensagem é a proposta, em <tickets>/<ticket>/plano.msg. Com ele, vão do pai do
@@ -17,10 +21,10 @@
 # Sem --commit, o que está só na pasta de trabalho fica de fora da página e do commit de plano, que
 # leem só o índice. O script avisa, no terminal e no topo da página, sem falhar, do que parece ser do
 # plano e ficou fora do índice: um arquivo preparado que tem também mudanças não preparadas; um
-# arquivo novo, fora do versionamento, na pasta dos aceites; uma mudança não preparada nos arquivos
-# do contrato; e, com --documentos, uma mudança não preparada ou um arquivo novo na pasta dos
-# documentos do projeto. A pasta dos tickets fica sempre de fora. O resto da pasta de trabalho (um
-# arquivo solto na raiz, o trabalho em andamento fora desses caminhos) não entra no aviso.
+# arquivo de aceite novo, fora do versionamento, na pasta dos tickets; uma mudança não preparada nos
+# arquivos do contrato; e, com --documentos, uma mudança não preparada ou um arquivo novo na pasta dos
+# documentos do projeto. O resto da pasta de trabalho (um arquivo solto na raiz, o trabalho em
+# andamento fora desses caminhos) não entra no aviso.
 #
 # O comando do Node é chamado como `<comando> <script> -`, da raiz do repositório, com o caminho do
 # script relativo a ela (absoluto quando a skill está fora do repositório), e recebe as fontes da
@@ -47,9 +51,8 @@ stop() {
 # também no bash 3 (o do macOS).
 describe() {
   case "$1" in
-    ticket) echo 'o identificador do ticket, como LUI-146' ;;
-    aceite) echo 'a pasta dos arquivos de aceite' ;;
-    tickets) echo 'a pasta dos tickets, fora do versionamento, onde a página é gravada' ;;
+    ticket) echo 'o identificador do ticket, como PROJ-123' ;;
+    tickets) echo 'a pasta dos tickets, com o arquivo de aceite de cada ticket, onde a página é gravada' ;;
     node) echo 'o comando do Node, chamado como `<comando> <script> -`, com as fontes na entrada padrão' ;;
     contrato) echo 'o comando do contrato, chamado como `<comando> <de> <até>`, ou `nenhum`' ;;
     contrato-arquivos) echo 'os arquivos do contrato (os donos das rotas e das tabelas), separados por espaço' ;;
@@ -57,13 +60,13 @@ describe() {
   esac
 }
 
-ticket='' aceite='' tickets='' node='' contrato='' contrato_arquivos='' documentos='' commit=''
+ticket='' tickets='' node='' contrato='' contrato_arquivos='' documentos='' commit=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --ticket | --aceite | --tickets | --node | --contrato | --contrato-arquivos | --documentos | --commit) ;;
+    --ticket | --tickets | --node | --contrato | --contrato-arquivos | --documentos | --commit) ;;
     *)
       stop 2 "O argumento \`$1\` não existe." \
-        "use só os argumentos do cabeçalho deste script (--ticket, --aceite, --tickets, --node, --contrato, --contrato-arquivos, --documentos e --commit)."
+        "use só os argumentos do cabeçalho deste script (--ticket, --tickets, --node, --contrato, --contrato-arquivos, --documentos e --commit)."
       ;;
   esac
   [[ $# -ge 2 && -n "$2" ]] ||
@@ -76,7 +79,7 @@ done
 # Os argumentos que faltam, todos de uma vez. O --ticket vem da tarefa; os outros, do projeto.
 missing=()
 [[ -n "$ticket" ]] || missing+=(ticket)
-for name in aceite tickets node contrato; do
+for name in tickets node contrato; do
   [[ -n "${!name}" ]] || missing+=("$name")
 done
 [[ -n "$contrato" && "$contrato" != nenhum && -z "$contrato_arquivos" ]] && missing+=(contrato-arquivos)
@@ -93,7 +96,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
 fi
 
 [[ "$ticket" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
-  stop 2 "\`$ticket\` não é o identificador de um ticket." "passe o identificador do gerenciador de issues, como \`LUI-146\`."
+  stop 2 "\`$ticket\` não é o identificador de um ticket." "passe o identificador do gerenciador de issues, como \`PROJ-123\`."
 
 root="$(git rev-parse --show-toplevel 2>/dev/null)" ||
   stop 2 "O diretório atual não está num repositório do Git." "rode o script de dentro do repositório do projeto."
@@ -105,14 +108,25 @@ cd "$root" || stop 2 "Não deu para entrar na raiz do repositório, $root." "con
 skill="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 [[ "$skill" == "$root"/* ]] && skill="${skill#"$root"/}"
 
-aceite="${aceite%/}"
 tickets="${tickets%/}"
 documentos="${documentos%/}"
 contract_files=()
 [[ -n "$contrato_arquivos" ]] && read -r -a contract_files <<<"$contrato_arquivos"
 dir="$tickets/$ticket"
 msg="$dir/plano.msg"
-acceptance="$aceite/$ticket.md"
+acceptance="$dir/aceite.md"
+
+# As regras do .gitignore para a pasta do ticket (formatos/aceite.md, "Onde"), numa chamada só, sem
+# olhar o que já está em commit: os caminhos ignorados, um por linha, entre quebras de linha.
+ignored=$'\n'"$(git -c core.quotePath=false check-ignore --no-index -- "$dir/plano.html" "$msg" "$acceptance")"$'\n'
+for file in "$dir/plano.html" "$msg"; do
+  [[ "$ignored" == *$'\n'"$file"$'\n'* ]] ||
+    stop 2 "A pasta dos tickets, $tickets, não ignora o $file, e só o aceite.md de cada ticket é versionado." \
+      "acrescente ao .gitignore as linhas \`$tickets/*/*\` e \`!$tickets/*/aceite.md\`, e rode o script de novo."
+done
+[[ "$ignored" == *$'\n'"$acceptance"$'\n'* ]] &&
+  stop 2 "A pasta dos tickets, $tickets, ignora o $acceptance, e o arquivo de aceite entra no commit de plano." \
+    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\`) pelas linhas \`$tickets/*/*\` e \`!$tickets/*/aceite.md\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
 
 # Roda um comando do projeto, que pode ter argumentos próprios, com os argumentos dados.
 # project <comando> <argumentos...>
@@ -143,17 +157,18 @@ status() {
 
 # As mudanças fora do índice que parecem ser do plano, como o cabeçalho as descreve, uma por linha:
 # preparadas e com mudança não preparada (X e Y preenchidos, salvo o `??`); novas na pasta dos
-# aceites; não preparadas ou novas (Y preenchido) nos arquivos do contrato e na pasta dos documentos.
+# tickets; não preparadas ou novas (Y preenchido) nos arquivos do contrato e na pasta dos documentos.
 pending_changes() {
-  local wanted
+  local all wanted
+  all="$(status .)"
   wanted="$(
-    status . ":(exclude)$tickets" | grep '^[^ ?][^ ]'
-    status "$aceite" ":(exclude)$tickets" | grep '^??'
+    grep '^[^ ?][^ ]' <<<"$all"
+    status "$tickets" | grep '^??'
     [[ -n "$contrato_arquivos" ]] && status ${contract_files[@]+"${contract_files[@]}"} | grep '^.[^ ]'
-    [[ -n "$documentos" ]] && status "$documentos" ":(exclude)$tickets" | grep '^.[^ ]'
+    [[ -n "$documentos" ]] && status "$documentos" | grep '^.[^ ]'
   )"
   [[ -n "$wanted" ]] || return 0
-  status . ":(exclude)$tickets" | grep -Fx -f <(printf '%s\n' "$wanted")
+  grep -Fx -f <(printf '%s\n' "$wanted") <<<"$all"
 }
 
 # A saída de um comando, byte a byte, numa variável: a substituição de comando tiraria as quebras de
@@ -166,17 +181,16 @@ capture() {
   printf -v "$name" '%s' "${out%.}"
 }
 
-# A página é escrita num arquivo temporário na raiz da pasta dos tickets, para a pasta do ticket nunca
-# ter nada além da página e da mensagem proposta, e só no fim movida para o lugar dela, para uma
-# montagem que falha não deixar uma página pela metade. O `mktemp` cria o arquivo só para o dono; a
-# página ganha as permissões de um arquivo novo.
+# A página é escrita num arquivo temporário na pasta do ticket, que o Git ignora como a página, e só no
+# fim movida para o lugar dela, para uma montagem que falha não deixar uma página pela metade. O
+# `mktemp` cria o arquivo só para o dono; a página ganha as permissões de um arquivo novo.
 mkdir -p "$dir" || stop 2 "Não deu para criar a pasta do ticket, $dir." "confira as permissões da pasta $tickets."
-draft="$(mktemp "$tickets/.plano-$ticket.XXXXXX")" ||
-  stop 2 "Não deu para criar o arquivo temporário da página em $tickets." "confira as permissões da pasta $tickets."
+draft="$(mktemp "$dir/.plano.html.XXXXXX")" ||
+  stop 2 "Não deu para criar o arquivo temporário da página em $dir." "confira as permissões da pasta $dir."
 # shellcheck disable=SC2064 # o caminho é fixado agora, e não quando o trap roda.
 trap "rm -f '$draft'" EXIT
 chmod "$(printf '%o' $((0666 & ~$(umask))))" "$draft" ||
-  stop 2 "Não deu para ajustar as permissões do arquivo temporário da página, $draft." "confira as permissões da pasta $tickets."
+  stop 2 "Não deu para ajustar as permissões do arquivo temporário da página, $draft." "confira as permissões da pasta $dir."
 
 pending=''
 if [[ -z "$commit" ]]; then
@@ -203,15 +217,17 @@ else
     stop 2 "\`$commit\` não é um commit deste repositório." "passe o commit de plano do ticket, como o \`git log\` o mostra."
   git rev-parse --verify --quiet "$commit^" >/dev/null ||
     stop 2 "O commit \`$commit\` não tem pai, e a página compara o commit de plano com o anterior a ele." "passe o commit de plano do ticket."
-  # O commit de plano é o que criou o arquivo de aceite do ticket.
-  if [[ -z "$(git diff-tree -r --name-only --diff-filter=A "$commit^" "$commit" -- "$acceptance")" ]]; then
-    found="$(git log --diff-filter=A --format=%h HEAD -- "$acceptance" | head -n 1)"
-    [[ -n "$found" ]] &&
-      stop 2 "O commit \`$commit\` não é o commit de plano do $ticket: ele não cria o $acceptance." \
-        "passe o commit que o criou: \`--commit $found\`."
+  # O commit de plano é o mais recente que criou o arquivo de aceite do ticket, a partir do HEAD. O
+  # `git log --follow` segue o arquivo pelas renomeações, então o commit que só o moveu não conta, e
+  # imprime o commit, uma linha em branco e o caminho que o arquivo tinha nele, que é o que a página lê.
+  { read -r found; read -r _; read -r created; } <<<"$(git -c core.quotePath=false log --follow --diff-filter=A --format=%H --name-only HEAD -- "$acceptance" 2>/dev/null)"
+  [[ -n "$found" ]] ||
     stop 2 "O commit \`$commit\` não é o commit de plano do $ticket: ele não cria o $acceptance, e nenhum commit do HEAD o cria." \
       "passe o commit de plano do ticket, que cria o arquivo de aceite; antes do commit de plano, rode o script sem o --commit."
-  fi
+  [[ "$found" == "$(git rev-parse "$commit^{commit}")" ]] ||
+    stop 2 "O commit \`$commit\` não é o commit de plano do $ticket: ele não cria o $acceptance." \
+      "passe o commit que o criou: \`--commit $(git rev-parse --short "$found")\`."
+  acceptance="$created"
   from="$(git rev-parse --short "$commit^")"
   to="$(git rev-parse --short "$commit")"
   origin="Montada do commit de plano $to."

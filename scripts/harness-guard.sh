@@ -54,10 +54,10 @@ while IFS= read -r file; do
       blocked+=("$file")
       ;;
     # Aceite congelado: um arquivo de aceite que já existe na `main` (a versão do diretório atual)
-    # foi alterado, renomeado ou apagado. Criar um arquivo novo não conta. Só avisa, porque
-    # descongelar é legítimo quando um ticket muda um comportamento já entregue, e o humano que
-    # faz o merge é quem decide.
-    docs/aceite/*)
+    # foi alterado, renomeado ou apagado. Criar um arquivo novo não conta, nem os outros arquivos da
+    # pasta do ticket. Só avisa, porque descongelar é legítimo quando um ticket muda um
+    # comportamento já entregue, e o humano que faz o merge é quem decide.
+    docs/tickets/*/aceite.md)
       [[ -f "$file" ]] && frozen+=("$file")
       ;;
     # Mudança de dependência é tarefa normal e só avisa. Mudança nos comandos bloqueia.

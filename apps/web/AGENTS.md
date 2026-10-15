@@ -140,6 +140,8 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 | `npx playwright test -g "nome do teste"` | Um teste pelo nome |
 
 - **A web e a API têm de estar no ar.** Os testes falam com a aplicação real em `http://web:3000`. Como subir as duas está no `AGENTS.md` da raiz, seção "Execução no Docker".
+- **Dois projetos, pela pasta.** O `playwright.config.ts` separa os arquivos de `e2e/vitrine/` (projeto `vitrine`), que rodam sempre no servidor de desenvolvimento, porque a vitrine não existe no build, dos outros (projeto `build`). Os do `build` rodam contra o build de produção quando a variável `WEB_BUILD_URL` aponta para ele, que é como o `scripts/verify.sh full` os roda (`docs/harness.md`, seção "Script de verificação"). Na CI (com a variável `CI`), ela é obrigatória, e a configuração falha sem ela; num teste avulso, sem ela, eles rodam contra o servidor de desenvolvimento.
+- **Endereço da web nos testes:** use o caminho relativo (`page.goto("/")`, `toHaveURL("/")`) ou o `baseURL` do teste, e não o `WEB_URL`, que é só o do servidor de desenvolvimento.
 - **O relatório** fica em `apps/web/playwright-report/`, e o trace de um teste que falhou, em `apps/web/test-results/`. Os dois ficam fora do Git.
 - **A versão do Playwright é fixa.** A do `@playwright/test`, no `package.json`, e a da imagem do serviço `playwright`, no `compose.dev.yaml`, têm de ser a mesma. Atualize as duas juntas.
 
@@ -147,7 +149,7 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 
 - **O que entra:** o que só existe na web, pela porta que o Usuário usa. As regras do contrato são provadas pelos testes de ponta a ponta da API, e não aqui.
 - **Sem outro nível de teste aqui:** o que é função pura vai para a suíte de unidade. O cliente de `lib/api`, que fala com a API, é provado pela rota `/vitrine/api`, e os auxiliares de `e2e/support/`, por um teste próprio na mesma suíte.
-- **Onde ficam:** em `e2e/`, com o sufixo `.spec.ts`. Os auxiliares ficam em `e2e/support/`.
+- **Onde ficam:** em `e2e/`, com o sufixo `.spec.ts`, e os que abrem a vitrine, em `e2e/vitrine/`. Os auxiliares ficam em `e2e/support/`.
 - **Usuários de teste:** `e2e/support/account.ts` cadastra, verifica e entra pela própria interface (`createVerifiedUser()`, `signIn()`), e sai pelo menu da conta (`signOut()`). Quem está na casca do Drive é conferido pelo botão do menu da conta, que leva o e-mail no nome (`expectSignedInAs()`). Os cookies de token da Sessão são lidos e plantados com `e2e/support/session.ts`.
 - **Itens na Pasta raiz:** o teste do próprio envio sobe o arquivo pelo botão "Enviar". Para a lista com vários arquivos, com nome, tipo, tamanho e data escolhidos, `seedRootFiles()`, de `e2e/support/items.ts`, grava arquivos ativos direto no banco da API, pela `DATABASE_URL` do serviço `playwright`. A Cota cheia, que nenhuma tela produz, é gravada do mesmo jeito, por `fillQuota()` (`e2e/support/quota.ts`). O Usuário já tem de ter entrado, porque a raiz nasce na primeira listagem; depois de gravar, recarregue a página.
 - **Token de acesso expirado:** o teste não espera os 15 minutos. Ele apaga o cookie do token de acesso, que é o que o navegador faz quando o token expira, e deixa o de renovação.

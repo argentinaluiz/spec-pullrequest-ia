@@ -15,11 +15,11 @@ const { panel, text } = require('./helpers.cjs');
 const ORIGIN = 'Montada da pasta de trabalho.';
 
 const ACCEPTANCE = [
-  '# Aceite do LUI-900',
+  '# Aceite do PROJ-123',
   '',
   'Ticket de exemplo.',
   '',
-  '## LUI-900-CA1',
+  '## PROJ-123-CA1',
   '',
   '**Marca:** documento',
   '',
@@ -29,13 +29,13 @@ const ACCEPTANCE = [
 
 test('fecha o negrito que contém um asterisco solto', () => {
   const acceptance = ACCEPTANCE.replace('Ticket de exemplo.', 'Ticket de exemplo.\n\n**Nota: 2*3 = 6.** resto');
-  const aceite = panel(build({ ticket: 'LUI-900', origin: ORIGIN, acceptance }), 'aceite');
+  const aceite = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, acceptance }), 'aceite');
   assert.match(aceite, /<p><strong>Nota: 2\*3 = 6\.<\/strong> resto<\/p>/);
 });
 
 test('sem o arquivo de aceite, a aba Aceite cita o caminho dele no projeto', () => {
-  const html = build({ ticket: 'LUI-900', origin: ORIGIN, acceptancePath: 'qa/criterios/LUI-900.md' });
-  assert.match(panel(html, 'aceite'), /O plano não tem o arquivo de aceite <code>qa\/criterios\/LUI-900\.md<\/code>\./);
+  const html = build({ ticket: 'PROJ-123', origin: ORIGIN, acceptancePath: 'qa/criterios/PROJ-123.md' });
+  assert.match(panel(html, 'aceite'), /O plano não tem o arquivo de aceite <code>qa\/criterios\/PROJ-123\.md<\/code>\./);
 });
 
 test('separa o diff dos documentos pelo caminho de cada arquivo, com acento, espaço, aspas, apagado e binário', () => {
@@ -82,7 +82,7 @@ test('separa o diff dos documentos pelo caminho de cada arquivo, com acento, esp
     '',
   ].join('\n');
 
-  const documentos = panel(build({ ticket: 'LUI-900', origin: ORIGIN, docsDiff }), 'documentos');
+  const documentos = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, docsDiff }), 'documentos');
   const files = [...documentos.matchAll(/<h2><code>([^<]*)<\/code><\/h2>/g)].map((match) => text(match[1]));
   assert.deepEqual(files, [
     'docs/decisões.md',
@@ -108,7 +108,7 @@ test('dentro de um trecho, a linha que parece cabeçalho é uma linha removida o
     '',
   ].join('\n');
 
-  const documentos = panel(build({ ticket: 'LUI-900', origin: ORIGIN, docsDiff }), 'documentos');
+  const documentos = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, docsDiff }), 'documentos');
   assert.match(documentos, /<span class="meta">--- a\/docs\/lld\.md<\/span>/);
   assert.match(documentos, /<span class="meta">\+\+\+ b\/docs\/lld\.md<\/span>/);
   assert.match(documentos, /<span class="menos">--- item que sai<\/span>/);
@@ -117,9 +117,9 @@ test('dentro de um trecho, a linha que parece cabeçalho é uma linha removida o
 
 test('lê cada bloco da mensagem do rótulo até o próximo rótulo ou as linhas de atribuição', () => {
   const message = [
-    'docs: plan the item copy (LUI-900)',
+    'docs: plan the item copy (PROJ-123)',
     '',
-    'Acceptance file docs/aceite/LUI-900.md (CA1-CA2).',
+    'Acceptance file docs/tickets/PROJ-123/aceite.md (CA1-CA2).',
     '',
     'Decision: the copy reserves quota before writing.',
     '',
@@ -141,7 +141,7 @@ test('lê cada bloco da mensagem do rótulo até o próximo rótulo ou as linhas
     '',
   ].join('\n');
 
-  const html = build({ ticket: 'LUI-900', origin: ORIGIN, message });
+  const html = build({ ticket: 'PROJ-123', origin: ORIGIN, message });
   const decisions = panel(html, 'decisoes');
   const items = [...decisions.matchAll(/<ol class="decisoes">([\s\S]*?)<\/ol>/g)][0][1].match(/<li>[\s\S]*?<\/li>/g);
   assert.equal(items.length, 2, decisions);
@@ -157,13 +157,13 @@ test('lê cada bloco da mensagem do rótulo até o próximo rótulo ou as linhas
 });
 
 test('avisa no topo da página das mudanças fora do índice nos caminhos do plano, e não avisa sem elas', () => {
-  const html = build({ ticket: 'LUI-900', origin: ORIGIN, pending: [' M docs/lld.md', '?? docs/<novo>.md'] });
+  const html = build({ ticket: 'PROJ-123', origin: ORIGIN, pending: [' M docs/lld.md', '?? docs/<novo>.md'] });
   const header = html.slice(html.indexOf('<header>'), html.indexOf('</header>'));
   assert.match(header, /<div class="aviso" role="alert">/);
   assert.match(text(header), /Há mudanças fora do índice nos caminhos do plano\./);
   assert.match(header, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/&lt;novo&gt;\.md<\/code><\/li>/);
 
-  assert.doesNotMatch(build({ ticket: 'LUI-900', origin: ORIGIN }), /class="aviso"/);
+  assert.doesNotMatch(build({ ticket: 'PROJ-123', origin: ORIGIN }), /class="aviso"/);
 });
 
 test('a lista acaba num título, numa cerca, numa linha de tabela ou numa linha em branco, e a linha comum continua o item', () => {
@@ -187,7 +187,7 @@ test('a lista acaba num título, numa cerca, numa linha de tabela ou numa linha 
     '',
   ].join('\n');
 
-  const tab = panel(build({ ticket: 'LUI-900', origin: ORIGIN, contract }), 'contrato');
+  const tab = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, contract }), 'contrato');
   assert.match(tab, /<ul><li>primeiro continuação do primeiro<\/li><\/ul>\n<h2>Depois da lista<\/h2>/);
   assert.match(tab, /<ul><li>segundo<\/li><\/ul>\n<pre>código<\/pre>/);
   assert.match(tab, /<ul><li>terceiro<\/li><\/ul>\n<div class="rolagem"><table><thead><tr><th>A<\/th><th>B<\/th>/);
@@ -211,7 +211,7 @@ test('dentro de um bloco de código, só uma cerca sem nada o fecha, nas seçõe
     '',
   ].join('\n');
 
-  const html = build({ ticket: 'LUI-900', origin: ORIGIN, contract });
+  const html = build({ ticket: 'PROJ-123', origin: ORIGIN, contract });
   assert.match(panel(html, 'contrato'), /<pre>```diff\n# Schema<\/pre>\n<p>Depois do bloco\.<\/p>/);
   assert.equal(text(panel(html, 'schema')), 'O schema não muda.');
   assert.match(panel(html, 'schema'), /<p class="vazio">O schema não muda\.<\/p>/);
@@ -220,7 +220,7 @@ test('dentro de um bloco de código, só uma cerca sem nada o fecha, nas seçõe
 test('só o parágrafo que é um único trecho em itálico, sem asterisco dentro, é uma nota de vazio', () => {
   const contract = ['# Contrato', '', '*a* e *b*', '', '*nota com `código`*', '', '*um **forte** aqui*', ''].join('\n');
 
-  const tab = panel(build({ ticket: 'LUI-900', origin: ORIGIN, contract }), 'contrato');
+  const tab = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, contract }), 'contrato');
   assert.match(tab, /<p>\*a\* e \*b\*<\/p>/);
   assert.match(tab, /<p class="vazio">nota com <code>código<\/code><\/p>/);
   assert.match(tab, /<p>\*um <strong>forte<\/strong> aqui\*<\/p>/);
@@ -230,7 +230,7 @@ test('só o parágrafo que é um único trecho em itálico, sem asterisco dentro
 test('tira do título só a sequência de fechamento com um espaço antes', () => {
   const contract = ['# Contrato', '', '## Rotas ##', '', '### Linguagem x-c#', '', '#### C# #', '', '##### #', ''].join('\n');
 
-  const tab = panel(build({ ticket: 'LUI-900', origin: ORIGIN, contract }), 'contrato');
+  const tab = panel(build({ ticket: 'PROJ-123', origin: ORIGIN, contract }), 'contrato');
   assert.match(tab, /<h2>Rotas<\/h2>/);
   assert.match(tab, /<h3>Linguagem x-c#<\/h3>/);
   assert.match(tab, /<h4>C#<\/h4>/);
@@ -243,25 +243,25 @@ test('a linha de comando lê as fontes em pares terminados por NUL na entrada pa
   // Como o `printf '%s\0' <nome> <valor>...` do plan-page.sh: só as fontes que existem, sem o contrato.
   const pairs = (sources) => Object.entries(sources).flat().map((part) => `${part}\0`).join('');
   const sources = {
-    ticket: 'LUI-900',
+    ticket: 'PROJ-123',
     origin: ORIGIN,
-    acceptancePath: 'docs/aceite/LUI-900.md',
+    acceptancePath: 'docs/tickets/PROJ-123/aceite.md',
     acceptance: ACCEPTANCE,
     docsDiff: '',
-    message: 'docs: plan (LUI-900)\n\nDecision: a cópia reserva a cota.\n',
-    pending: ' M docs/lld.md\n?? docs/aceite/LUI-901.md',
+    message: 'docs: plan (PROJ-123)\n\nDecision: a cópia reserva a cota.\n',
+    pending: ' M docs/lld.md\n?? docs/tickets/PROJ-124/aceite.md',
   };
 
   const result = cli(['-'], pairs(sources));
   assert.equal(result.status, 0, result.stderr);
   const { pending, ...rest } = sources;
   assert.equal(result.stdout, build({ ...rest, pending: pending.split('\n') }));
-  assert.match(text(panel(result.stdout, 'aceite')), /LUI-900-CA1 documento Dado o LLD/);
-  assert.match(result.stdout, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/aceite\/LUI-901\.md<\/code><\/li>/);
+  assert.match(text(panel(result.stdout, 'aceite')), /PROJ-123-CA1 documento Dado o LLD/);
+  assert.match(result.stdout, /<li><code> M docs\/lld\.md<\/code><\/li><li><code>\?\? docs\/tickets\/PROJ-124\/aceite\.md<\/code><\/li>/);
   assert.match(text(panel(result.stdout, 'contrato')), /^O projeto não declara contrato\.$/);
 
   // Uma entrada que não termina num par completo é recusada.
-  const broken = cli(['-'], 'ticket\0LUI-900');
+  const broken = cli(['-'], 'ticket\0PROJ-123');
   assert.notEqual(broken.status, 0);
   assert.match(broken.stderr, /pares nome e valor/);
 
