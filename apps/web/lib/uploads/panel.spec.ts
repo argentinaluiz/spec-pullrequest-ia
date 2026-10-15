@@ -21,6 +21,10 @@ describe("título do painel de envios", () => {
     expect(panelTitle(entries("paused", "done"))).toBe("Enviando 1 de 2");
   });
 
+  it("conta o que espera o arquivo entre os que estão enviando", () => {
+    expect(panelTitle(entries("waiting", "done"))).toBe("Enviando 1 de 2");
+  });
+
   it("com tudo terminado, conta os concluídos", () => {
     expect(panelTitle(entries("done", "failed"))).toBe("1 de 2 enviado");
   });

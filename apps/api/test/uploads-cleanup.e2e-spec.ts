@@ -153,6 +153,12 @@ describe('Limpeza dos uploads pendentes', () => {
       code: 'not_found',
       detail: expect.any(String),
     });
+    expectProblem(await uploads().resume(accessToken, itemId), {
+      title: 'Not Found',
+      status: 404,
+      code: 'not_found',
+      detail: expect.any(String),
+    });
   });
 
   it('não toca no upload concluído entre a listagem e o expurgo', async () => {

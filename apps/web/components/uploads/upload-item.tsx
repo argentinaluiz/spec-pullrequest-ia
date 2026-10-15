@@ -1,7 +1,7 @@
 "use client";
 
-import { CircleAlert, CircleCheck, Pause, Play, RotateCw, X } from "lucide-react";
-import { memo, type ReactNode } from "react";
+import { CircleAlert, CircleCheck, Pause, Play, RotateCw, TriangleAlert, X } from "lucide-react";
+import { memo, useRef, type ReactNode } from "react";
 import { FILE_KIND_ICONS } from "@/components/files/file-row";
 import { fileKind } from "@/components/files/format";
 import { ButtonIcon } from "@/components/ui/button-icon";
@@ -16,6 +16,8 @@ type UploadItemProps = {
   onResume: (key: string) => void;
   onCancel: (key: string) => void;
   onRetry: (key: string) => void;
+  /** O arquivo escolhido para o envio que espera por ele. */
+  onSelectFile: (key: string, file: File) => void;
   /** Tira o item do painel. Só os envios que falharam o oferecem. */
   onDismiss: (key: string) => void;
 };
@@ -35,10 +37,33 @@ function ProgressBar({ entry }: { entry: UploadEntry }) {
   );
 }
 
+/** O botão "Selecionar arquivo" do envio que espera o arquivo, com o seletor escondido. */
+function SelectFileButton({ entry, onSelectFile }: Pick<UploadItemProps, "entry" | "onSelectFile">) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div className="self-start">
+      <input
+        ref={input}
+        type="file"
+        hidden
+        tabIndex={-1}
+        aria-label={`Arquivo de ${entry.name}`}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onSelectFile(entry.key, file);
+          // Sem limpar, escolher o mesmo arquivo de novo não dispara o evento.
+          event.target.value = "";
+        }}
+      />
+      <ButtonUtility onClick={() => input.current?.click()}>Selecionar arquivo</ButtonUtility>
+    </div>
+  );
+}
+
 /** O que cada estado mostra sob o nome (`detail`) e à direita (`trailing`). */
 function statusBlock(
   entry: UploadEntry,
-  { onPause, onResume, onCancel, onRetry, onDismiss }: Omit<UploadItemProps, "entry">,
+  { onPause, onResume, onCancel, onRetry, onSelectFile, onDismiss }: Omit<UploadItemProps, "entry">,
 ): { detail: ReactNode; trailing: ReactNode } {
   const cancel = (
     <ButtonIcon aria-label={`Cancelar envio de ${entry.name}`} onClick={() => onCancel(entry.key)}>
@@ -86,6 +111,40 @@ function statusBlock(
             >
               <Play className="size-4" />
             </ButtonIcon>
+            {cancel}
+          </>
+        ),
+      };
+    case "waiting":
+      return {
+        detail: (
+          <>
+            <p
+              className={
+                entry.mismatch
+                  ? "flex items-start gap-1 text-caption text-warning"
+                  : "text-caption text-ink-muted"
+              }
+            >
+              {entry.mismatch ? (
+                <>
+                  <TriangleAlert className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    Não é o mesmo arquivo. Selecione {entry.name}.
+                  </span>
+                </>
+              ) : (
+                (entry.message ?? "Selecione o arquivo de novo para continuar")
+              )}
+            </p>
+            <SelectFileButton entry={entry} onSelectFile={onSelectFile} />
+          </>
+        ),
+        trailing: (
+          <>
+            <span className="font-mono text-mono text-ink-muted tabular-nums">
+              {entry.progress}%
+            </span>
             {cancel}
           </>
         ),
@@ -138,16 +197,16 @@ function statusBlock(
 /**
  * O `{component.upload-item}`: uma linha do painel de envios, em cada estado do arquivo: na
  * fila, enviando (barra, porcentagem, pausar e cancelar), pausado (retomar e cancelar),
- * concluído e falhou (com "Tentar de novo" quando uma nova tentativa pode dar certo).
+ * esperando o arquivo (pedido, "Selecionar arquivo", porcentagem e cancelar), concluído e falhou (com "Tentar de novo" quando uma nova tentativa pode dar certo).
  */
 export const UploadItem = memo(function UploadItem({ entry, ...actions }: UploadItemProps) {
   const Icon = FILE_KIND_ICONS[fileKind({ type: "file", mimeType: entry.mimeType })];
-  const failed = entry.status === "failed";
+  const tall = entry.status === "failed" || entry.status === "waiting";
   const { detail, trailing } = statusBlock(entry, actions);
 
   return (
-    <li className={`flex gap-3 px-4 ${failed ? "items-start py-3" : "h-12 items-center"}`}>
-      <span className={`flex w-4 shrink-0 items-center text-ink-muted ${failed ? "h-5" : ""}`}>
+    <li className={`flex gap-3 px-4 ${tall ? "items-start py-3" : "h-12 items-center"}`}>
+      <span className={`flex w-4 shrink-0 items-center text-ink-muted ${tall ? "h-5" : ""}`}>
         <Icon className="size-4" />
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-1">

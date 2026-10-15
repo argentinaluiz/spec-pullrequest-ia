@@ -17,6 +17,14 @@ export function createUpload(
   return apiRequest("/uploads", { method: "POST", body: input, accessToken });
 }
 
+/** A sessão que a criação do upload fez, para retomar um envio incompleto. Não cria outra. */
+export function getUpload(
+  accessToken: string,
+  itemId: string,
+): Promise<ApiResult<Upload>> {
+  return apiRequest(`/uploads/${encodeURIComponent(itemId)}`, { accessToken });
+}
+
 /** Confere o arquivo no storage e o torna visível na lista. */
 export function completeUpload(
   accessToken: string,

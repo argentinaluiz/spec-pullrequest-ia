@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
   PendingUpload,
+  ResumableUpload,
   FileUpload,
   Item,
   ItemPosition,
@@ -191,6 +192,29 @@ export class ItemsRepository {
       select: PENDING_UPLOAD_FIELDS,
     });
     return row && toPendingUpload(row);
+  }
+
+  /** O upload `pending` do Usuário que já tem sessão no storage, ou `null`. */
+  async findResumableUpload(
+    ownerId: string,
+    id: string,
+  ): Promise<ResumableUpload | null> {
+    const row = await this.prisma.item.findFirst({
+      where: {
+        id,
+        ownerId,
+        type: 'file',
+        status: 'pending',
+        uploadSessionUri: { not: null },
+      },
+      select: { id: true, uploadSessionUri: true, createdAt: true },
+    });
+    if (!row || row.uploadSessionUri === null) return null;
+    return {
+      id: row.id,
+      uploadSessionUri: row.uploadSessionUri,
+      createdAt: row.createdAt,
+    };
   }
 
   /**

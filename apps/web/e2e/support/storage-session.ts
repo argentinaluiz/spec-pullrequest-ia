@@ -25,6 +25,8 @@ export interface StorageSession {
   hold: (chunk: ChunkMatch) => HeldChunk;
   /** Os `Content-Range` dos `PUT` que chegaram, na ordem, com os de consulta de progresso. */
   readonly requests: string[];
+  /** O endereço completo de cada sessão de upload que recebeu um `PUT`, sem repetir. */
+  readonly sessionUrls: string[];
 }
 
 interface Pending {
@@ -51,6 +53,7 @@ export async function interceptStorageSession(page: Page): Promise<StorageSessio
   const confirmed = new Map<string, number>();
   const pending: Pending[] = [];
   const requests: string[] = [];
+  const sessionUrls: string[] = [];
   const aborted = new WeakSet<Request>();
   page.on("requestfailed", (request) => aborted.add(request));
 
@@ -85,6 +88,7 @@ export async function interceptStorageSession(page: Page): Promise<StorageSessio
     const uploadId = url.searchParams.get("upload_id") ?? "";
     const contentRange = request.headers()["content-range"];
     requests.push(contentRange ?? "(sem Content-Range)");
+    if (!sessionUrls.includes(request.url())) sessionUrls.push(request.url());
 
     const query = contentRange ? /^bytes \*\/(\d+)$/.exec(contentRange) : null;
     if (query) {
@@ -112,6 +116,7 @@ export async function interceptStorageSession(page: Page): Promise<StorageSessio
 
   return {
     requests,
+    sessionUrls,
     failOnce: (chunk) => {
       pending.push({ chunk, action: "fail" });
     },

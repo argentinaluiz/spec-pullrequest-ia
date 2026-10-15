@@ -19,6 +19,7 @@ import { FOLDER_DROPPED_MESSAGE } from "@/lib/uploads/panel";
 import type {
   CancelUploadResult,
   CompleteUploadResult,
+  ResumeUploadResult,
   StartUploadResult,
   UploadEntry,
 } from "@/lib/uploads/types";
@@ -78,6 +79,11 @@ async function cancelUploadNoop(): Promise<CancelUploadResult> {
   return { ok: true };
 }
 
+async function resumeUploadGone(): Promise<ResumeUploadResult> {
+  "use server";
+  return { ok: false, gone: true };
+}
+
 /** Um item do painel em cada estado do envio. */
 const UPLOAD_ENTRIES: UploadEntry[] = [
   {
@@ -103,6 +109,23 @@ const UPLOAD_ENTRIES: UploadEntry[] = [
     sizeBytes: 40_370_176,
     status: "queued",
     progress: 0,
+  },
+  {
+    key: "esperando",
+    name: "Gravação da aula.mp4",
+    mimeType: "application/octet-stream",
+    sizeBytes: 300_000_000,
+    status: "waiting",
+    progress: 64,
+  },
+  {
+    key: "outro-arquivo",
+    name: "Gravação da aula.mp4",
+    mimeType: "application/octet-stream",
+    sizeBytes: 300_000_000,
+    status: "waiting",
+    progress: 64,
+    mismatch: true,
   },
   {
     key: "concluido",
@@ -160,6 +183,7 @@ export default function VitrineDrivePage() {
       startUpload={startUploadWithoutQuota}
       completeUpload={completeUploadNoop}
       cancelUpload={cancelUploadNoop}
+      resumeUpload={resumeUploadGone}
     >
       <main className="flex flex-1 flex-col gap-12 bg-canvas py-6">
         <h1 className="px-6 text-display text-ink">Drive</h1>
@@ -203,6 +227,7 @@ export default function VitrineDrivePage() {
                 onResume={noop}
                 onCancel={noop}
                 onRetry={noop}
+                onSelectFile={noop}
                 onDismiss={noop}
               />
             ))}

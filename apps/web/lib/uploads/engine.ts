@@ -1,3 +1,5 @@
+import { fingerprintOf, sameFile, type Fingerprint } from "@/lib/uploads/fingerprint";
+import type { IncompleteRecord, IncompleteStore } from "@/lib/uploads/incomplete-store";
 import type {
   PutRequest,
   PutResponse,
@@ -17,6 +19,10 @@ const RETRY_WAIT_MS = [1000, 2000, 4000, 8000, 16000];
 /** Quantas vezes uma sessão expirada recomeça o arquivo do zero, antes de o envio falhar. */
 const MAX_RESTARTS = 3;
 
+/** Quanto a consulta de progresso de um incompleto restaurado espera antes de o item ficar em 0%. */
+export const RESTORE_QUERY_TIMEOUT_MS = 10_000;
+const RESUME_UNAVAILABLE = "Não foi possível retomar agora. Tente de novo.";
+
 const CONNECTION_FAILED = "A conexão falhou durante o envio";
 
 /** O painel sem nenhum envio. */
@@ -25,6 +31,11 @@ export const INITIAL_SNAPSHOT: UploadSnapshot = { entries: [] };
 /** O envio terminou, concluído ou com falha: só sai do painel quando a pessoa o tira. */
 export function isFinished(entry: UploadEntry): boolean {
   return entry.status === "done" || entry.status === "failed";
+}
+
+/** O envio está mandando bytes ou espera vaga na fila: fechar a aba o interromperia. */
+export function isTransferring(entry: UploadEntry): boolean {
+  return entry.status === "uploading" || entry.status === "queued";
 }
 
 /** Só a falha que pode dar certo numa nova tentativa oferece "Tentar de novo". */
@@ -72,8 +83,13 @@ interface Task {
   /** O arquivo local, até não haver mais o que enviar dele (concluído ou recusado pela API). */
   file: File | null;
   parentId: string;
-  /** A sessão em curso, depois de a API aceitar o início. */
-  session: { itemId: string; uploadUrl: string } | null;
+  /** A impressão do arquivo, que o armazenamento guarda para reconhecê-lo depois de fechar a aba. */
+  fingerprint: Fingerprint;
+  /**
+   * A sessão em curso, depois de a API aceitar o início. O `uploadUrl` é `null` no incompleto de
+   * antes de fechar a aba cuja consulta da retomada falhou: a escolha do arquivo a repete.
+   */
+  session: { itemId: string; uploadUrl: string | null } | null;
   /** O storage confirmou até aqui. */
   confirmed: number;
   /** O storage respondeu 200 ou 201: tem o arquivo inteiro. */
@@ -85,6 +101,8 @@ interface Task {
   completing: boolean;
   /** A pessoa cancelou o envio: o upload é desfeito na API. */
   cancelled: boolean;
+  /** A consulta da sessão, pedida ao escolher o arquivo, ainda não respondeu. */
+  resolving: boolean;
 }
 
 export type UploadEngine = ReturnType<typeof createUploadEngine>;
@@ -103,6 +121,11 @@ export function createUploadEngine(options: UploadEngineOptions) {
   let snapshot = INITIAL_SNAPSHOT;
   const listeners = new Set<() => void>();
   let nextKey = 0;
+  let store: IncompleteStore | null = null;
+  /** Muda a cada `stop()`: o que a retomada de antes devolver depois dele não vale mais. */
+  let epoch = 0;
+  /** O Usuário do armazenamento ligado: ligar o mesmo de novo não faz nada. */
+  let boundUserId: string | null = null;
 
   function publish() {
     snapshot = { entries: tasks.map((task) => task.entry) };
@@ -143,11 +166,26 @@ export function createUploadEngine(options: UploadEngineOptions) {
 
   function fail(task: Task, failure: UploadFailure, message: string) {
     change(task, { status: "failed", message, failure });
-    if (failure === "rejected") task.file = null;
+    if (failure === "rejected") {
+      task.file = null;
+      // Sem "Tentar de novo", o envio não volta como incompleto na próxima visita.
+      if (task.session) forget(task.session.itemId);
+    }
+  }
+
+  /** Guarda o que o navegador precisa para o envio voltar depois de fechar a aba. */
+  function remember(task: Task) {
+    if (task.session) store?.save({ itemId: task.session.itemId, fingerprint: task.fingerprint });
+  }
+
+  /** Tira o envio do armazenamento: ele não volta mais depois de fechar a aba. */
+  function forget(itemId: string) {
+    store?.remove(itemId);
   }
 
   /** Esquece a sessão: a próxima tentativa começa do zero, noutra. */
   function resetSession(task: Task) {
+    if (task.session) forget(task.session.itemId);
     task.session = null;
     task.confirmed = 0;
     task.stored = false;
@@ -159,10 +197,10 @@ export function createUploadEngine(options: UploadEngineOptions) {
    * remove depois.
    */
   async function dropSession(task: Task) {
-    const session = task.session;
+    const itemId = task.session?.itemId;
     resetSession(task);
-    if (!session) return;
-    await api.cancel(session.itemId).catch(() => undefined);
+    if (!itemId) return;
+    await api.cancel(itemId).catch(() => undefined);
   }
 
   /**
@@ -182,6 +220,7 @@ export function createUploadEngine(options: UploadEngineOptions) {
     try {
       await upload(run);
       task.file = null;
+      if (task.session) forget(task.session.itemId);
       task.session = null;
       if (!tasks.includes(task)) {
         // Cancelado, mas a conclusão ganhou na API: o arquivo existe, e a lista o mostra. Parado
@@ -246,6 +285,7 @@ export function createUploadEngine(options: UploadEngineOptions) {
       });
       if (!started.ok) throw new Failed("rejected", started.message);
       task.session = { itemId: started.itemId, uploadUrl: started.uploadUrl };
+      remember(task);
       interruptIfStopped(run);
     }
     await drive(run, resuming, async () => {
@@ -271,7 +311,7 @@ export function createUploadEngine(options: UploadEngineOptions) {
     for (;;) {
       try {
         if (recovering && !run.task.stored) {
-          await queryProgress(run);
+          await queryProgress(run.task, run.signal, run.file.size);
         } else if (await step()) {
           return;
         } else {
@@ -307,12 +347,12 @@ export function createUploadEngine(options: UploadEngineOptions) {
     const { task, file } = run;
     const start = task.confirmed;
     if (file.size === 0) {
-      await send(run, { contentRange: null, body: null });
+      await send(task, run.signal, file.size, { contentRange: null, body: null });
     } else if (start >= file.size) {
-      await queryProgress(run);
+      await queryProgress(task, run.signal, file.size);
     } else {
       const end = Math.min(start + chunkSize, file.size);
-      await send(run, {
+      await send(task, run.signal, file.size, {
         contentRange: `bytes ${start}-${end - 1}/${file.size}`,
         body: file.slice(start, end),
       });
@@ -323,27 +363,24 @@ export function createUploadEngine(options: UploadEngineOptions) {
   }
 
   // A consulta de progresso: `PUT` vazio com o `Content-Range` `bytes *` seguido de `/<total>`.
-  function queryProgress(run: Run) {
-    return send(run, { contentRange: `bytes */${run.file.size}`, body: null });
+  function queryProgress(task: Task, signal: AbortSignal, total: number) {
+    return send(task, signal, total, { contentRange: `bytes */${total}`, body: null });
   }
 
-  /** Um `PUT` à sessão. Registra o que o storage confirmou. */
+  /** Um `PUT` à sessão de um arquivo de `total` bytes. Registra o que o storage confirmou. */
   async function send(
-    run: Run,
+    task: Task,
+    signal: AbortSignal,
+    total: number,
     request: Pick<PutRequest, "contentRange" | "body">,
   ): Promise<void> {
-    const { task, file } = run;
-    const response = await transport({
-      url: sessionOf(task).uploadUrl,
-      signal: run.signal,
-      ...request,
-    });
-    interruptIfStopped(run);
+    const response = await transport({ url: sessionOf(task).uploadUrl, signal, ...request });
+    if (signal.aborted) throw new Interrupted();
     assertStored(response);
     // A 308 traz o que o storage recebeu; 200 e 201 são o arquivo inteiro.
     task.stored = response.status !== 308;
-    task.confirmed = task.stored ? file.size : confirmedBytes(response.range);
-    change(task, { progress: progressOf(task, file) });
+    task.confirmed = task.stored ? total : confirmedBytes(response.range);
+    change(task, { progress: progressOf(task, total) });
   }
 
   /**
@@ -378,32 +415,83 @@ export function createUploadEngine(options: UploadEngineOptions) {
     throw new StepFailed(result.message);
   }
 
+  /** Uma linha do painel, com o estado de uma execução que ainda não começou. */
+  function newTask(init: {
+    file: File | null;
+    parentId: string;
+    fingerprint: Fingerprint;
+    session: Task["session"];
+    entry: Pick<UploadEntry, "name" | "mimeType" | "sizeBytes" | "status">;
+  }): Task {
+    const { entry, ...rest } = init;
+    return {
+      ...rest,
+      confirmed: 0,
+      stored: false,
+      controller: new AbortController(),
+      running: false,
+      restarts: 0,
+      completing: false,
+      cancelled: false,
+      resolving: false,
+      entry: { ...entry, key: String(nextKey++), progress: 0 },
+    };
+  }
+
+  /**
+   * Um incompleto guardado: entra esperando o arquivo, com a porcentagem que o storage já tem.
+   * Devolve `false` se a API não o acha mais, e ele fica de fora do painel. Uma consulta que
+   * falha deixa a sessão sem o endereço e a porcentagem em 0.
+   */
+  async function restore(record: IncompleteRecord, startedIn: number): Promise<boolean> {
+    const resumed = await api.resume(record.itemId).catch(() => null);
+    if (startedIn !== epoch) return true;
+    if (resumed && !resumed.ok && resumed.gone) return false;
+    const { fingerprint } = record;
+    const task = newTask({
+      file: null,
+      parentId: "root",
+      fingerprint,
+      session: { itemId: record.itemId, uploadUrl: resumed?.ok ? resumed.uploadUrl : null },
+      entry: {
+        name: fingerprint.name,
+        mimeType: "application/octet-stream",
+        sizeBytes: fingerprint.sizeBytes,
+        status: "waiting",
+      },
+    });
+    tasks.push(task);
+    publish();
+    if (task.session?.uploadUrl) {
+      await queryWithin(task, fingerprint.sizeBytes);
+    }
+    return true;
+  }
+
+  /** A consulta de progresso do incompleto, que desiste depois de `RESTORE_QUERY_TIMEOUT_MS`. */
+  async function queryWithin(task: Task, total: number) {
+    const query = new AbortController();
+    const timeout = sleep(RESTORE_QUERY_TIMEOUT_MS, query.signal);
+    await Promise.race([
+      queryProgress(task, query.signal, total).catch(() => undefined),
+      timeout.catch(() => undefined),
+    ]);
+    query.abort();
+  }
+
   return {
     /** Põe os arquivos na fila, com `parentId` como destino. Devolve a chave de cada um. */
     add(files: File[], parentId: string): string[] {
       const keys = files.map((file) => {
-        const key = String(nextKey++);
-        tasks.push({
+        const task = newTask({
           file,
           parentId,
+          fingerprint: fingerprintOf(file),
           session: null,
-          confirmed: 0,
-          stored: false,
-          controller: new AbortController(),
-          running: false,
-          restarts: 0,
-          completing: false,
-          cancelled: false,
-          entry: {
-            key,
-            name: file.name,
-            mimeType: file.type,
-            sizeBytes: file.size,
-            status: "queued",
-            progress: 0,
-          },
+          entry: { name: file.name, mimeType: file.type, sizeBytes: file.size, status: "queued" },
         });
-        return key;
+        tasks.push(task);
+        return task.entry.key;
       });
       publish();
       pump();
@@ -457,6 +545,9 @@ export function createUploadEngine(options: UploadEngineOptions) {
      * aceitando arquivos novos depois.
      */
     stop() {
+      epoch += 1;
+      boundUserId = null;
+      store = null;
       tasks.forEach((task) => task.controller.abort());
       tasks = [];
       publish();
@@ -465,6 +556,66 @@ export function createUploadEngine(options: UploadEngineOptions) {
     /** Esvazia o painel dos arquivos que terminaram ou falharam. */
     clearFinished() {
       removeFinished(tasks.filter((task) => isFinished(task.entry)));
+    },
+
+    /**
+     * Liga o armazenamento do Usuário (docs/lld.md, seção 7.4): grava os envios que já têm sessão
+     * e traz de volta os incompletos guardados, no estado de espera pelo arquivo. Para cada um, pede
+     * a sessão à API e consulta o progresso no storage; o que a API não acha mais sai sem aviso.
+     * Resolve quando todos foram consultados.
+     */
+    async bindStore(next: IncompleteStore) {
+      if (boundUserId === next.userId) return;
+      boundUserId = next.userId;
+      store = next;
+      const startedIn = epoch;
+      tasks.forEach(remember);
+      const known = new Set(tasks.map((task) => task.session?.itemId));
+      const records = next.load().filter((record) => !known.has(record.itemId));
+      const results = await Promise.all(records.map((record) => restore(record, startedIn)));
+      if (startedIn !== epoch) return;
+      // O que a API não acha mais sai do armazenamento de uma vez.
+      const gone = new Set(records.filter((_, index) => !results[index]).map((r) => r.itemId));
+      if (gone.size > 0) next.saveAll(next.load().filter((record) => !gone.has(record.itemId)));
+    },
+
+    /**
+     * O arquivo que a pessoa escolheu para um incompleto. Se for o mesmo, o envio continua na mesma
+     * sessão; se não for, só avisa e continua esperando.
+     */
+    async selectFile(key: string, file: File) {
+      const task = find(key);
+      if (!task || task.entry.status !== "waiting" || task.resolving) return;
+      if (!sameFile(task.fingerprint, fingerprintOf(file))) {
+        change(task, { mismatch: true });
+        return;
+      }
+      const startedIn = epoch;
+      const { session } = task;
+      if (session && !session.uploadUrl) {
+        // A consulta da retomada falhou ao voltar: pede a sessão agora. Enquanto espera, o envio
+        // não está mais esperando o arquivo, e uma segunda escolha não o enfileira de novo.
+        task.resolving = true;
+        const resumed = await api.resume(session.itemId).catch(() => null);
+        task.resolving = false;
+        if (startedIn !== epoch || !tasks.includes(task) || task.entry.status !== "waiting") return;
+        if (resumed?.ok) {
+          session.uploadUrl = resumed.uploadUrl;
+        } else if (resumed?.gone) {
+          // O upload não existe mais: sai do painel e do armazenamento, como na volta à tela.
+          forget(session.itemId);
+          tasks = tasks.filter((other) => other !== task);
+          publish();
+          return;
+        } else {
+          change(task, { message: RESUME_UNAVAILABLE });
+          return;
+        }
+      }
+      task.file = file;
+      task.restarts = 0;
+      change(task, { mimeType: file.type, mismatch: undefined, message: undefined });
+      requeue(task);
     },
 
     getSnapshot: () => snapshot,
@@ -478,15 +629,15 @@ export function createUploadEngine(options: UploadEngineOptions) {
 }
 
 /** De 0 a 100, pelo que o storage confirmou. O arquivo vazio fica em 0 até o storage guardá-lo. */
-function progressOf(task: Task, file: File): number {
+function progressOf(task: Task, total: number): number {
   if (task.stored) return 100;
-  if (file.size === 0) return 0;
-  return Math.floor((task.confirmed / file.size) * 100);
+  if (total === 0) return 0;
+  return Math.floor((task.confirmed / total) * 100);
 }
 
-function sessionOf(task: Task) {
-  if (!task.session) throw new Error("O envio não tem sessão de upload");
-  return task.session;
+function sessionOf(task: Task): { itemId: string; uploadUrl: string } {
+  if (!task.session?.uploadUrl) throw new Error("O envio não tem sessão de upload");
+  return { itemId: task.session.itemId, uploadUrl: task.session.uploadUrl };
 }
 
 /**

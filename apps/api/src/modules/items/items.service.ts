@@ -9,6 +9,7 @@ import {
 import {
   DownloadUrl,
   PendingUpload,
+  ResumableUpload,
   FileUpload,
   ItemPage,
   NewPendingFile,
@@ -141,6 +142,16 @@ export class ItemsService {
   ): Promise<PendingUpload | null> {
     return isUUID(id)
       ? this.items.findDeletingUpload(ownerId, id)
+      : Promise.resolve(null);
+  }
+
+  /** O upload `pending` do Usuário com sessão no storage, ou `null` (inclusive id que não é UUID). */
+  findResumableUpload(
+    ownerId: string,
+    id: string,
+  ): Promise<ResumableUpload | null> {
+    return isUUID(id)
+      ? this.items.findResumableUpload(ownerId, id)
       : Promise.resolve(null);
   }
 

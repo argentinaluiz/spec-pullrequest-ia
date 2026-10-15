@@ -15,6 +15,11 @@ export function startUpload(
   return withSession((token) => uploadsApi.createUpload(token, input));
 }
 
+/** A sessão de um envio incompleto, para o navegador retomá-lo. */
+export function resumeUpload(itemId: string): Promise<ApiResult<Upload>> {
+  return withSession((token) => uploadsApi.getUpload(token, itemId));
+}
+
 /** Conclui o envio, depois de os bytes chegarem ao storage. */
 export function finishUpload(itemId: string): Promise<ApiResult<Item>> {
   return withSession((token) => uploadsApi.completeUpload(token, itemId));

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { canRetry, createUploadEngine } from "@/lib/uploads/engine";
+import { canRetry, createUploadEngine, RESTORE_QUERY_TIMEOUT_MS } from "@/lib/uploads/engine";
+import { fingerprintOf } from "@/lib/uploads/fingerprint";
+import type { IncompleteRecord, IncompleteStore } from "@/lib/uploads/incomplete-store";
 import { panelTitle } from "@/lib/uploads/panel";
 import type {
   CompleteUploadResult,
@@ -69,9 +71,20 @@ function fakeApi() {
     }),
     complete: vi.fn<UploadApi["complete"]>(async () => ({ ok: true })),
     cancel: vi.fn<UploadApi["cancel"]>(async () => ({ ok: true })),
+    resume: vi.fn<UploadApi["resume"]>(async () => ({ ok: false, gone: true })),
   };
   return api;
 }
+
+/** Um relógio que só acorda quando o sinal dispara: nenhuma espera termina sozinha. */
+const quietSleep = () =>
+  vi.fn<UploadSleep>(
+    (_ms, signal) =>
+      new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve());
+      }),
+  );
 
 const instantSleep = () => vi.fn<UploadSleep>(async () => undefined);
 
@@ -869,5 +882,332 @@ describe("motor de envio", () => {
     expect(api.start).toHaveBeenCalledOnce();
     expect(api.cancel).not.toHaveBeenCalled();
     expect(engine.getSnapshot().entries).toEqual([]);
+  });
+});
+
+/** Um armazenamento de incompletos em memória, com o que já estava guardado. */
+function memoryStore(initial: IncompleteRecord[] = []) {
+  let records = [...initial];
+  const store: IncompleteStore = {
+    userId: "user-a",
+    load: () => [...records],
+    save: (record) => {
+      records = [...records.filter((other) => other.itemId !== record.itemId), record];
+    },
+    remove: (itemId) => {
+      records = records.filter((other) => other.itemId !== itemId);
+    },
+    saveAll: (next) => {
+      records = next;
+    },
+  };
+  return { store, ids: () => records.map((record) => record.itemId) };
+}
+
+const LAST_MODIFIED = 1_700_000_000_000;
+const diskFile = (size: number, name = "grande.bin") =>
+  new File([new Uint8Array(size)], name, { lastModified: LAST_MODIFIED });
+
+describe("motor de envio depois de fechar a aba", () => {
+  it("um incompleto que a retomada não acha sai do painel e do armazenamento, sem aviso @LUI-171-CA5", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: false, gone: true });
+    const { store, ids } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(10 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async () => ({ status: 308, range: null }),
+      sleep: quietSleep(),
+      api,
+    });
+
+    await engine.bindStore(store);
+
+    expect(api.resume).toHaveBeenCalledWith("item-velho");
+    expect(engine.getSnapshot().entries).toEqual([]);
+    expect(ids()).toEqual([]);
+  });
+
+  it("mostra o incompleto esperando o arquivo, com a porcentagem que o storage já tem", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    const storage = new FakeStorage();
+    storage.received = 8 * MiB;
+    const { store } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(20 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep: quietSleep(),
+      api,
+    });
+
+    await engine.bindStore(store);
+
+    const [entry] = engine.getSnapshot().entries;
+    expect(entry).toMatchObject({
+      name: "grande.bin",
+      sizeBytes: 20 * MiB,
+      status: "waiting",
+      progress: 40,
+    });
+    expect(storage.puts.map((put) => put.contentRange)).toEqual(["bytes */20971520"]);
+    expect(panelTitle(engine.getSnapshot().entries)).toBe("Enviando 1 de 1");
+  });
+
+  it("o mesmo arquivo continua na mesma sessão, do byte que o storage confirmou", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    const storage = new FakeStorage();
+    storage.received = 8 * MiB;
+    const { store, ids } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(20 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep: quietSleep(),
+      api,
+    });
+    await engine.bindStore(store);
+    const [{ key }] = engine.getSnapshot().entries;
+    storage.puts = [];
+
+    engine.selectFile(key, diskFile(20 * MiB));
+    await vi.waitFor(() => expect(api.complete).toHaveBeenCalledWith("item-velho"));
+
+    expect(api.start).not.toHaveBeenCalled();
+    expect(storage.chunks).toEqual([
+      "bytes 8388608-16777215/20971520",
+      "bytes 16777216-20971519/20971520",
+    ]);
+    expect(new Set(storage.puts.map((put) => put.url))).toEqual(
+      new Set(["https://storage.test/velha"]),
+    );
+    await waitForStatus(engine, key, "done");
+    expect(ids()).toEqual([]);
+  });
+
+  it("um arquivo diferente só avisa, não envia nada e continua esperando", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    const storage = new FakeStorage();
+    const { store, ids } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(20 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep: quietSleep(),
+      api,
+    });
+    await engine.bindStore(store);
+    const [{ key }] = engine.getSnapshot().entries;
+    storage.puts = [];
+
+    engine.selectFile(key, diskFile(20 * MiB, "outro.bin"));
+    await settle();
+
+    expect(engine.getSnapshot().entries[0]).toMatchObject({ status: "waiting", mismatch: true });
+    expect(storage.puts).toEqual([]);
+    expect(api.start).not.toHaveBeenCalled();
+    expect(ids()).toEqual(["item-velho"]);
+  });
+
+  it("sem a consulta da retomada, o incompleto espera e é consultado de novo ao escolher o arquivo", async () => {
+    const api = fakeApi();
+    api.resume.mockRejectedValueOnce(new Error("rede"));
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    const storage = new FakeStorage();
+    const { store } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(9 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async (request) => storage.respond(request),
+      sleep: quietSleep(),
+      api,
+    });
+    await engine.bindStore(store);
+    const [{ key }] = engine.getSnapshot().entries;
+    expect(engine.getSnapshot().entries[0].status).toBe("waiting");
+
+    engine.selectFile(key, diskFile(9 * MiB));
+    await waitForStatus(engine, key, "done");
+
+    expect(api.resume).toHaveBeenCalledTimes(2);
+    expect(api.start).not.toHaveBeenCalled();
+  });
+
+  it("cancelar um incompleto cancela o upload na API e limpa o armazenamento", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    const { store, ids } = memoryStore([
+      { itemId: "item-velho", fingerprint: fingerprintOf(diskFile(9 * MiB)) },
+    ]);
+    const engine = createUploadEngine({
+      transport: async () => ({ status: 308, range: null }),
+      sleep: quietSleep(),
+      api,
+    });
+    await engine.bindStore(store);
+    const [{ key }] = engine.getSnapshot().entries;
+
+    engine.cancel(key);
+    await settle();
+
+    expect(api.cancel).toHaveBeenCalledWith("item-velho");
+    expect(engine.getSnapshot().entries).toEqual([]);
+    expect(ids()).toEqual([]);
+  });
+
+  it("guarda o incomplete quando a API cria o upload, inclusive o iniciado antes de o armazenamento existir, e o tira ao concluir", async () => {
+    const storage = new FakeStorage();
+    const { store, ids } = memoryStore();
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const engine = createUploadEngine({
+      transport: async (request) => {
+        await gate;
+        return storage.respond(request);
+      },
+      sleep: quietSleep(),
+      api: fakeApi(),
+    });
+    const [early] = engine.add([diskFile(20 * MiB, "antes.bin")], "root");
+    await settle();
+    await engine.bindStore(store);
+    release();
+    expect(ids()).toEqual(["item-1"]);
+
+    await waitForStatus(engine, early, "done");
+    expect(ids()).toEqual([]);
+
+    const [late] = engine.add([diskFile(1 * MiB, "depois.bin")], "root");
+    await waitForStatus(engine, late, "done");
+    expect(ids()).toEqual([]);
+  });
+
+  async function waitingEngine(
+    api: ReturnType<typeof fakeApi>,
+    records?: IncompleteRecord[],
+    transport?: (request: PutRequest) => Promise<PutResponse>,
+  ) {
+    const storage = new FakeStorage();
+    const kept = memoryStore(
+      records ?? [{ itemId: "item-velho", fingerprint: fingerprintOf(diskFile(9 * MiB)) }],
+    );
+    const engine = createUploadEngine({
+      transport: transport ?? (async (request) => storage.respond(request)),
+      sleep: quietSleep(),
+      api,
+    });
+    await engine.bindStore(kept.store);
+    return { engine, ids: kept.ids, storage, key: engine.getSnapshot().entries[0]?.key };
+  }
+
+  it("escolher o arquivo duas vezes durante a consulta da retomada o enfileira uma vez só", async () => {
+    const api = fakeApi();
+    api.resume.mockRejectedValueOnce(new Error("rede"));
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    api.resume.mockImplementation(async () => {
+      await gate;
+      return { ok: true, uploadUrl: "https://storage.test/velha" };
+    });
+    const { engine, key } = await waitingEngine(api);
+
+    void engine.selectFile(key, diskFile(9 * MiB));
+    void engine.selectFile(key, diskFile(9 * MiB));
+    release();
+    await waitForStatus(engine, key, "done");
+    await settle();
+
+    expect(api.resume).toHaveBeenCalledTimes(2);
+    expect(api.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("a consulta da retomada que falha ao escolher o arquivo deixa o envio esperando, com um aviso", async () => {
+    const api = fakeApi();
+    api.resume.mockRejectedValue(new Error("rede"));
+    const { engine, key } = await waitingEngine(api);
+
+    await engine.selectFile(key, diskFile(9 * MiB));
+
+    const [entry] = engine.getSnapshot().entries;
+    expect(entry.status).toBe("waiting");
+    expect(entry.message).toBe("Não foi possível retomar agora. Tente de novo.");
+    expect(api.start).not.toHaveBeenCalled();
+  });
+
+  it("um incompleto que a API não acha mais ao escolher o arquivo sai do painel e do armazenamento, sem novo envio", async () => {
+    const api = fakeApi();
+    api.resume.mockRejectedValueOnce(new Error("rede"));
+    api.resume.mockResolvedValue({ ok: false, gone: true });
+    const { engine, key, ids } = await waitingEngine(api);
+
+    await engine.selectFile(key, diskFile(9 * MiB));
+    await settle();
+
+    expect(engine.getSnapshot().entries).toEqual([]);
+    expect(ids()).toEqual([]);
+    expect(api.start).not.toHaveBeenCalled();
+  });
+
+  it("uma falha terminal da conclusão tira o incompleto do armazenamento, e a que a nova tentativa resolve o mantém", async () => {
+    const api = fakeApi();
+    api.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    api.complete.mockResolvedValueOnce({ ok: false, message: "Falhou", reason: "terminal" });
+    const { engine, key, ids } = await waitingEngine(api);
+
+    await engine.selectFile(key, diskFile(9 * MiB));
+    await waitForStatus(engine, key, "failed");
+    expect(engine.getSnapshot().entries[0].failure).toBe("rejected");
+    expect(ids()).toEqual([]);
+
+    const retryable = fakeApi();
+    retryable.resume.mockResolvedValue({ ok: true, uploadUrl: "https://storage.test/velha" });
+    retryable.complete.mockResolvedValue({ ok: false, message: "Falhou", reason: "retryable" });
+    const second = await waitingEngine(retryable);
+    await second.engine.selectFile(second.key, diskFile(9 * MiB));
+    await settle();
+    expect(second.ids()).toEqual(["item-velho"]);
+    second.engine.stop();
+  });
+
+  it("depois de parar o motor, um arquivo novo não é guardado na chave do Usuário anterior", async () => {
+    const api = fakeApi();
+    const { engine, ids } = await waitingEngine(api, []);
+
+    engine.stop();
+    const [added] = engine.add([diskFile(1 * MiB, "novo.bin")], "root");
+    await waitForStatus(engine, added, "done");
+
+    expect(ids()).toEqual([]);
+  });
+
+  it("um incompleto cuja consulta de progresso não responde fica esperando em 0%, sem travar a limpeza dos outros", async () => {
+    const api = fakeApi();
+    api.resume.mockImplementation(async (itemId) =>
+      itemId === "item-preso"
+        ? { ok: true, uploadUrl: "https://storage.test/presa" }
+        : { ok: false, gone: true },
+    );
+    const clock = quietSleep();
+    const sleep: UploadSleep = (ms, signal) =>
+      ms === RESTORE_QUERY_TIMEOUT_MS ? Promise.resolve() : clock(ms, signal);
+    const kept = memoryStore([
+      { itemId: "item-preso", fingerprint: fingerprintOf(diskFile(9 * MiB)) },
+      { itemId: "item-sumiu", fingerprint: fingerprintOf(diskFile(5 * MiB, "outro.bin")) },
+    ]);
+    const engine = createUploadEngine({ transport: hang, sleep, api });
+
+    await engine.bindStore(kept.store);
+
+    expect(engine.getSnapshot().entries).toMatchObject([
+      { name: "grande.bin", status: "waiting", progress: 0 },
+    ]);
+    expect(kept.ids()).toEqual(["item-preso"]);
   });
 });

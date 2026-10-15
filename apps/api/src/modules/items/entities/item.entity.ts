@@ -63,3 +63,12 @@ export interface PendingUpload {
   /** Endereço da sessão de upload no storage, ausente se ela nunca chegou a ser gravada. */
   uploadSessionUri: string | null;
 }
+
+/** O upload `pending` que já tem sessão no storage, com o que a retomada devolve. */
+export interface ResumableUpload {
+  id: string;
+  /** Endereço da sessão de upload no storage. */
+  uploadSessionUri: string;
+  /** Quando o upload começou: o prazo da sessão conta daqui. */
+  createdAt: Date;
+}

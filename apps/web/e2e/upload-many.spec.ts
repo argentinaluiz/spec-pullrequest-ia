@@ -212,7 +212,7 @@ test("o Usuário pausa e retoma um envio, e cancela outro, que some sem aparecer
   await expect.poll(() => usedBytesOf(email)).toBe(first);
 });
 
-test("com um envio em andamento, fechar a aba pede confirmação", async ({ page }) => {
+test("com um envio em andamento, fechar a aba pede confirmação @LUI-171-CA10", async ({ page }) => {
   await signIn(page, uniqueEmail());
   const storage = await interceptStorageSession(page);
   const size = 9 * MiB;
@@ -226,6 +226,22 @@ test("com um envio em andamento, fechar a aba pede confirmação", async ({ page
   const shown = await dialog;
   expect(shown.type()).toBe("beforeunload");
   await shown.dismiss();
+});
+
+test("sem envio em andamento, fechar a aba não pede confirmação @LUI-171-CA10", async ({ page }) => {
+  await signIn(page, uniqueEmail());
+  await chooseFiles(page, [{ name: "pronto.bin", buffer: Buffer.alloc(10) }]);
+  await expect(panelOf(page).getByRole("img", { name: "Concluído" })).toBeVisible();
+  const dialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    dialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
+
+  await page.reload();
+
+  await expect(page.getByRole("row", { name: /pronto\.bin/ })).toBeVisible();
+  expect(dialogs).toEqual([]);
 });
 
 test("soltar uma pasta junto com arquivos envia só os arquivos e mostra o aviso de pasta solta @LUI-170-CA12", async ({

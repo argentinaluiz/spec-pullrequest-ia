@@ -10,16 +10,14 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import {
-  createUploadEngine,
-  INITIAL_SNAPSHOT,
-  isFinished,
-} from "@/lib/uploads/engine";
+import { createUploadEngine, INITIAL_SNAPSHOT, isTransferring } from "@/lib/uploads/engine";
+import { createBrowserIncompleteStore } from "@/lib/uploads/incomplete-store";
 import { createRefreshBatcher } from "@/lib/uploads/refresh";
 import { fetchTransport, timerSleep } from "@/lib/uploads/transport";
 import type {
   CancelUploadResult,
   CompleteUploadResult,
+  ResumeUploadResult,
   StartUploadInput,
   StartUploadResult,
   UploadEntry,
@@ -42,6 +40,10 @@ type UploadsActions = {
   resume: (key: string) => void;
   cancel: (key: string) => void;
   retry: (key: string) => void;
+  /** O arquivo que a pessoa escolheu para um envio que espera por ele. */
+  selectFile: (key: string, file: File) => void;
+  /** Liga o Usuário: traz de volta os envios incompletos que o navegador guardou para ele. */
+  bindUser: (userId: string) => void;
   /** Tira do painel o envio que terminou ou falhou. */
   dismiss: (key: string) => void;
   /** Fecha o painel: tira os envios que terminaram ou falharam e o aviso de pasta. Os em andamento continuam. */
@@ -68,6 +70,7 @@ type UploadProviderProps = {
   startUpload: (input: StartUploadInput) => Promise<StartUploadResult>;
   completeUpload: (itemId: string) => Promise<CompleteUploadResult>;
   cancelUpload: (itemId: string) => Promise<CancelUploadResult>;
+  resumeUpload: (itemId: string) => Promise<ResumeUploadResult>;
   children: ReactNode;
 };
 
@@ -83,6 +86,7 @@ export function UploadProvider({
   startUpload,
   completeUpload,
   cancelUpload,
+  resumeUpload,
   children,
 }: UploadProviderProps) {
   const router = useRouter();
@@ -95,7 +99,7 @@ export function UploadProvider({
     const engine = createUploadEngine({
       transport: fetchTransport,
       sleep: timerSleep,
-      api: { start: startUpload, complete: completeUpload, cancel: cancelUpload },
+      api: { start: startUpload, complete: completeUpload, cancel: cancelUpload, resume: resumeUpload },
       onDone: refresher.request,
     });
     return { engine, refresher };
@@ -132,14 +136,15 @@ export function UploadProvider({
     () => INITIAL_SNAPSHOT,
   );
 
-  // Fechar ou recarregar a aba com envio em andamento pede confirmação (docs/lld.md, seção 7.4).
-  const unfinished = entries.some((entry) => !isFinished(entry));
+  // Fechar ou recarregar a aba com um envio que manda bytes ou espera na fila pede confirmação
+  // (docs/lld.md, seção 7.4). O pausado, o que espera o arquivo e o terminado voltam como incompletos.
+  const sending = entries.some(isTransferring);
   useEffect(() => {
-    if (!unfinished) return;
+    if (!sending) return;
     const confirm = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", confirm);
     return () => window.removeEventListener("beforeunload", confirm);
-  }, [unfinished]);
+  }, [sending]);
 
   const actions = useMemo<UploadsActions>(
     () => ({
@@ -151,6 +156,10 @@ export function UploadProvider({
       resume: engine.resume,
       cancel: engine.cancel,
       retry: engine.retry,
+      selectFile: engine.selectFile,
+      bindUser: (userId) => {
+        void engine.bindStore(createBrowserIncompleteStore(userId));
+      },
       dismiss: engine.dismiss,
       close: () => {
         engine.clearFinished();

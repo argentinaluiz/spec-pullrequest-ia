@@ -10,11 +10,17 @@ import { completeFailureReason } from "@/lib/uploads/complete-failure";
 import type {
   CancelUploadResult,
   CompleteUploadResult,
+  ResumeUploadResult,
   StartUploadInput,
   StartUploadResult,
 } from "@/lib/uploads/types";
 import { getRootItems } from "@/lib/dal/items";
-import { discardUpload, finishUpload, startUpload as beginUpload } from "@/lib/dal/uploads";
+import {
+  discardUpload,
+  finishUpload,
+  resumeUpload as readUpload,
+  startUpload as beginUpload,
+} from "@/lib/dal/uploads";
 import { LOGIN_PATH } from "@/lib/session/paths";
 import { clearSession, refreshToken } from "@/lib/session/tokens";
 
@@ -88,6 +94,18 @@ export async function startUpload(
   }
   const { itemId, uploadUrl } = result.data;
   return { ok: true, itemId, uploadUrl };
+}
+
+/**
+ * A sessão de um envio incompleto, de antes de fechar a aba. `gone` diz que o upload não existe
+ * mais (`not_found`), e a tela o tira do painel sem aviso; outra falha o deixa esperando.
+ */
+export async function resumeUpload(itemId: string): Promise<ResumeUploadResult> {
+  const parsed = itemIdSchema.safeParse(itemId);
+  if (!parsed.success) return { ok: false, gone: false };
+  const result = await readUpload(parsed.data);
+  if (!result.ok) return { ok: false, gone: result.error.code === "not_found" };
+  return { ok: true, uploadUrl: result.data.uploadUrl };
 }
 
 /** Conclui o envio, depois de os bytes chegarem ao storage. */

@@ -17,7 +17,7 @@ import { FOLDER_DROPPED_MESSAGE, panelTitle } from "@/lib/uploads/panel";
  */
 export function UploadPanel() {
   const { entries, folderDropped } = useUploadsState();
-  const { pause, resume, cancel, retry, dismiss, close } = useUploadActions();
+  const { pause, resume, cancel, retry, selectFile, dismiss, close } = useUploadActions();
   const [collapsed, setCollapsed] = useState(false);
 
   if (entries.length === 0 && !folderDropped) return null;
@@ -64,6 +64,7 @@ export function UploadPanel() {
                 onResume={resume}
                 onCancel={cancel}
                 onRetry={retry}
+                onSelectFile={selectFile}
                 onDismiss={dismiss}
               />
             ))}

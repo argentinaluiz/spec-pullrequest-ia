@@ -110,7 +110,7 @@ export class UploadsService {
       return {
         itemId,
         uploadUrl,
-        expiresAt: new Date(createdAt.getTime() + this.config.pendingTtlMs),
+        expiresAt: this.expiresAtOf(createdAt),
       };
     } catch (error) {
       await this.discardPending(userId, itemId, input.sizeBytes).catch(
@@ -118,6 +118,31 @@ export class UploadsService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Devolve a sessão que a criação do upload fez, sem criar outra (seção 4.6
+   * do docs/lld.md). Só o upload `pending` do Usuário que já tem sessão:
+   * outro dono, inexistente, concluído, em remoção, sem sessão ou com o prazo
+   * vencido é `not_found`.
+   */
+  async resume(userId: string, itemId: string): Promise<StartedUpload> {
+    const upload = await this.items.findResumableUpload(userId, itemId);
+    const expiresAt = upload && this.expiresAtOf(upload.createdAt);
+    // O vencido que a limpeza ainda não removeu já não vale: o navegador o descarta na hora.
+    if (!upload || !expiresAt || expiresAt.getTime() <= Date.now()) {
+      throw new ItemNotFoundError();
+    }
+    return {
+      itemId: upload.id,
+      uploadUrl: upload.uploadSessionUri,
+      expiresAt,
+    };
+  }
+
+  /** O prazo da sessão de upload, contado do início do upload. */
+  private expiresAtOf(createdAt: Date): Date {
+    return new Date(createdAt.getTime() + this.config.pendingTtlMs);
   }
 
   /**

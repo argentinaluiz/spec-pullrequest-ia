@@ -32,6 +32,12 @@ export type CompleteFailureReason = "discarded" | "incomplete" | "retryable" | "
 /** O que a Server Action de cancelar um envio devolve. A falha não muda o destino do envio. */
 export type CancelUploadResult = { ok: true } | { ok: false; message: string };
 
+/**
+ * O que a Server Action de retomar um envio devolve. Na falha, `gone` diz que o upload não existe
+ * mais na API (`not_found`: concluído, cancelado ou limpo); outra falha deixa o envio esperando.
+ */
+export type ResumeUploadResult = { ok: true; uploadUrl: string } | { ok: false; gone: boolean };
+
 /** As ações da API que o motor usa. No navegador, são Server Actions. */
 export interface UploadApi {
   start: (input: StartUploadInput) => Promise<StartUploadResult>;
@@ -41,6 +47,8 @@ export interface UploadApi {
    * destino do envio: o upload continua `pending`, e a limpeza o remove depois.
    */
   cancel: (itemId: string) => Promise<CancelUploadResult>;
+  /** A sessão que a criação do upload fez, sem criar outra, para o envio incompleto de antes. */
+  resume: (itemId: string) => Promise<ResumeUploadResult>;
 }
 
 /** Um `PUT` à sessão de upload do storage. */
@@ -63,8 +71,8 @@ export type UploadTransport = (request: PutRequest) => Promise<PutResponse>;
 /** Espera `ms` milissegundos, ou menos se o sinal disparar. */
 export type UploadSleep = (ms: number, signal: AbortSignal) => Promise<void>;
 
-/** Em que pé o envio de um arquivo está, como o painel o mostra. */
-export type UploadStatus = "queued" | "uploading" | "paused" | "done" | "failed";
+/** Em que pé o envio de um arquivo está, como o painel o mostra. `waiting` é o incompleto de antes de fechar a aba, que espera a pessoa escolher o arquivo de novo. */
+export type UploadStatus = "queued" | "uploading" | "paused" | "waiting" | "done" | "failed";
 
 /**
  * Por que o envio falhou: a API recusou o início (Cota, limite de tamanho) ou a conclusão com um
@@ -89,6 +97,8 @@ export interface UploadEntry {
   message?: string;
   /** O motivo, quando `failed`. */
   failure?: UploadFailure;
+  /** Quando `waiting`: o arquivo escolhido não é o original. */
+  mismatch?: boolean;
 }
 
 export interface UploadSnapshot {

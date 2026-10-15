@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Post,
@@ -40,6 +41,17 @@ export class UploadsController {
     @CurrentUserId() userId: string,
   ): Promise<UploadDto> {
     return this.uploads.start(userId, body);
+  }
+
+  @Get(':itemId')
+  @ApiOkResponse({ type: UploadDto })
+  @ApiProblem(401, 'unauthenticated')
+  @ApiProblem(404, 'not_found')
+  resume(
+    @Param('itemId') itemId: string,
+    @CurrentUserId() userId: string,
+  ): Promise<UploadDto> {
+    return this.uploads.resume(userId, itemId);
   }
 
   @Delete(':itemId')

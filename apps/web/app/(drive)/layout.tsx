@@ -7,11 +7,18 @@ import { getCurrentUser } from "@/lib/dal/user";
 import { UploadButton } from "@/components/uploads/upload-button";
 import { UploadPanel } from "@/components/uploads/upload-panel";
 import { UploadProvider } from "@/components/uploads/upload-provider";
-import { cancelUpload, completeUpload, logout, startUpload } from "./actions";
+import { UploadUserBinder } from "@/components/uploads/upload-user-binder";
+import { cancelUpload, completeUpload, logout, resumeUpload, startUpload } from "./actions";
 
 async function CurrentAccountMenu() {
   const user = await getCurrentUser();
-  return <AccountMenu email={user.email} logout={logout} />;
+  return (
+    <>
+      <AccountMenu email={user.email} logout={logout} />
+      {/* Na mesma fronteira do menu, para não segurar a casca: os incompletos voltam quando a Sessão é conferida. */}
+      <UploadUserBinder userId={user.id} />
+    </>
+  );
 }
 
 /** O lugar do menu da conta enquanto o Usuário é conferido na API. */
@@ -34,6 +41,7 @@ export default function DriveLayout({ children }: LayoutProps<"/">) {
       startUpload={startUpload}
       completeUpload={completeUpload}
       cancelUpload={cancelUpload}
+      resumeUpload={resumeUpload}
     >
       <div className="flex flex-1 flex-col bg-canvas">
         <AppBar

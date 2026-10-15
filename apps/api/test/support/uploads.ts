@@ -34,6 +34,14 @@ export function uploadRoutes(app: INestApplication<App>) {
       .post(`/v1/uploads/${itemId}/complete`)
       .set('Authorization', `Bearer ${accessToken}`);
 
+  /** `GET /uploads/{itemId}`, com o token de acesso quando ele é passado. */
+  const resume = (accessToken: string | undefined, itemId: string) => {
+    const call = request(app.getHttpServer()).get(`/v1/uploads/${itemId}`);
+    return accessToken
+      ? call.set('Authorization', `Bearer ${accessToken}`)
+      : call;
+  };
+
   /** `DELETE /uploads/{itemId}`, com o token de acesso quando ele é passado. */
   const cancel = (accessToken: string | undefined, itemId: string) => {
     const call = request(app.getHttpServer()).delete(`/v1/uploads/${itemId}`);
@@ -161,6 +169,7 @@ export function uploadRoutes(app: INestApplication<App>) {
   return {
     create,
     complete,
+    resume,
     cancel,
     putBytes,
     start,
