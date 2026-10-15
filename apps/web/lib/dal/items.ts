@@ -1,15 +1,41 @@
 import "server-only";
-import { getItemDownloadUrl, listRootChildren } from "@/lib/api/items";
-import type { ApiResult, DownloadUrl, ItemPage } from "@/lib/api/types";
+import {
+  createFolder as createApiFolder,
+  getFolder as getApiFolder,
+  getItemDownloadUrl,
+  listChildren,
+} from "@/lib/api/items";
+import type {
+  ApiResult,
+  CreateFolderInput,
+  DownloadUrl,
+  Item,
+  ItemDetail,
+  ItemPage,
+} from "@/lib/api/types";
 import { withSession } from "@/lib/dal/session";
 
 /**
- * Uma página da Pasta raiz do Usuário da Sessão. A conferência da Sessão é a da própria
- * listagem, por `withSession`, sem uma chamada a mais. Os outros erros voltam como valor, para
- * quem chama decidir: a página falha, e o "Carregar mais" mostra a mensagem.
+ * Uma página dos Itens de uma pasta do Usuário da Sessão (`root` para a Pasta raiz). A
+ * conferência da Sessão é a da própria listagem, por `withSession`, sem uma chamada a mais. Os
+ * outros erros voltam como valor, para quem chama decidir: a página falha (ou mostra "não
+ * encontrado"), e o "Carregar mais" mostra a mensagem.
  */
-export function getRootItems(cursor?: string): Promise<ApiResult<ItemPage>> {
-  return withSession((token) => listRootChildren(token, cursor));
+export function getFolderItems(
+  folderId: string,
+  cursor?: string,
+): Promise<ApiResult<ItemPage>> {
+  return withSession((token) => listChildren(token, folderId, cursor));
+}
+
+/** A pasta e o caminho do topo até ela, ou `not_found`. */
+export function getFolder(folderId: string): Promise<ApiResult<ItemDetail>> {
+  return withSession((token) => getApiFolder(token, folderId));
+}
+
+/** Cria uma pasta para o Usuário da Sessão. */
+export function createFolder(input: CreateFolderInput): Promise<ApiResult<Item>> {
+  return withSession((token) => createApiFolder(token, input));
 }
 
 /** A URL assinada de download de um arquivo do Usuário da Sessão. */

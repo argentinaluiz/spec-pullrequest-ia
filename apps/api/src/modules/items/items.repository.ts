@@ -4,8 +4,12 @@ import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
   PendingUpload,
   ResumableUpload,
+  CreateFolderResult,
   FileUpload,
+  FolderPathEntry,
   Item,
+  MAX_FOLDER_DEPTH,
+  NewFolder,
   ItemPosition,
   ItemType,
   NewPendingFile,
@@ -31,6 +35,19 @@ const PENDING_UPLOAD_FIELDS = {
   uploadSessionUri: true,
 } satisfies Prisma.ItemSelect;
 
+type ItemRow = Prisma.ItemGetPayload<{ select: typeof ITEM_FIELDS }>;
+
+/** A linha do banco como Item: o tipo estreitado e o tamanho como `number`. */
+function toItem<T extends ItemRow>(
+  row: T,
+): Omit<T, 'type' | 'sizeBytes'> & { type: ItemType; sizeBytes: number } {
+  return {
+    ...row,
+    type: row.type as ItemType,
+    sizeBytes: Number(row.sizeBytes),
+  };
+}
+
 function toPendingUpload(
   row: Prisma.ItemGetPayload<{ select: typeof PENDING_UPLOAD_FIELDS }>,
 ): PendingUpload {
@@ -40,6 +57,9 @@ function toPendingUpload(
     sizeBytes: Number(row.sizeBytes),
   };
 }
+
+/** Até onde a consulta do caminho sobe: alguns níveis além do limite, para nunca cortar um caminho válido. */
+const PATH_QUERY_MAX_LEVEL = MAX_FOLDER_DEPTH + 10;
 
 @Injectable()
 export class ItemsRepository {
@@ -80,11 +100,13 @@ export class ItemsRepository {
     parentId: string,
     after: ItemPosition | undefined,
     limit: number,
+    foldersOnly = false,
   ): Promise<Item[]> {
     const rows = await this.prisma.item.findMany({
       where: {
         parentId,
         status: 'active',
+        ...(foldersOnly && { type: 'folder' }),
         ...(after && {
           OR: [
             { type: { lt: after.type } },
@@ -97,11 +119,7 @@ export class ItemsRepository {
       take: limit,
       select: ITEM_FIELDS,
     });
-    return rows.map((row) => ({
-      ...row,
-      type: row.type as ItemType,
-      sizeBytes: Number(row.sizeBytes),
-    }));
+    return rows.map(toItem);
   }
 
   /** Se o Usuário tem uma pasta ativa com esse id. */
@@ -111,6 +129,58 @@ export class ItemsRepository {
       select: { id: true },
     });
     return folder !== null;
+  }
+
+  /**
+   * O caminho do topo até a pasta ativa do Usuário, pela consulta recursiva que
+   * sobe pelos pais: do primeiro, a Pasta raiz, ao último, a própria pasta.
+   * Vazio se ela não existe, é de outro Usuário, é arquivo ou não está ativa. A
+   * subida para alguns níveis além do limite de profundidade.
+   */
+  async folderPath(
+    ownerId: string,
+    id: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<FolderPathEntry[]> {
+    return db.$queryRaw<FolderPathEntry[]>`
+      WITH RECURSIVE path AS (
+        SELECT id, name, parent_id, updated_at, 1 AS level
+        FROM items
+        WHERE id = ${id}::uuid AND owner_id = ${ownerId}::uuid
+          AND type = 'folder' AND status = 'active'
+        UNION ALL
+        SELECT i.id, i.name, i.parent_id, i.updated_at, p.level + 1
+        FROM items i
+        JOIN path p ON i.id = p.parent_id
+        WHERE i.owner_id = ${ownerId}::uuid AND p.level < ${PATH_QUERY_MAX_LEVEL}
+      )
+      SELECT id, name, updated_at AS "updatedAt" FROM path ORDER BY level DESC`;
+  }
+
+  /**
+   * Cria a pasta ativa dentro de `folder.parentId`, na mesma transação que a
+   * confere. O lock consultivo do Usuário, tomado antes, faz as gravações que
+   * mudam a árvore dele esperarem umas pelas outras: duas criações nunca passam
+   * juntas do limite de profundidade (seção 4.1 do docs/lld.md). O lock se solta
+   * no fim da transação.
+   */
+  createFolderWithinDepthLimit(folder: NewFolder): Promise<CreateFolderResult> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`items_tree:${folder.ownerId}`}, 0))`;
+      const path = await this.folderPath(folder.ownerId, folder.parentId, tx);
+      if (path.length === 0) {
+        return { status: 'parent_not_found' };
+      }
+      // O caminho do destino traz a raiz, que não conta como nível.
+      if (path.length > MAX_FOLDER_DEPTH) {
+        return { status: 'too_deep' };
+      }
+      const row = await tx.item.create({
+        data: { ...folder, type: 'folder', status: 'active' },
+        select: ITEM_FIELDS,
+      });
+      return { status: 'created', folder: toItem(row) };
+    });
   }
 
   /** Cria o Item `pending` de um arquivo, invisível nas listagens. */
@@ -155,11 +225,9 @@ export class ItemsRepository {
       return null;
     }
     return {
-      ...row,
-      type: 'file',
+      ...toItem(row),
       status: row.status as FileUpload['status'],
       objectKey: row.objectKey,
-      sizeBytes: Number(row.sizeBytes),
     };
   }
 

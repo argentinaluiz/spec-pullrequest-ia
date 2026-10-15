@@ -4,6 +4,7 @@ import { AppBar } from "@/components/navigation/app-bar";
 import { Sidebar } from "@/components/navigation/sidebar";
 import { SidebarDrawer } from "@/components/navigation/sidebar-drawer";
 import { getCurrentUser } from "@/lib/dal/user";
+import { ToastProvider } from "@/components/ui/toast";
 import { UploadButton } from "@/components/uploads/upload-button";
 import { UploadPanel } from "@/components/uploads/upload-panel";
 import { UploadProvider } from "@/components/uploads/upload-provider";
@@ -37,34 +38,46 @@ function AccountMenuPlaceholder() {
  */
 export default function DriveLayout({ children }: LayoutProps<"/">) {
   return (
-    <UploadProvider
-      startUpload={startUpload}
-      completeUpload={completeUpload}
-      cancelUpload={cancelUpload}
-      resumeUpload={resumeUpload}
-    >
-      <div className="flex flex-1 flex-col bg-canvas">
-        <AppBar
-          navigation={
-            <SidebarDrawer>
-              <Sidebar />
-            </SidebarDrawer>
-          }
-          upload={<UploadButton />}
-          account={
-            <Suspense fallback={<AccountMenuPlaceholder />}>
-              <CurrentAccountMenu />
-            </Suspense>
-          }
-        />
-        <div className="flex flex-1">
-          <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 bg-surface p-3 lg:block">
-            <Sidebar />
-          </aside>
-          {children}
+    <ToastProvider>
+      <UploadProvider
+        startUpload={startUpload}
+        completeUpload={completeUpload}
+        cancelUpload={cancelUpload}
+        resumeUpload={resumeUpload}
+      >
+        <div className="flex flex-1 flex-col bg-canvas">
+          <AppBar
+            // O caminho e a pasta aberta só se sabem na requisição em `/pasta/[id]`: cada peça que
+            // os lê fica no próprio `<Suspense>`, para a casca continuar pré-renderizada.
+            navigation={
+              <Suspense fallback={null}>
+                <SidebarDrawer>
+                  <Sidebar />
+                </SidebarDrawer>
+              </Suspense>
+            }
+            upload={
+              <Suspense fallback={null}>
+                <UploadButton />
+              </Suspense>
+            }
+            account={
+              <Suspense fallback={<AccountMenuPlaceholder />}>
+                <CurrentAccountMenu />
+              </Suspense>
+            }
+          />
+          <div className="flex flex-1">
+            <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-60 shrink-0 bg-surface p-3 lg:block">
+              <Suspense fallback={null}>
+                <Sidebar />
+              </Suspense>
+            </aside>
+            {children}
+          </div>
         </div>
-      </div>
-      <UploadPanel />
-    </UploadProvider>
+        <UploadPanel />
+      </UploadProvider>
+    </ToastProvider>
   );
 }

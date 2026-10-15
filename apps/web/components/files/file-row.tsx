@@ -10,8 +10,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { FileKind, FileRowData } from "@/components/files/format";
+import { OpenableRow } from "@/components/files/openable-row";
 import { buttonIconClassName } from "@/components/ui/button-icon";
 import { Menu, MenuLink } from "@/components/ui/menu";
+import { folderPath } from "@/lib/drive";
+
+const ROW_CLASS_NAME =
+  "flex h-12 items-center gap-3 border-b border-hairline bg-canvas px-4";
 
 /** O ícone de cada tipo, que é como os tipos se distinguem. */
 export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
@@ -28,16 +33,14 @@ export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
  * O `{component.file-row}`: ícone do tipo, nome, tipo, tamanho e data. As colunas saem da
  * direita para a esquerda conforme a largura diminui, e o tamanho e a data vão para uma
  * segunda linha, sob o nome. Uma linha de arquivo tem o menu "Mais ações", só com "Baixar"; a de
- * pasta não tem, porque ainda não há ação de pasta. A seleção entra com a funcionalidade dela.
+ * pasta não tem, porque ainda não há ação de pasta, e abre a pasta com dois cliques ou com Enter.
+ * A seleção entra com a funcionalidade dela.
  */
 export function FileRow({ row }: { row: FileRowData }) {
   const Icon = FILE_KIND_ICONS[row.kind];
 
-  return (
-    <div
-      role="row"
-      className="flex h-12 items-center gap-3 border-b border-hairline bg-canvas px-4"
-    >
+  const cells = (
+    <>
       <div role="cell" className="flex min-w-0 flex-1 items-center gap-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-sm text-ink-muted">
           <Icon className="size-4" />
@@ -81,6 +84,19 @@ export function FileRow({ row }: { row: FileRowData }) {
           </Menu>
         )}
       </div>
+    </>
+  );
+
+  if (row.kind === "folder") {
+    return (
+      <OpenableRow href={folderPath(row.id)} className={ROW_CLASS_NAME}>
+        {cells}
+      </OpenableRow>
+    );
+  }
+  return (
+    <div role="row" className={ROW_CLASS_NAME}>
+      {cells}
     </div>
   );
 }

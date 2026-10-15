@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
+import { v7 as uuidv7 } from 'uuid';
 import { authRoutes } from './support/auth-routes.js';
 import { createTestApp } from './support/create-test-app.js';
 import { itemRoutes } from './support/items.js';
@@ -224,16 +225,11 @@ describe('Lista da Pasta raiz', () => {
     },
   );
 
-  it('responde not_found para uma pasta que não é a raiz, enquanto só ela é aceita', async () => {
-    const { accessToken, userId } = await signedInUser();
-    const [folderId] = await items.seed(
-      userId,
-      await items.rootId(accessToken, userId),
-      [{ name: 'pasta', type: 'folder' }],
-    );
+  it('responde not_found para um id que não é de uma pasta ativa do Usuário', async () => {
+    const { accessToken } = await signedInUser();
 
     const response = await items
-      .listChildren(folderId, accessToken)
+      .listChildren(uuidv7(), accessToken)
       .expect(404);
 
     expectProblem(response, {

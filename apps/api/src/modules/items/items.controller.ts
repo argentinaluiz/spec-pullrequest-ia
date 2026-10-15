@@ -4,6 +4,7 @@ import { AuthGuard } from '../../common/auth/auth.guard.js';
 import { CurrentUserId } from '../../common/auth/current-user-id.decorator.js';
 import { ApiProblem } from '../../common/openapi/api-problem.decorator.js';
 import { DownloadUrlDto } from './dto/download-url.dto.js';
+import { ItemDetailDto } from './dto/item-detail.dto.js';
 import { ItemListDto } from './dto/item-list.dto.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -18,6 +19,17 @@ import { ItemsService } from './items.service.js';
 export class ItemsController {
   constructor(private readonly items: ItemsService) {}
 
+  @Get(':id')
+  @ApiOkResponse({ type: ItemDetailDto })
+  @ApiProblem(401, 'unauthenticated')
+  @ApiProblem(404, 'not_found')
+  get(
+    @Param('id') id: string,
+    @CurrentUserId() userId: string,
+  ): Promise<ItemDetailDto> {
+    return this.items.getFolder(userId, id);
+  }
+
   @Get(':id/children')
   @ApiOkResponse({ type: ItemListDto })
   @ApiProblem(400, 'validation_error')
@@ -31,6 +43,7 @@ export class ItemsController {
     return this.items.listChildren(userId, id, {
       limit: query.limit ?? DEFAULT_PAGE_SIZE,
       cursor: query.cursor,
+      foldersOnly: query.type === 'folder',
     });
   }
 
