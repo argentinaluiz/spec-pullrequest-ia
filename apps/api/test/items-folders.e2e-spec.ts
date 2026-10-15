@@ -261,6 +261,12 @@ describe('Pastas', () => {
           'Fotos',
           'Fotos',
         ]);
+        expect(inFolder.body).toMatchObject({
+          type: 'folder',
+          name: 'Fotos',
+          sizeBytes: 0,
+          mimeType: null,
+        });
         expect((folderList.body as ListBody).items.map((i) => i.id)).toEqual([
           (inFolder.body as { id: string }).id,
         ]);
