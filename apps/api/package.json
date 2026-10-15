@@ -21,6 +21,7 @@
     "test:int": "vitest run --config ./vitest.config.int.ts",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "setup:dev": "node scripts/setup-env.mjs && prisma generate && prisma migrate deploy",
+    "uploads:cleanup-pending": "nest build --path tsconfig.uploads-cleanup.json && node reports/uploads-cleanup-build/commands/run-cleanup-pending-uploads.js",
     "openapi:generate": "nest build --path tsconfig.openapi.json && node reports/openapi-build/openapi/generate-openapi.js"
   },
   "dependencies": {

@@ -8,6 +8,7 @@ import {
 } from '../../infra/storage/file-storage.js';
 import {
   DownloadUrl,
+  ExpiredPendingUpload,
   FileUpload,
   ItemPage,
   NewPendingFile,
@@ -129,6 +130,15 @@ export class ItemsService {
    */
   removePending(id: string, db: Prisma.TransactionClient): Promise<boolean> {
     return this.items.deletePending(id, db);
+  }
+
+  /** Até `limit` uploads `pending` criados até `before`, a partir do que vem depois de `afterId`. */
+  listExpiredPending(
+    before: Date,
+    afterId: string | undefined,
+    limit: number,
+  ): Promise<ExpiredPendingUpload[]> {
+    return this.items.listExpiredPending(before, afterId, limit);
   }
 
   /** Guarda o endereço da sessão de upload no Item `pending`. */

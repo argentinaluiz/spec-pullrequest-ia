@@ -18,6 +18,7 @@ export interface Env {
   STORAGE_PUBLIC_URL?: string;
   STORAGE_SIGNER_EMAIL?: string;
   STORAGE_SIGNER_PRIVATE_KEY?: string;
+  PENDING_UPLOAD_TTL_HOURS: number;
   EMAIL_VERIFICATION_TTL_SECONDS: number;
   PASSWORD_RESET_TTL_SECONDS: number;
   ACCESS_TOKEN_TTL_SECONDS: number;
@@ -155,6 +156,8 @@ export const envSchema = Joi.object<Env>({
   STORAGE_SIGNER_EMAIL: Joi.string(),
   STORAGE_SIGNER_PRIVATE_KEY: rsaKey('private'),
 
+  // Prazo do upload pendente, em horas. Zero faz todo pendente vencer na hora (docs/lld.md, seção 6, variáveis de ambiente).
+  PENDING_UPLOAD_TTL_HOURS: Joi.number().integer().min(0).default(24),
   EMAIL_VERIFICATION_TTL_SECONDS: Joi.number()
     .integer()
     .min(1)

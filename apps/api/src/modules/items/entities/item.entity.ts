@@ -51,3 +51,13 @@ export interface DownloadUrl {
   url: string;
   expiresAt: Date;
 }
+
+/** Um upload `pending` vencido, com o que a limpeza precisa para desfazê-lo. */
+export interface ExpiredPendingUpload {
+  id: string;
+  ownerId: string;
+  sizeBytes: number;
+  objectKey: string | null;
+  /** Endereço da sessão de upload no storage, ausente se ela nunca chegou a ser gravada. */
+  uploadSessionUri: string | null;
+}

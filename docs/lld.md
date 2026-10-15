@@ -560,9 +560,9 @@ O worker é a mesma imagem da API, publicada como um serviço separado do Cloud 
 | Reconciliar `used_bytes` | Cloud Scheduler, diário | Só registra a divergência |
 | Limpar tokens, links e contadores expirados | Cloud Scheduler, diário | Tenta de novo na próxima execução |
 
-**Antes do worker:** enquanto o serviço do worker não existe, a limpeza de uploads `pending` roda por um comando no contêiner `api`, que abre a aplicação sem o servidor HTTP e chama o mesmo service que o endpoint do worker vai chamar. É o substituto local do Cloud Scheduler (HLD, seção 6.1). O worker, o endpoint interno com OIDC e a fila entram quando houver deploy, e a miniatura entra com a pré-visualização.
+**Antes do worker:** enquanto o serviço do worker não existe, a limpeza de uploads `pending` roda por um comando no contêiner `api`, que chama o mesmo service que o endpoint do worker vai chamar. É o substituto local do Cloud Scheduler (HLD, seção 6.1), e o uso dele está em `apps/api/AGENTS.md`. A ordem de cada remoção é a do expurgo, abaixo. O worker, o endpoint interno com OIDC e a fila entram quando houver deploy, e a miniatura entra com a pré-visualização.
 
-**Ordem do expurgo:** primeiro o objeto e a miniatura são apagados do Cloud Storage, e só depois a linha sai do banco e o espaço volta à cota. Na ordem inversa, uma falha no meio deixaria objetos órfãos, gerando custo sem registro.
+**Ordem do expurgo:** primeiro a sessão de upload, o objeto e a miniatura são apagados do Cloud Storage, e só depois uma transação apaga a linha (só se ainda estiver `pending`) e devolve o espaço à cota (só se uma linha foi apagada, então repetir ou paralelizar a limpeza não devolve duas vezes). Antes de apagar o objeto, a limpeza lê o status do Item de novo e o pula se ele já não estiver `pending`. Uma conclusão que chegue entre essa leitura e a remoção do objeto ainda é possível com o prazo zero, que existe só para testes e para o ambiente de desenvolvimento; com o padrão de 24 horas, um upload tão antigo não foi concluído por um cliente vivo. Se o storage falhar, a linha fica para a próxima execução e as demais seguem. Na ordem inversa, uma falha no meio deixaria objetos órfãos, gerando custo sem registro.
 
 **Miniaturas:** são geradas só para imagens de até 50 MB, com 320 px no lado maior, em WebP, e gravadas no mesmo bucket sob o prefixo `thumbnails/`.
 
@@ -608,7 +608,7 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 | `STORAGE_EMULATOR_HOST` | api | Endereço do emulador de storage, só no desenvolvimento (`http://storage:4443`) |
 | `STORAGE_PUBLIC_URL` | api | Origem do emulador que o navegador alcança, só no desenvolvimento (`http://localhost:4443`). Obrigatória quando `STORAGE_EMULATOR_HOST` existe. |
 | `STORAGE_SIGNER_EMAIL`, `STORAGE_SIGNER_PRIVATE_KEY` | api | Credencial de assinatura das URLs, só no desenvolvimento: um e-mail fictício e uma chave RSA em PEM gerada pelo `setup-env.mjs`. Obrigatórias quando `STORAGE_EMULATOR_HOST` existe, e ausentes em produção, onde a assinatura usa a identidade do serviço. |
-| `TRASH_RETENTION_DAYS`, `PENDING_UPLOAD_TTL_HOURS` | api | Padrões de 30 dias e 24 horas |
+| `TRASH_RETENTION_DAYS`, `PENDING_UPLOAD_TTL_HOURS` | api | Padrões de 30 dias e 24 horas. O prazo dos pendentes é um inteiro maior ou igual a 0, e zero faz todo pendente vencer na hora. |
 | `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS` | api | Validade do token de acesso e do token de renovação, em segundos. Padrões de 900 (15 minutos) e 2592000 (30 dias). |
 | `REFRESH_TOKEN_REUSE_GRACE_SECONDS` | api | Por quanto tempo um token de renovação já trocado ainda é aceito, em segundos. Padrão de 10. Zero desliga a tolerância. |
 | `EMAIL_VERIFICATION_TTL_SECONDS` | api | Validade do link de verificação de e-mail, em segundos. Padrão de 86400 (24 horas). |

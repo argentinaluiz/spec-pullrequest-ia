@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
+  ExpiredPendingUpload,
   FileUpload,
   Item,
   ItemPosition,
@@ -159,6 +160,36 @@ export class ItemsRepository {
       where: { id, status: 'pending' },
     });
     return count > 0;
+  }
+
+  /**
+   * Até `limit` uploads `pending` criados até `before`, em ordem de id, a
+   * partir do que vem depois de `afterId`. O índice parcial dos pendentes
+   * atende o filtro.
+   */
+  async listExpiredPending(
+    before: Date,
+    afterId: string | undefined,
+    limit: number,
+  ): Promise<ExpiredPendingUpload[]> {
+    const rows = await this.prisma.item.findMany({
+      where: {
+        status: 'pending',
+        type: 'file',
+        createdAt: { lte: before },
+        ...(afterId && { id: { gt: afterId } }),
+      },
+      orderBy: { id: 'asc' },
+      take: limit,
+      select: {
+        id: true,
+        ownerId: true,
+        sizeBytes: true,
+        objectKey: true,
+        uploadSessionUri: true,
+      },
+    });
+    return rows.map((row) => ({ ...row, sizeBytes: Number(row.sizeBytes) }));
   }
 
   /** Guarda o endereço da sessão de upload no Item `pending`. */

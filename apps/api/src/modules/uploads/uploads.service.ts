@@ -1,13 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
 import { appConfig } from '../../config/app.config.js';
+import { uploadsConfig } from '../../config/uploads.config.js';
 import { PrismaService } from '../../infra/database/prisma.service.js';
 import {
   FILE_STORAGE,
   type FileStorage,
 } from '../../infra/storage/file-storage.js';
-import type { Item } from '../items/entities/item.entity.js';
+import type {
+  ExpiredPendingUpload,
+  Item,
+} from '../items/entities/item.entity.js';
 import { ItemNotFoundError } from '../items/errors/item-not-found.error.js';
 import { ItemsService } from '../items/items.service.js';
 import { QuotaService } from '../quota/quota.service.js';
@@ -21,8 +25,14 @@ const MAX_FILE_BYTES = 5 * 1024 ** 3;
 /** Tipo do arquivo quando o pedido não diz qual é. */
 const DEFAULT_MIME_TYPE = 'application/octet-stream';
 
-/** Quanto tempo o upload fica pendente: o prazo em que a limpeza o remove (seção 5 do docs/lld.md). */
-const PENDING_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+/** Quantos uploads vencidos a limpeza lê por vez. */
+const CLEANUP_BATCH_SIZE = 100;
+
+/** O resultado de uma limpeza: quantos pendentes saíram e em quantos o storage falhou. */
+export interface PendingCleanupResult {
+  removed: number;
+  failed: number;
+}
 
 export interface StartedUpload {
   itemId: string;
@@ -33,12 +43,16 @@ export interface StartedUpload {
 /** O envio de arquivos: o início, que reserva a Cota, e a conclusão, que confere o objeto no storage. */
 @Injectable()
 export class UploadsService {
+  private readonly logger = new Logger(UploadsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly items: ItemsService,
     private readonly quota: QuotaService,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     @Inject(appConfig.KEY) private readonly app: ConfigType<typeof appConfig>,
+    @Inject(uploadsConfig.KEY)
+    private readonly config: ConfigType<typeof uploadsConfig>,
   ) {}
 
   /**
@@ -92,7 +106,7 @@ export class UploadsService {
       return {
         itemId,
         uploadUrl,
-        expiresAt: new Date(createdAt.getTime() + PENDING_UPLOAD_TTL_MS),
+        expiresAt: new Date(createdAt.getTime() + this.config.pendingTtlMs),
       };
     } catch (error) {
       await this.discardPending(userId, itemId, input.sizeBytes).catch(
@@ -135,16 +149,77 @@ export class UploadsService {
     return toItem(active);
   }
 
-  /** Apaga o Item `pending` e devolve o espaço, só se foi esta chamada que o apagou. */
+  /** Remove os uploads `pending` vencidos, na ordem do expurgo (seção 5 do docs/lld.md). */
+  async cleanupPending(): Promise<PendingCleanupResult> {
+    const before = new Date(Date.now() - this.config.pendingTtlMs);
+    const result: PendingCleanupResult = { removed: 0, failed: 0 };
+    let afterId: string | undefined;
+    let batch: ExpiredPendingUpload[];
+    do {
+      batch = await this.items.listExpiredPending(
+        before,
+        afterId,
+        CLEANUP_BATCH_SIZE,
+      );
+      for (const upload of batch) {
+        const outcome = await this.purge(upload);
+        if (outcome === 'removed') result.removed += 1;
+        if (outcome === 'failed') result.failed += 1;
+      }
+      afterId = batch.at(-1)?.id;
+    } while (batch.length === CLEANUP_BATCH_SIZE);
+    return result;
+  }
+
+  /**
+   * Apaga um upload vencido: o storage primeiro, depois o Item e o espaço. Se o
+   * storage falhar, o Item fica para a próxima execução.
+   */
+  private async purge(
+    upload: ExpiredPendingUpload,
+  ): Promise<'removed' | 'skipped' | 'failed'> {
+    try {
+      if (upload.uploadSessionUri) {
+        await this.storage.cancelUploadSession(upload.uploadSessionUri);
+      }
+      // Estreita a janela: uma conclusão que ativou o Item desde a listagem poupa o objeto.
+      const current = await this.items.findFile(upload.ownerId, upload.id);
+      if (current?.status !== 'pending') {
+        return 'skipped';
+      }
+      if (upload.objectKey) {
+        await this.storage.deleteObject(upload.objectKey);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Upload pendente ${upload.id} fica para a próxima limpeza: ${String(error)}`,
+      );
+      return 'failed';
+    }
+    // Uma conclusão que ativou o Item no meio do caminho não o perde: só apaga `pending`.
+    const removed = await this.discardPending(
+      upload.ownerId,
+      upload.id,
+      upload.sizeBytes,
+    );
+    return removed ? 'removed' : 'skipped';
+  }
+
+  /**
+   * Apaga o Item `pending` e devolve o espaço, só se foi esta chamada que o
+   * apagou. Devolve se foi.
+   */
   private discardPending(
     userId: string,
     itemId: string,
     sizeBytes: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.prisma.$transaction(async (tx) => {
-      if (await this.items.removePending(itemId, tx)) {
+      const removed = await this.items.removePending(itemId, tx);
+      if (removed) {
         await this.quota.release(userId, sizeBytes, tx);
       }
+      return removed;
     });
   }
 }
