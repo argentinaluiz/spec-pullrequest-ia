@@ -1,6 +1,4 @@
 import {
-  Download,
-  EllipsisVertical,
   File,
   FileMusic,
   FileText,
@@ -11,8 +9,8 @@ import {
 } from "lucide-react";
 import type { FileKind, FileRowData } from "@/components/files/format";
 import { OpenableRow } from "@/components/files/openable-row";
-import { buttonIconClassName } from "@/components/ui/button-icon";
-import { Menu, MenuLink } from "@/components/ui/menu";
+import { renameItem } from "@/app/(drive)/actions";
+import { RowActions } from "@/components/files/row-actions";
 import { folderPath } from "@/lib/drive";
 
 const ROW_CLASS_NAME =
@@ -32,8 +30,8 @@ export const FILE_KIND_ICONS: Record<FileKind, LucideIcon> = {
 /**
  * O `{component.file-row}`: ícone do tipo, nome, tipo, tamanho e data. As colunas saem da
  * direita para a esquerda conforme a largura diminui, e o tamanho e a data vão para uma
- * segunda linha, sob o nome. Uma linha de arquivo tem o menu "Mais ações", só com "Baixar"; a de
- * pasta não tem, porque ainda não há ação de pasta, e abre a pasta com dois cliques ou com Enter.
+ * segunda linha, sob o nome. Toda linha tem o menu "Mais ações": "Baixar", só no arquivo, e
+ * "Renomear". A de pasta abre a pasta com dois cliques ou com Enter.
  * A seleção entra com a funcionalidade dela.
  */
 export function FileRow({ row }: { row: FileRowData }) {
@@ -69,20 +67,13 @@ export function FileRow({ row }: { row: FileRowData }) {
         {row.modifiedAt}
       </div>
       <div role="cell" className="flex size-11 shrink-0 items-center justify-center lg:size-9">
-        {row.kind !== "folder" && (
-          // O menu é de cliente, e a linha continua no servidor: os ícones atravessam a
-          // fronteira como elementos, já renderizados.
-          <Menu
-            label="Mais ações"
-            triggerClassName={buttonIconClassName(36)}
-            trigger={<EllipsisVertical className="size-5" />}
-            widthClassName="w-55"
-          >
-            <MenuLink icon={<Download />} href={`/arquivos/${row.id}/baixar`}>
-              Baixar
-            </MenuLink>
-          </Menu>
-        )}
+        {/* O menu é de cliente, e a linha continua no servidor. */}
+        <RowActions
+          id={row.id}
+          name={row.name}
+          downloadable={row.kind !== "folder"}
+          rename={renameItem}
+        />
       </div>
     </>
   );

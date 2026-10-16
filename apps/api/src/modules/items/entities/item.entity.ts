@@ -58,6 +58,12 @@ export type CreateFolderResult =
   | { status: 'parent_not_found' }
   | { status: 'too_deep' };
 
+/** O que renomear um Item resolve: renomeado, a Pasta raiz (que não se renomeia) ou sem Item ativo do Usuário. */
+export type RenameResult =
+  | { status: 'renamed'; item: Item }
+  | { status: 'root' }
+  | { status: 'not_found' };
+
 /** Quantas pastas o caminho de um Item pode ter, sem contar a Pasta raiz. */
 export const MAX_FOLDER_DEPTH = 50;
 

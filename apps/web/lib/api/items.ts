@@ -7,6 +7,7 @@ import type {
   Item,
   ItemDetail,
   ItemPage,
+  UpdateItemInput,
 } from "@/lib/api/types";
 
 /* As rotas de Itens (docs/lld.md, seção 3.3). */
@@ -40,6 +41,19 @@ export function createFolder(
   input: CreateFolderInput,
 ): Promise<ApiResult<Item>> {
   return apiRequest("/folders", { method: "POST", body: input, accessToken });
+}
+
+/** Troca o nome de um Item ativo do Usuário. */
+export function updateItem(
+  accessToken: string,
+  id: string,
+  input: UpdateItemInput,
+): Promise<ApiResult<Item>> {
+  return apiRequest(`/items/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: input,
+    accessToken,
+  });
 }
 
 /** A URL assinada de leitura de um arquivo ativo do Usuário, com o nome original no download. */

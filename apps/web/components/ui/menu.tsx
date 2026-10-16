@@ -154,17 +154,35 @@ type MenuItemProps = Omit<
   ComponentProps<"button">,
   "className" | "role" | "children"
 > &
-  ItemContentProps;
+  ItemContentProps & {
+    /**
+     * Fecha o menu depois do clique, para a ação que abre algo por cima (um diálogo). Fica de fora
+     * do item que envia um formulário, porque desmontá-lo no clique cancelaria o envio.
+     */
+    closeOnClick?: boolean;
+  };
 
 /** Uma ação do menu. Com `type="submit"`, envia o formulário em que está. */
 export function MenuItem({
   icon,
   children,
   type = "button",
+  closeOnClick = false,
+  onClick,
   ...props
 }: MenuItemProps) {
+  const close = useContext(CloseMenuContext);
   return (
-    <button type={type} role="menuitem" className={ITEM_CLASS_NAME} {...props}>
+    <button
+      type={type}
+      role="menuitem"
+      className={ITEM_CLASS_NAME}
+      onClick={(event) => {
+        onClick?.(event);
+        if (closeOnClick) close();
+      }}
+      {...props}
+    >
       <ItemContent icon={icon}>{children}</ItemContent>
     </button>
   );

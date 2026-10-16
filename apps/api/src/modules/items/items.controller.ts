@@ -1,15 +1,25 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/auth/auth.guard.js';
 import { CurrentUserId } from '../../common/auth/current-user-id.decorator.js';
 import { ApiProblem } from '../../common/openapi/api-problem.decorator.js';
 import { DownloadUrlDto } from './dto/download-url.dto.js';
 import { ItemDetailDto } from './dto/item-detail.dto.js';
+import { ItemDto } from './dto/item.dto.js';
 import { ItemListDto } from './dto/item-list.dto.js';
 import {
   DEFAULT_PAGE_SIZE,
   ListChildrenQueryDto,
 } from './dto/list-children-query.dto.js';
+import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemsService } from './items.service.js';
 
 @ApiTags('items')
@@ -28,6 +38,19 @@ export class ItemsController {
     @CurrentUserId() userId: string,
   ): Promise<ItemDetailDto> {
     return this.items.getFolder(userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOkResponse({ type: ItemDto })
+  @ApiProblem(400, 'validation_error')
+  @ApiProblem(401, 'unauthenticated')
+  @ApiProblem(404, 'not_found')
+  update(
+    @Param('id') id: string,
+    @Body() body: UpdateItemDto,
+    @CurrentUserId() userId: string,
+  ): Promise<ItemDto> {
+    return this.items.rename(userId, id, body.name);
   }
 
   @Get(':id/children')

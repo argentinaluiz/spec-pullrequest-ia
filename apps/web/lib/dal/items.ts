@@ -4,6 +4,7 @@ import {
   getFolder as getApiFolder,
   getItemDownloadUrl,
   listChildren,
+  updateItem,
 } from "@/lib/api/items";
 import type {
   ApiResult,
@@ -12,6 +13,7 @@ import type {
   Item,
   ItemDetail,
   ItemPage,
+  UpdateItemInput,
 } from "@/lib/api/types";
 import { withSession } from "@/lib/dal/session";
 
@@ -36,6 +38,14 @@ export function getFolder(folderId: string): Promise<ApiResult<ItemDetail>> {
 /** Cria uma pasta para o Usuário da Sessão. */
 export function createFolder(input: CreateFolderInput): Promise<ApiResult<Item>> {
   return withSession((token) => createApiFolder(token, input));
+}
+
+/** Troca o nome de um Item do Usuário da Sessão. */
+export function renameItem(
+  id: string,
+  input: UpdateItemInput,
+): Promise<ApiResult<Item>> {
+  return withSession((token) => updateItem(token, id, input));
 }
 
 /** A URL assinada de download de um arquivo do Usuário da Sessão. */
