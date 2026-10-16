@@ -155,3 +155,32 @@ test(
     await expect(rowOf(page, "balanco.txt")).toHaveCount(1);
   },
 );
+
+test(
+  "renomear um item de uma página carregada por Carregar mais não deixa o nome antigo na lista",
+  async ({ page }) => {
+    const email = uniqueEmail();
+    await signIn(page, email);
+    await seedRootFiles(
+      email,
+      Array.from({ length: 51 }, (_, index) => ({
+        name: `arquivo-${String(index + 1).padStart(3, "0")}.txt`,
+      })),
+    );
+    await page.reload();
+    await page.getByRole("button", { name: "Carregar mais" }).click();
+    await expect(rowOf(page, "arquivo-051.txt")).toHaveCount(1);
+
+    const dialog = await openRename(page, "arquivo-051.txt");
+    // O novo nome continua depois da primeira página: o servidor devolve os mesmos 50 itens, e
+    // só o descarte das páginas acrescentadas tira o nome antigo da tela.
+    await dialog.getByLabel("Nome").fill("zzz-ultimo.txt");
+    await dialog.getByRole("button", { name: "Renomear" }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(rowOf(page, "arquivo-051.txt")).toHaveCount(0);
+    await page.getByRole("button", { name: "Carregar mais" }).click();
+    await expect(rowOf(page, "zzz-ultimo.txt")).toHaveCount(1);
+    await expect(rowOf(page, "arquivo-051.txt")).toHaveCount(0);
+  },
+);

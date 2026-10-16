@@ -185,27 +185,30 @@ export class ItemsRepository {
   }
 
   /**
-   * Troca o nome do Item ativo do Usuário e renova o `updatedAt`. A Pasta
-   * raiz, a única sem pai, fica de fora e é dita à parte.
+   * Troca o nome do Item ativo do Usuário e renova o `updatedAt`, num único
+   * `UPDATE` condicionado a ele ainda estar ativo e não ser a Pasta raiz, a
+   * única sem pai: uma mudança concorrente de estado não escapa da condição.
+   * Sem linha atualizada, a leitura só diz por quê: a Pasta raiz, dita à
+   * parte, ou nenhum Item ativo do Usuário.
    */
   async renameActive(
     ownerId: string,
     id: string,
     name: string,
   ): Promise<RenameResult> {
-    const found = await this.prisma.item.findFirst({
-      where: { id, ownerId, status: 'active' },
-      select: { parentId: true },
-    });
-    if (!found) {
-      return { status: 'not_found' };
-    }
-    if (found.parentId === null) {
-      return { status: 'root' };
-    }
-    const row = await this.prisma.item.update({
-      where: { id },
+    const { count } = await this.prisma.item.updateMany({
+      where: { id, ownerId, status: 'active', parentId: { not: null } },
       data: { name },
+    });
+    if (count === 0) {
+      const root = await this.prisma.item.findFirst({
+        where: { id, ownerId, status: 'active', parentId: null },
+        select: { id: true },
+      });
+      return { status: root ? 'root' : 'not_found' };
+    }
+    const row = await this.prisma.item.findUniqueOrThrow({
+      where: { id },
       select: ITEM_FIELDS,
     });
     return { status: 'renamed', item: toItem(row) };

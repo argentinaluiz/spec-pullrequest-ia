@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import type { RenameItemResult } from "@/app/(drive)/actions";
+import { useResetLoadedPages } from "@/components/files/load-more";
 import { ButtonPrimary } from "@/components/ui/button-primary";
 import { ButtonSecondary } from "@/components/ui/button-secondary";
 import { Dialog } from "@/components/ui/dialog";
@@ -30,6 +31,7 @@ type FormState = { error: string | null; name: string };
 export function RenameDialog({ id, name, rename, onClose }: RenameDialogProps) {
   const router = useRouter();
   const toast = useToast();
+  const resetLoadedPages = useResetLoadedPages();
 
   const [state, submit, pending] = useActionState<FormState, FormData>(
     async (_previous, formData) => {
@@ -38,6 +40,7 @@ export function RenameDialog({ id, name, rename, onClose }: RenameDialogProps) {
       const result = await rename(id, sent);
       if (!result.ok) return { error: result.message, name: sent };
       toast.show(`Renomeado para “${result.name}”.`);
+      resetLoadedPages();
       router.refresh();
       onClose();
       return { error: null, name: result.name };
