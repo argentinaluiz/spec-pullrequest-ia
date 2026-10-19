@@ -146,4 +146,12 @@ expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
 expect 0 "libera o remover sem a opção, o novo e o listar @LUI-186-CA7" \
   "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
 
+# O `frentes.sh` com as variáveis do modo de teste trocaria o `gh` e contornaria o merge do `remover`.
+expect 2 "nega o frentes.sh com o gh trocado pelo modo de teste @LUI-186-CA7" \
+  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso scripts/frentes.sh remover LUI-186')" "modo de teste do harness"
+expect 2 "nega a variável do modo de teste depois do script e embrulhada no bash -c" \
+  "$(command_input "bash -c 'scripts/frentes.sh listar; export FRENTES_DOCKER=./x'")" "modo de teste do harness"
+expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" \
+  "$(command_input 'HARNESS_TEST=1 bash scripts/test/frentes.test.sh')"
+
 finish "do hook"

@@ -35,10 +35,17 @@ expected_for_worktree() {
 
 check "num repositório, onde o .git é uma pasta, não pede nada" test -z "$(args_in "$repo")"
 
-git -C "$repo" -c worktree.useRelativePaths=true worktree add -q --detach "$work/relativo"
-check "o worktree está com o .git relativo, como no Git de quem o cria assim" grep -q '^gitdir: \.\./' "$work/relativo/.git"
-check "num worktree com o .git relativo, monta o .git comum e aponta o GIT_DIR" \
-  test "$(args_in "$work/relativo")" = "$(expected_for_worktree relativo)"
+# O `.git` com caminho relativo só existe a partir do Git 2.48 (`worktree.useRelativePaths`): antes, o Git grava
+# sempre o absoluto e o caso do relativo não tem como existir. O script de frentes aceita o Git a partir da 2.38.
+git_found="$(git --version | sed -E 's/^git version ([0-9]+\.[0-9]+).*/\1/')"
+if [[ "$(printf '%s\n%s\n' 2.48 "$git_found" | sort -V | head -n 1)" == 2.48 ]]; then
+  git -C "$repo" -c worktree.useRelativePaths=true worktree add -q --detach "$work/relativo"
+  check "o worktree está com o .git relativo, como no Git de quem o cria assim" grep -q '^gitdir: \.\./' "$work/relativo/.git"
+  check "num worktree com o .git relativo, monta o .git comum e aponta o GIT_DIR" \
+    test "$(args_in "$work/relativo")" = "$(expected_for_worktree relativo)"
+else
+  echo "Git $git_found: o .git relativo vem do 2.48, e os casos do worktree relativo ficam de fora."
+fi
 
 git -C "$repo" -c worktree.useRelativePaths=false worktree add -q --detach "$work/absoluto"
 check "o worktree está com o .git absoluto" grep -q "^gitdir: $repo/" "$work/absoluto/.git"

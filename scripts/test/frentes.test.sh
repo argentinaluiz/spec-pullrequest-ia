@@ -92,11 +92,12 @@ fresh() {
   repo="$work/$1/principal"
 }
 
-# pr <branch> <número> <ABERTO|MERGEADO|FECHADO>: o `gh` passa a responder esse PR para a branch.
+# pr <branch> <número> <ABERTO|MERGEADO|FECHADO> [commit]: o `gh` passa a responder esse PR para a branch, com a
+# ponta do PR (headRefOid) quando o commit é dado.
 pr() {
   local state
   case "$3" in ABERTO) state=OPEN ;; MERGEADO) state=MERGED ;; *) state=CLOSED ;; esac
-  printf '[{"number":%s,"state":"%s"}]\n' "$2" "$state" >"$GH_STATES/${1//\//_}"
+  printf '[{"number":%s,"state":"%s","headRefOid":"%s"}]\n' "$2" "$state" "${4:-}" >"$GH_STATES/${1//\//_}"
 }
 
 # change <pasta> <arquivo> <conteúdo>: grava o arquivo na pasta e faz o commit.
@@ -462,5 +463,67 @@ conflict_errors() {
   [[ $? -eq 0 ]] && contains "não deu para calcular" && [[ "$out" != *"(não deu para calcular)"*"pede atenção"* ]]
 }
 check "um erro ao calcular o merge é dito, e não passa por sem conflito, e o nome com acento sai sem aspas" conflict_errors
+
+# --- A branch da frente nasce sem upstream: o `git push` comum não tem a main como destino ---
+no_upstream() {
+  fresh upstream
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  ! git -C "$work/upstream/principal-lui-1" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1
+}
+check "o novo cria a branch sem upstream, para o git push comum não apontar para a main @LUI-186-CA1" no_upstream
+
+# --- A frente cuja pasta foi apagada à mão deixa de contar para o limite, e some do listar ---
+deleted_folder() {
+  fresh apagada
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-3 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-4
+  [[ $code -ne 0 ]] && contains "Já há 3 frentes" || return 1
+  rm -rf "$work/apagada/principal-lui-1" "$work/apagada/principal-lui-2"
+  frentes "$repo" listar
+  [[ $code -eq 0 ]] && ! contains "lui-1" && ! contains "lui-2" && contains "lui-3" || return 1
+  frentes "$repo" novo LUI-4
+  [[ $code -eq 0 ]] && env_has "$work/apagada/principal-lui-4" SLOT=1
+}
+check "a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre @LUI-186-CA2" deleted_folder
+
+# --- O remover só apaga a branch que o PR mergeado já contém ---
+remove_tip() {
+  local front tip
+  fresh ponta
+  front="$work/ponta/principal-lui-1"
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  tip="$(git -C "$front" rev-parse HEAD)"
+  # O PR mergeado tem a ponta da branch; depois do merge, um commit local novo: recusa, e nada sai.
+  pr feature/lui-1 5 MERGEADO "$tip"
+  change "$front" "depois-do-merge.txt" "trabalho novo"
+  : >"$DOCKER_LOG"
+  frentes "$repo" remover LUI-1
+  [[ $code -ne 0 ]] && contains "commits que o PR mergeado não tem" && [[ -d "$front" ]] &&
+    ! grep -q "down" "$DOCKER_LOG" && git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null || return 1
+  # Um PR novo e aberto na mesma branch vale mais que o mergeado antigo: a frente está em uso.
+  printf '[{"number":5,"state":"MERGED","headRefOid":"%s"},{"number":9,"state":"OPEN","headRefOid":"%s"}]\n' \
+    "$tip" "$(git -C "$front" rev-parse HEAD)" >"$GH_STATES/feature_lui-1"
+  frentes "$repo" remover LUI-1
+  [[ $code -ne 0 ]] && contains "#9 aberto" && [[ -d "$front" ]] || return 1
+  # Com a ponta do PR igual à da branch, remove.
+  pr feature/lui-1 9 MERGEADO "$(git -C "$front" rev-parse HEAD)"
+  frentes "$repo" remover LUI-1
+  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+}
+check "o remover recusa a branch com commits que o PR mergeado não tem e o PR novo aberto, e remove quando a ponta é a do PR @LUI-186-CA6" remove_tip
+
+# --- O remover chamado de dentro da própria frente também apaga a branch ---
+remove_from_inside() {
+  local front
+  fresh dentro
+  front="$work/dentro/principal-lui-1"
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  pr feature/lui-1 5 MERGEADO
+  frentes "$front" remover LUI-1
+  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+}
+check "o remover chamado de dentro da frente tira o worktree e apaga a branch @LUI-186-CA6" remove_from_inside
 
 finish "do script de frentes"
