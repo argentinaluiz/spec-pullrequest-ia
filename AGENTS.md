@@ -109,6 +109,8 @@ Cada ticket pode correr numa **frente**: um checkout próprio, na branch do tick
 - **Listar:** `scripts/frentes.sh listar` mostra o slot, a branch, as portas e o estado do PR de cada frente.
 - **Remover:** `scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega.
 
+**Trazer a `main` para a frente:** use a `/sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
+
 As regras de cada comando (a fórmula do slot, o `.env`, as recusas e a remoção) estão no cabeçalho do `scripts/frentes.sh`, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta, e o login de um derruba o do outro: use um slot por janela anônima, ou por perfil do navegador.
