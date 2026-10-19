@@ -21,6 +21,9 @@ api_fast() {
 
 api_full() {
   api_fast
+  step "API: ordem das migrações" \
+    "renomeie a migração nova que a mensagem aponta para um nome posterior à mais recente da base, como ela explica." \
+    api_migration_order
   # Relatório antigo não vale como evidência desta execução. A pasta do relatório dos testes do
   # harness (`HARNESS_REPORT`, no scripts/verify.sh), que o Node não cria, nasce vazia aqui.
   in_container api sh -c "rm -rf reports && mkdir -p '$(dirname "$HARNESS_REPORT")'"
@@ -196,6 +199,35 @@ api_contract_drift() {
   mkdir -p "$(dirname "$drift")"
   printf '%s\n' "$view" | tee -a "$drift"
   echo "::warning title=Contrato diferente do planejado::$warning"
+}
+
+# A pasta das migrações do Prisma, que aplica cada uma na ordem do nome.
+API_MIGRATIONS=apps/api/prisma/migrations
+
+# As migrações novas da branch (as da pasta de trabalho que a base, o BASE_REF, não tem) têm de vir
+# depois da mais recente da base: uma branch paralela que entrou na base antes ficaria com a migração
+# dela no meio do histórico. Compara os nomes das pastas, que é o que o Prisma ordena; a migração que a
+# branch apaga não é deste passo. Roda na raiz do repositório.
+api_migration_order() {
+  local base current latest late name
+  require_base
+  # Uma pasta que a base não tem lista vazio e aprova; uma base que não se lê (a referência, um clone raso
+  # sem os objetos) falha, e o passo não aprova no escuro.
+  base="$(git ls-tree -d --name-only "$BASE_REF" "$API_MIGRATIONS/")" || {
+    echo "Não deu para ler as migrações da base \`$BASE_REF\`, e a ordem delas não foi conferida. Rode \`git fetch\`, ou aponte outra base com HARNESS_BASE_REF." >&2
+    return 1
+  }
+  base="$(sed 's#.*/##' <<<"$base" | LC_ALL=C sort)"
+  current="$(ls -1p "$API_MIGRATIONS" 2>/dev/null | sed -n 's#/$##p' | LC_ALL=C sort)"
+  latest="$(tail -n 1 <<<"$base")"
+  late="$(LC_ALL=C comm -13 <(echo "$base") <(echo "$current") | LC_ALL=C awk -v latest="$latest" '$0 < latest')"
+  [[ -z "$late" ]] && return 0
+
+  while IFS= read -r name; do
+    echo "A migração nova $name vem antes da mais recente da base ($BASE_REF), $latest. O Prisma aplica as migrações na ordem do nome, e esta ficaria no meio do histórico." >&2
+  done <<<"$late"
+  echo "Recrie-a com um nome posterior: renomeie a pasta com \`git mv $API_MIGRATIONS/<nome atual> $API_MIGRATIONS/<AAAAMMDDHHMMSS>_<nome>\`, com a data de agora (UTC), e recomece o banco local (\`docker compose -f compose.dev.yaml down -v\` e \`up -d --wait\`) para as migrações se aplicarem na ordem nova. Se o SQL já não serve depois de trazer a base para a branch, apague a pasta e rode \`$EXEC api pnpm exec prisma migrate dev --name <nome>\` no banco recomeçado." >&2
+  return 1
 }
 
 # Com as migrações aplicadas, o banco do ambiente tem de ficar igual ao schema do Prisma.
