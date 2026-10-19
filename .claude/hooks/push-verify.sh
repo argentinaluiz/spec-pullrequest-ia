@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente seis
-# comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário;
+# comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário, ou
+# com as variáveis do modo de teste, que trocam o `gh` e contornariam a conferência do merge;
 # o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
 # o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
 # `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; o que mexe
@@ -37,6 +38,11 @@ deny_forcar() {
     "O \`frentes.sh remover --forcar\` remove a frente sem o merge e apaga o trabalho dela; abandonar um ticket é decisão do usuário, que a toma no prompt com \`! scripts/frentes.sh remover <ticket> --forcar\`."
 }
 
+deny_frentes_test() {
+  deny "O comando foi negado: o \`frentes.sh\` não roda com as variáveis do modo de teste do harness." \
+    "\`HARNESS_TEST\`, \`FRENTES_GH\`, \`FRENTES_DOCKER\`, \`FRENTES_PORT_OWNER\` e \`FRENTES_GIT_VERSION\` trocam o \`gh\`, o \`docker\` e as conferências do script, e com elas o \`remover\` removeria uma frente sem o merge. São dos testes do script, que o scripts/verify.sh roda. Rode o \`frentes.sh\` sem elas."
+}
+
 deny_ci() {
   deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do scripts/verify.sh." \
     "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`scripts/verify.sh\` sem elas."
@@ -65,6 +71,9 @@ verify_unlock='verify\.sh.*unlock'
 # O `frentes.sh` com o `--forcar` em qualquer ponto do comando, como o `unlock`: o `remover --forcar`
 # abandona uma frente sem merge, e isso é do usuário. Uma mensagem que cite os dois também é negada.
 frentes_forcar='frentes\.sh.*--forcar'
+# O `frentes.sh` com uma variável do modo de teste, em qualquer ponto do comando: elas trocam o `gh`, e o
+# `remover` passaria a ver um PR mergeado que não existe. Só os testes do script as usam.
+frentes_test_mode='(HARNESS_TEST|FRENTES_(GH|DOCKER|PORT_OWNER|GIT_VERSION))'
 # O modo completo do `verify.sh`, com ou sem apps, em qualquer ponto do comando, como o `unlock`.
 verify_full="verify\\.sh[\"']?[[:space:]]+[\"']?full([^[:alnum:]_-]|\$)"
 # Uma atribuição da variável CI ou GITHUB_ACTIONS: no começo, depois de um espaço (o que cobre o
@@ -103,6 +112,7 @@ input="$(cat)"
 if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; then
   [[ "$input" =~ $verify_unlock ]] && deny_unlock
   [[ "$input" =~ $frentes_forcar ]] && deny_forcar
+  [[ "$input" == *frentes.sh* && "$input" =~ $frentes_test_mode ]] && deny_frentes_test
   harness_state_in_raw "$input" && deny_state
   [[ "$input" == *verify.sh* && "$input" =~ $ci_mention ]] && deny_ci
   [[ "$input" =~ git.*push ]] || exit 0
@@ -111,6 +121,7 @@ fi
 
 [[ "$command" =~ $verify_unlock ]] && deny_unlock
 [[ "$command" =~ $frentes_forcar ]] && deny_forcar
+[[ "$command" == *frentes.sh* && "$command" =~ $frentes_test_mode ]] && deny_frentes_test
 harness_state_touched "$command" && deny_state
 # O Claude Code põe o `agent_id` na entrada quando o comando vem de um subagente.
 [[ -n "$(jq -r '.agent_id // empty' <<<"$input" 2>/dev/null)" && "$command" =~ $verify_full ]] &&

@@ -97,15 +97,17 @@ parse_ticket() {
 }
 
 # Os worktrees do repositório, um por linha, "pasta<TAB>branch" (a branch vazia num HEAD solto). O primeiro é
-# o checkout principal.
+# o checkout principal. O worktree cuja pasta foi apagada à mão (o Git o marca `prunable`) não conta: apagar
+# a pasta libera a frente, e o `git worktree prune` limpa o registro dela.
 worktrees() {
   git worktree list --porcelain | awk -v RS= -F'\n' '{
-    dir = ""; branch = ""
+    dir = ""; branch = ""; prunable = 0
     for (i = 1; i <= NF; i++) {
       if ($i ~ /^worktree /) dir = substr($i, 10)
       if ($i ~ /^branch /) branch = substr($i, 19)
+      if ($i ~ /^prunable/) prunable = 1
     }
-    print dir "\t" branch
+    if (!prunable) print dir "\t" branch
   }'
 }
 
@@ -180,21 +182,24 @@ remote_repo() {
   git remote get-url "$REMOTE" 2>/dev/null | sed -nE 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)(.+/[^/]+)$#\2#p' | sed 's/\.git$//'
 }
 
-# O PR de uma branch, "ESTADO número" (MERGED, OPEN ou CLOSED, o mergeado primeiro), ou nada sem PR.
+# O PR de uma branch, "ESTADO número commit" (o commit é a ponta do PR), ou nada sem PR. Havendo vários, vale o
+# aberto, depois o mergeado, depois o resto, e em cada estado o de número maior: a branch que ganhou um PR novo
+# depois de um mergeado está em uso.
 # pr_of <branch>
 pr_of() {
   local repo json
   [[ -n "$1" ]] || return 0
   repo="$(remote_repo)"
-  json="$("$GH" pr list ${repo:+--repo "$repo"} --head "$1" --state all --json number,state 2>/dev/null)" || json='[]'
-  jq -r '(map(select(.state == "MERGED")) + map(select(.state == "OPEN")) + .)[0] // empty | "\(.state) \(.number)"' <<<"$json"
+  json="$("$GH" pr list ${repo:+--repo "$repo"} --head "$1" --state all --json number,state,headRefOid 2>/dev/null)" || json='[]'
+  jq -r 'sort_by(-.number) | (map(select(.state == "OPEN")) + map(select(.state == "MERGED")) + .)[0] // empty
+    | "\(.state) \(.number) \(.headRefOid // "")"' <<<"$json"
 }
 
 # O PR para a pessoa: "#5 aberto", "#5 mergeado", "#5 fechado" ou "sem PR".
 # pr_label <branch>
 pr_label() {
   local state number
-  read -r state number <<<"$(pr_of "$1")"
+  read -r state number _ <<<"$(pr_of "$1")"
   case "$state" in
     MERGED) echo "#$number mergeado" ;;
     OPEN) echo "#$number aberto" ;;
@@ -362,7 +367,7 @@ cmd_novo() {
   fi
   slot="$(free_slot)" || die "Não há slot livre (1 a 3)."
   require_free_ports "$slot"
-  git worktree add -q -b "$branch" "$folder" "$BASE_REF" || die "Não deu para criar a pasta $folder e a branch $branch."
+  git worktree add -q --no-track -b "$branch" "$folder" "$BASE_REF" || die "Não deu para criar a pasta $folder e a branch $branch."
   write_env "$folder" "$slot" || die "Não deu para gravar o .env em $folder. A pasta ficou, sem o slot; remova-a com o git worktree remove."
   unlock_slots
   (cd "$folder" && "$DOCKER" compose -f "$COMPOSE_FILE" up -d --build --wait) ||
@@ -373,7 +378,7 @@ cmd_novo() {
 }
 
 cmd_remover() {
-  local ticket="" arg force=() matches dir branch pr dirty
+  local ticket="" arg force=() matches dir branch pr pr_tip tip dirty main
   for arg in "$@"; do
     case "$arg" in
       --forcar) force=(--force) ;;
@@ -392,11 +397,18 @@ cmd_remover() {
   if [[ ${#force[@]} -eq 0 ]]; then
     pr="$(pr_label "$branch")"
     [[ "$pr" == *mergeado ]] || die "O PR da branch $branch não está mergeado ($pr). Só se remove uma frente com o PR mergeado."
+    read -r _ _ pr_tip <<<"$(pr_of "$branch")"
+    tip="$(git rev-parse "refs/heads/$branch")"
+    [[ -z "$pr_tip" || "$pr_tip" == "$tip" ]] ||
+      die "A branch $branch tem commits que o PR mergeado não tem (a ponta do PR é ${pr_tip:0:7}, e a da branch, ${tip:0:7}). Mande o trabalho novo num PR, ou abandone-o com a opção do usuário."
     dirty="$(git -C "$dir" status --porcelain)"
     [[ -z "$dirty" ]] || die "A pasta $dir tem mudanças que não estão em commit:" "$dirty" "Faça o commit ou descarte, e rode de novo."
   fi
 
   (cd "$dir" && "$DOCKER" compose -f "$COMPOSE_FILE" down -v) || die "Não deu para derrubar o ambiente de $dir, e nada foi removido."
+  # Sai da pasta antes de removê-la: chamado de dentro da frente, o `git branch -D` rodaria numa pasta que não existe mais.
+  main="$(main_checkout)"
+  cd "$main" || die "Não deu para entrar no checkout principal $main."
   git worktree remove "${force[@]}" "$dir" || die "Não deu para remover o worktree $dir."
   git branch -D "$branch" >/dev/null || die "O worktree saiu, mas não deu para apagar a branch $branch."
   echo "Frente do $ticket removida: $dir e a branch $branch."
