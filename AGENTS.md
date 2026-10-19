@@ -222,6 +222,7 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
 - Use o identificador da issue no nome da branch.
 - Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
+- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". Os tickets sem PR, como os de design, ficam com o "Done" manual.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
 - **Pare e pergunte** diante de uma decisão que não está no ticket nem no plano e que outro ticket em andamento também tomaria, ou diante de mudar algo que outro ticket em andamento usa. Decidir sozinho é como dois tickets paralelos passam nos próprios testes e quebram na integração. As decisões que o ticket consome de outros, e o dono de cada uma, estão na seção "Decisões de outros tickets" dele.
@@ -258,6 +259,7 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
+- **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que a `/sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
 - **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
