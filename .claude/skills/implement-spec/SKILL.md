@@ -17,7 +17,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 ## Steps
 
-1. Read the spec and tickets to understand the task graph. For each ticket, start from its plan commit and its acceptance file (`docs/tickets/<issue>/<ticket>/aceite.md`), as the root `AGENTS.md`, section "Plano do ticket", describes. If a ticket has no plan commit, stop and ask for `/plan-ticket` first. Every acceptance test carries its criterion ID in the title.
+1. Read the spec and tickets to understand the task graph. For each ticket, start from its plan commit and its acceptance file (`docs/tickets/<issue>/<ticket>/aceite.md`), as the root `AGENTS.md`, section "Plano do ticket", describes. If a ticket has no plan commit, stop and ask for `/plan-ticket` first. Every acceptance test carries its criterion ID in a tag.
 
 2. (optional) Use an **exploration subagent** to conduct any exploration required by the tickets - relevant codebase files or external documentation. Ensure the exploration subagent can save files - it should save its markdown notes in a directory outside the repo, accessible by all future subagents. This lets **implementer subagents** focus on implementation rather than exploration.
 
@@ -33,8 +33,8 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 
-7. Once all tickets are complete, call the Skill tool with `simplify` and then with `code-review` on the integration branch. Then run the conformance review once per ticket, as the root `AGENTS.md`, section "Revisão de conformidade", describes: the same diff of the integration branch, with each ticket's identifier, plan message and contract drift. Fix all issues raised by the code review and the conformance review in a single **implementer subagent**. Then, in the main session, run `scripts/verify.sh full` once, before the commit that closes the work, as the root `AGENTS.md`, section "Definição de pronto", describes.
+7. Once all tickets are complete, call the Skill tool with `simplify` and then with `code-review` on the integration branch. Then call the Skill tool with `revisao-conformidade` once per ticket: each review gets the same diff of the integration branch, in that ticket's folder, with its identifier, plan message and contract drift. Triage each ticket's findings in the main session, as step 5 of that skill says, and fix the issues raised by the code review and the findings you accepted in a single **implementer subagent**. Then, in the main session, run `scripts/verify.sh full` once, before the commit that closes the work, as the root `AGENTS.md`, section "Definição de pronto", describes.
 
-8. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
+8. If a draft PR exists, publish each ticket's review comment, as the `revisao-conformidade` skill describes in "Publish", and mark the PR ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
 
 9. Clean up all **implementer subagent** worktrees.

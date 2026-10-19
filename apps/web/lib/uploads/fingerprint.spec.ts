@@ -5,7 +5,7 @@ const file = (name: string, size: number, lastModified: number) =>
   new File([new Uint8Array(size)], name, { lastModified });
 
 describe("impressão do arquivo", () => {
-  it("aceita o mesmo arquivo e recusa outro nome, tamanho ou data @LUI-171-CA3", () => {
+  it("aceita o mesmo arquivo e recusa outro nome, tamanho ou data", { tags: ["@LUI-171-CA3"] }, () => {
     const original = fingerprintOf(file("relatorio.pdf", 10, 1_700_000_000_000));
 
     expect(sameFile(original, fingerprintOf(file("relatorio.pdf", 10, 1_700_000_000_000)))).toBe(

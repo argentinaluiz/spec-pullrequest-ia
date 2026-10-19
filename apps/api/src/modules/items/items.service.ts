@@ -8,13 +8,17 @@ import {
 } from '../../infra/storage/file-storage.js';
 import {
   DownloadUrl,
+  Item,
+  ItemDetail,
   PendingUpload,
   ResumableUpload,
   FileUpload,
   ItemPage,
   NewPendingFile,
 } from './entities/item.entity.js';
+import { InputValidationError } from '../../common/errors/input-validation.error.js';
 import { ItemNotFoundError } from './errors/item-not-found.error.js';
+import { MaxDepthExceededError } from './errors/max-depth-exceeded.error.js';
 import { decodeItemCursor, encodeItemCursor } from './item-cursor.js';
 import { ItemsRepository } from './items.repository.js';
 
@@ -35,27 +39,25 @@ export class ItemsService {
   ) {}
 
   /**
-   * Uma página dos filhos ativos da pasta, pastas primeiro e depois por nome.
-   * Até a funcionalidade de pastas, só a Pasta raiz é aceita, pelo atalho
-   * `root`, e ela nasce aqui no primeiro uso. Um `cursor` ilegível é entrada
-   * inválida.
+   * Uma página dos filhos ativos da pasta, pastas primeiro e depois por nome:
+   * a Pasta raiz, pelo atalho `root` (que nasce aqui no primeiro uso), ou uma
+   * pasta ativa do Usuário. Com `foldersOnly`, só as pastas. Um `cursor`
+   * ilegível é entrada inválida.
    */
   async listChildren(
     ownerId: string,
     folderId: string,
-    page: { limit: number; cursor?: string },
+    page: { limit: number; cursor?: string; foldersOnly?: boolean },
   ): Promise<ItemPage> {
-    if (folderId !== ROOT_ALIAS) {
-      throw new ItemNotFoundError();
-    }
     const after =
       page.cursor === undefined ? undefined : decodeItemCursor(page.cursor);
-    const rootId = await this.items.ensureRoot(ownerId, uuidv7);
+    const parentId = await this.resolveDestinationFolder(ownerId, folderId);
     // Um Item a mais que a página diz se há outra depois dela.
     const rows = await this.items.listActiveChildren(
-      rootId,
+      parentId,
       after,
       page.limit + 1,
+      page.foldersOnly,
     );
     const items = rows.slice(0, page.limit);
     const last = items.at(-1);
@@ -64,6 +66,95 @@ export class ItemsService {
       nextCursor:
         rows.length > page.limit && last ? encodeItemCursor(last) : null,
     };
+  }
+
+  /**
+   * A pasta ativa do Usuário (ou a Pasta raiz, pelo atalho `root`) e o caminho
+   * do topo até ela. Qualquer outro id é `not_found`.
+   */
+  async getFolder(ownerId: string, id: string): Promise<ItemDetail> {
+    const path = await this.items.folderPath(
+      ownerId,
+      await this.folderIdOf(ownerId, id),
+    );
+    const folder = path.at(-1);
+    if (!folder) {
+      throw new ItemNotFoundError();
+    }
+    return {
+      item: {
+        id: folder.id,
+        type: 'folder',
+        name: folder.name,
+        sizeBytes: 0,
+        mimeType: null,
+        updatedAt: folder.updatedAt,
+      },
+      trail: path.map(({ id: entryId, name }) => ({ id: entryId, name })),
+    };
+  }
+
+  /**
+   * Cria uma pasta ativa em `parentId` (`root` ou uma pasta ativa do Usuário).
+   * A pasta nasce no nível do destino mais um: passar de 50 é
+   * `max_depth_exceeded`.
+   */
+  async createFolder(
+    ownerId: string,
+    input: { name: string; parentId: string },
+  ): Promise<Item> {
+    const result = await this.items.createFolderWithinDepthLimit({
+      id: uuidv7(),
+      ownerId,
+      parentId: await this.folderIdOf(ownerId, input.parentId),
+      name: input.name,
+    });
+    switch (result.status) {
+      case 'created':
+        return result.folder;
+      case 'too_deep':
+        throw new MaxDepthExceededError();
+      case 'parent_not_found':
+        throw new ItemNotFoundError();
+    }
+  }
+
+  /**
+   * Troca o nome de um Item ativo do Usuário, que passa a ter a data de
+   * modificação de agora. A Pasta raiz, pelo id ou pelo atalho `root`, não se
+   * renomeia: é entrada inválida. Qualquer outro Item que o Usuário não vê
+   * (inexistente, de outro dono, `pending`, id que não é UUID) é `not_found`.
+   */
+  async rename(ownerId: string, id: string, name: string): Promise<Item> {
+    const result = await this.items.renameActive(
+      ownerId,
+      await this.folderIdOf(ownerId, id),
+      name,
+    );
+    switch (result.status) {
+      case 'renamed':
+        return result.item;
+      case 'root':
+        throw new InputValidationError([
+          { field: 'id', messages: ['A Pasta raiz não pode ser renomeada.'] },
+        ]);
+      case 'not_found':
+        throw new ItemNotFoundError();
+    }
+  }
+
+  /**
+   * O id da pasta pedida: o da Pasta raiz, pelo atalho `root`, ou o próprio id.
+   * Um texto que não é UUID é `not_found`. Se a pasta existe, quem lê confere.
+   */
+  private async folderIdOf(ownerId: string, id: string): Promise<string> {
+    if (id === ROOT_ALIAS) {
+      return this.items.ensureRoot(ownerId, uuidv7);
+    }
+    if (!isUUID(id)) {
+      throw new ItemNotFoundError();
+    }
+    return id;
   }
 
   /**

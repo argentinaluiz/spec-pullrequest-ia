@@ -93,7 +93,7 @@ const recorded = (page: Page) =>
     return { titles: [...titles], progress: [...progress], failed };
   });
 
-test("o Usuário arrasta vários arquivos para a lista, inclusive um maior que um chunk, e acompanha o envio no painel @LUI-170-CA9", async ({
+test("o Usuário arrasta vários arquivos para a lista, inclusive um maior que um chunk, e acompanha o envio no painel", { tag: "@LUI-170-CA9" }, async ({
   page,
 }) => {
   const email = uniqueEmail();
@@ -133,7 +133,7 @@ test("o Usuário arrasta vários arquivos para a lista, inclusive um maior que u
   ).toBe("mesma-pagina");
 });
 
-test("um chunk que falha no meio é repetido sozinho, e o arquivo chega inteiro @LUI-170-CA10", async ({
+test("um chunk que falha no meio é repetido sozinho, e o arquivo chega inteiro", { tag: "@LUI-170-CA10" }, async ({
   page,
 }) => {
   const email = uniqueEmail();
@@ -170,7 +170,7 @@ test("um chunk que falha no meio é repetido sozinho, e o arquivo chega inteiro 
   expect(hash(Buffer.concat(chunks))).toBe(hash(content));
 });
 
-test("o Usuário pausa e retoma um envio, e cancela outro, que some sem aparecer na lista @LUI-170-CA11", async ({
+test("o Usuário pausa e retoma um envio, e cancela outro, que some sem aparecer na lista", { tag: "@LUI-170-CA11" }, async ({
   page,
 }) => {
   const email = uniqueEmail();
@@ -212,7 +212,7 @@ test("o Usuário pausa e retoma um envio, e cancela outro, que some sem aparecer
   await expect.poll(() => usedBytesOf(email)).toBe(first);
 });
 
-test("com um envio em andamento, fechar a aba pede confirmação @LUI-171-CA10", async ({ page }) => {
+test("com um envio em andamento, fechar a aba pede confirmação", { tag: "@LUI-171-CA10" }, async ({ page }) => {
   await signIn(page, uniqueEmail());
   const storage = await interceptStorageSession(page);
   const size = 9 * MiB;
@@ -228,7 +228,7 @@ test("com um envio em andamento, fechar a aba pede confirmação @LUI-171-CA10",
   await shown.dismiss();
 });
 
-test("sem envio em andamento, fechar a aba não pede confirmação @LUI-171-CA10", async ({ page }) => {
+test("sem envio em andamento, fechar a aba não pede confirmação", { tag: "@LUI-171-CA10" }, async ({ page }) => {
   await signIn(page, uniqueEmail());
   await chooseFiles(page, [{ name: "pronto.bin", buffer: Buffer.alloc(10) }]);
   await expect(panelOf(page).getByRole("img", { name: "Concluído" })).toBeVisible();
@@ -244,7 +244,7 @@ test("sem envio em andamento, fechar a aba não pede confirmação @LUI-171-CA10
   expect(dialogs).toEqual([]);
 });
 
-test("soltar uma pasta junto com arquivos envia só os arquivos e mostra o aviso de pasta solta @LUI-170-CA12", async ({
+test("soltar uma pasta junto com arquivos envia só os arquivos e mostra o aviso de pasta solta", { tag: "@LUI-170-CA12" }, async ({
   page,
 }) => {
   // O navegador reconhece a pasta pelo `webkitGetAsEntry()` do item, e um `DataTransfer` montado
@@ -282,7 +282,7 @@ test("soltar uma pasta junto com arquivos envia só os arquivos e mostra o aviso
   await expect(page.getByText(warning)).toHaveCount(0);
 });
 
-test("o botão Enviar aceita vários arquivos de uma vez @LUI-170-CA13", async ({
+test("o botão Enviar aceita vários arquivos de uma vez", { tag: "@LUI-170-CA13" }, async ({
   page,
 }) => {
   await signIn(page, uniqueEmail());

@@ -12,7 +12,7 @@ source "$ROOT/scripts/test/sh-helpers.sh"
 
 main="$(mktemp -d)"
 trap 'rm -rf "$main"' EXIT
-for file in docs/tickets/LUI-1/LUI-2/aceite.md docs/tickets/LUI-3/aceite.md docs/tickets/LUI-1/LUI-2/fundo/aceite.md; do
+for file in docs/tickets/PROJ-1/PROJ-2/aceite.md docs/tickets/PROJ-3/aceite.md docs/tickets/PROJ-1/PROJ-2/fundo/aceite.md; do
   mkdir -p "$main/$(dirname "$file")"
   echo x >"$main/$file"
 done
@@ -30,13 +30,13 @@ contains() {
   [[ "$out" == *"$1"* ]]
 }
 
-guard docs/tickets/LUI-1/LUI-2/aceite.md
+guard docs/tickets/PROJ-1/PROJ-2/aceite.md
 check "avisa o aceite que já existe, na profundidade da issue pai e do ticket" contains "Aceite congelado alterado"
-guard docs/tickets/LUI-3/aceite.md
+guard docs/tickets/PROJ-3/aceite.md
 check "não avisa o aceite de um nível só" lacks "Aceite congelado alterado"
-guard docs/tickets/LUI-1/LUI-2/fundo/aceite.md
+guard docs/tickets/PROJ-1/PROJ-2/fundo/aceite.md
 check "não avisa o aceite fundo demais" lacks "Aceite congelado alterado"
-guard docs/tickets/LUI-1/LUI-9/aceite.md
+guard docs/tickets/PROJ-1/PROJ-9/aceite.md
 check "não avisa o aceite novo, que não existe na main" lacks "Aceite congelado alterado"
 
 finish "da guarda do harness"

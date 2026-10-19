@@ -31,7 +31,7 @@ async function seedFile(
   return itemId;
 }
 
-test("o Usuário baixa um arquivo pelo Baixar do menu da linha e recebe o conteúdo com o nome original @LUI-168-CA4", async ({
+test("o Usuário baixa um arquivo pelo Baixar do menu da linha e recebe o conteúdo com o nome original", { tag: "@LUI-168-CA4" }, async ({
   page,
   context,
 }) => {
@@ -84,7 +84,7 @@ test("o Baixar do menu da linha também ativa com Espaço, como os itens que sã
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
-test("o HTML da lista não traz URL assinada do storage, só o caminho da web @LUI-168-CA5", async ({
+test("o HTML da lista não traz URL assinada do storage, só o caminho da web", { tag: "@LUI-168-CA5" }, async ({
   page,
   context,
 }) => {
@@ -122,7 +122,7 @@ test("com Sessão, um arquivo que não baixa responde 404 com uma frase, e não 
   await expect(page.locator("body")).toHaveText("Arquivo não encontrado.");
 });
 
-test("sem Sessão, a rota de download leva à tela de entrar @LUI-168-CA6", async ({
+test("sem Sessão, a rota de download leva à tela de entrar", { tag: "@LUI-168-CA6" }, async ({
   page,
 }) => {
   const path = `/arquivos/${randomUUID()}/baixar`;

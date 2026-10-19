@@ -1,6 +1,6 @@
 # Grupo de verificação da web. Quem chama estas funções é o scripts/verify.sh, que define os
 # auxiliares (`step`, `in_container`, `require_container`, `check_report`, `responds`,
-# `wait_for`, `abort`, `fail`). O desenho está no docs/harness.md.
+# `wait_for`, `abort`, `fail`).
 
 # Relatórios que o aceite confere, no formato
 # <vitest|playwright>:<relatório, na pasta do projeto>

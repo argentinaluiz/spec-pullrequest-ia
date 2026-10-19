@@ -6,6 +6,7 @@ import { toFileRow } from "@/components/files/format";
 import type { LoadMoreResult } from "@/components/files/load-more";
 import * as authApi from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/error-messages";
+import type { ApiResult } from "@/lib/api/types";
 import { completeFailureReason } from "@/lib/uploads/complete-failure";
 import type {
   CancelUploadResult,
@@ -14,7 +15,7 @@ import type {
   StartUploadInput,
   StartUploadResult,
 } from "@/lib/uploads/types";
-import { getRootItems } from "@/lib/dal/items";
+import { createFolder as makeFolder, getFolderItems, renameItem as changeName } from "@/lib/dal/items";
 import {
   discardUpload,
   finishUpload,
@@ -46,16 +47,23 @@ export async function logout(): Promise<void> {
 /** O cursor é opaco e vem do navegador: a ação só confere que ele é um texto. */
 const cursorSchema = z.string().min(1).max(2048);
 
+/** O id de um Item, ou `root` como destino. A API confere o resto. */
+const itemIdSchema = z.string().min(1).max(64);
+
 /**
- * A página seguinte da Pasta raiz, já no formato das linhas da lista. A Sessão é conferida
- * de novo, pela própria listagem na API.
+ * A página seguinte de uma pasta (`root` ou o id dela), já no formato das linhas da lista. A
+ * Sessão é conferida de novo, pela própria listagem na API.
  */
-export async function loadMoreRootItems(cursor: string): Promise<LoadMoreResult> {
-  const parsed = cursorSchema.safeParse(cursor);
-  if (!parsed.success) {
+export async function loadMoreFolderItems(
+  folderId: string,
+  cursor: string,
+): Promise<LoadMoreResult> {
+  const parsedCursor = cursorSchema.safeParse(cursor);
+  const parsedFolder = itemIdSchema.safeParse(folderId);
+  if (!parsedCursor.success || !parsedFolder.success) {
     return { ok: false, message: errorMessage("validation_error") };
   }
-  const result = await getRootItems(parsed.data);
+  const result = await getFolderItems(parsedFolder.data, parsedCursor.data);
   if (!result.ok) {
     return { ok: false, message: errorMessage(result.error.code) };
   }
@@ -66,8 +74,83 @@ export async function loadMoreRootItems(cursor: string): Promise<LoadMoreResult>
   };
 }
 
-/** O id de um Item, ou `root` como destino. A API confere o resto. */
-const itemIdSchema = z.string().min(1).max(64);
+/** O que o "Nova pasta" devolve ao diálogo: a pasta criada ou o erro, em português, do campo. */
+export type CreateFolderResult =
+  | { ok: true; name: string }
+  | { ok: false; message: string };
+
+/**
+ * O nome de um Item: sem os espaços das pontas, de 1 a 255 caracteres. As outras regras (`/`,
+ * caracteres de controle, "." e "..") são da API, e o `validation_error` dela vira a mensagem
+ * de `INVALID_NAME`.
+ */
+const itemNameSchema = (emptyMessage: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, emptyMessage)
+    .max(255, "O nome pode ter até 255 caracteres.");
+
+const INVALID_NAME =
+  "O nome não pode ter “/” nem caracteres de controle, nem ser “.” ou “..”.";
+
+/**
+ * O trecho comum de "Nova pasta" e "Renomear": confere o nome e o id aqui, chama a API e traduz o
+ * erro dela em português.
+ */
+async function runNameAction(
+  id: string,
+  name: string,
+  emptyMessage: string,
+  call: (id: string, name: string) => Promise<ApiResult<{ name: string }>>,
+): Promise<CreateFolderResult> {
+  const parsedName = itemNameSchema(emptyMessage).safeParse(name);
+  const parsedId = itemIdSchema.safeParse(id);
+  if (!parsedName.success) {
+    return { ok: false, message: parsedName.error.issues[0].message };
+  }
+  if (!parsedId.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await call(parsedId.data, parsedName.data);
+  if (!result.ok) {
+    const message =
+      result.error.code === "validation_error"
+        ? INVALID_NAME
+        : errorMessage(result.error.code);
+    return { ok: false, message };
+  }
+  return { ok: true, name: result.data.name };
+}
+
+/**
+ * Cria uma pasta dentro de `parentId`. É uma Server Action, um endpoint público: o nome é
+ * conferido aqui, e a Sessão, pela própria chamada à API.
+ */
+export async function createFolder(
+  parentId: string,
+  name: string,
+): Promise<CreateFolderResult> {
+  return runNameAction(parentId, name, "Informe um nome para a pasta.", (id, n) =>
+    makeFolder({ name: n, parentId: id }),
+  );
+}
+
+/** O que o "Renomear" devolve ao diálogo: o mesmo formato do "Nova pasta". */
+export type RenameItemResult = CreateFolderResult;
+
+/**
+ * Renomeia um Item (pasta ou arquivo). É uma Server Action, um endpoint público: o nome é
+ * conferido aqui, e a Sessão, pela própria chamada à API.
+ */
+export async function renameItem(
+  id: string,
+  name: string,
+): Promise<RenameItemResult> {
+  return runNameAction(id, name, "Informe um nome.", (itemId, n) =>
+    changeName(itemId, { name: n }),
+  );
+}
 
 /** A Server Action é um endpoint público: o que vem do navegador é conferido antes de ir à API. */
 const startUploadSchema = z.object({

@@ -1,7 +1,9 @@
 // Confere o aceite dos tickets contra os relatórios das suítes: todo critério que exige teste (os
-// arquivos de aceite) tem de ter um teste com o ID dele no título, e esse teste tem de ter rodado
-// e passado. Confere também a seção `## Aceite` do corpo do pull request. O desenho está no
-// docs/harness.md, e o formato do arquivo de aceite, na skill de plano (formatos/aceite.md).
+// arquivos de aceite) tem de ter um teste com o ID dele numa tag (`@<ticket>-CA<n>`), e esse teste
+// tem de ter rodado e passado. O ID vem só das tags: o relatório do Vitest as traz em `tags` de cada
+// teste, e o do Playwright, em `tags` de cada spec. O teste que traz no título um token que não está nas
+// tags reprova, dizendo para mover o ID para uma tag. Confere também a seção `## Aceite` do corpo do pull request. O formato do arquivo de
+// aceite está na skill de plano (formatos/aceite.md).
 //
 // Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no scripts/verify.sh):
 //   node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <vitest|playwright>:<relatório>...
@@ -24,7 +26,8 @@ const path = require('node:path');
 const { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME } = require('../.claude/skills/plan-ticket/scripts/plan.cjs');
 
 const HEADING = /^#{1,6}\s*aceite\s*$/i;
-const TEST_TOKEN = /@([A-Z][A-Z0-9]*-\d+-CA\d+)/g;
+const TAG_ID = /^@?([A-Z][A-Z0-9]*-\d+-CA\d+)$/g;
+const TITLE_TOKEN = /@([A-Za-z0-9]+-\d+-CA\d+)/g;
 // O caminho do aceite de antes da pasta do ticket (`docs/aceite/<ticket>.md`), com o ticket.
 const OLD_ACCEPTANCE_PATH = /docs\/aceite\/([^\s`)\]/]+)\.md/;
 
@@ -140,23 +143,25 @@ function unknownChecks(criteria) {
   }
 }
 
-/** Todos os testes de um relatório do Vitest: o título (só o do próprio teste, e não o dos `describe`) e o estado. */
+/** Todos os testes de um relatório do Vitest: o título (só o do próprio teste, e não o dos `describe`), as tags e o estado. */
 function vitestTests(report) {
   return report.testResults.flatMap((file) =>
     file.assertionResults.map((test) => ({
-      names: [test.title],
+      title: test.title,
+      tags: test.tags ?? [],
       status: test.status === 'passed' ? 'passed' : test.status === 'failed' ? 'failed' : 'skipped',
     })),
   );
 }
 
-/** Todos os testes de um relatório do Playwright: o título do próprio teste, as tags e o estado. */
+/** Todos os testes de um relatório do Playwright: o título do próprio teste, as tags (da spec e dos testes dela) e o estado. */
 function playwrightTests(report) {
   const walk = (suite, ancestors) => {
     const own = (suite.specs ?? []).map((spec) => {
       const statuses = spec.tests.map((test) => test.status);
       return {
-        names: [spec.title, ...(spec.tags ?? []), ...spec.tests.flatMap((test) => test.tags ?? [])],
+        title: spec.title,
+        tags: [...(spec.tags ?? []), ...spec.tests.flatMap((test) => test.tags ?? [])],
         status: statuses.includes('unexpected')
           ? 'failed'
           : statuses.every((status) => status === 'skipped')
@@ -171,13 +176,14 @@ function playwrightTests(report) {
   return report.suites.flatMap((suite) => walk(suite, []));
 }
 
-/** Os IDs de critério que um teste cita, no título ou numa tag (que o relatório do Playwright pode trazer sem o `@`). */
+/** Os IDs de critério que um teste cita nas tags (que o relatório do Playwright pode trazer sem o `@`). */
 function idsOf(test) {
-  const ids = test.names.flatMap((name) => {
-    const tag = String(name).match(/^@?([A-Z][A-Z0-9]*-\d+-CA\d+)$/);
-    return tag ? [tag[1]] : [...String(name).matchAll(TEST_TOKEN)].map((match) => match[1]);
-  });
-  return new Set(ids);
+  return new Set(test.tags.flatMap((tag) => [...String(tag).matchAll(TAG_ID)].map((match) => match[1])));
+}
+
+/** Os IDs que um teste ainda traz como token no título, para a mensagem mandar movê-los para uma tag. */
+function titleIdsOf(test) {
+  return [...String(test.title).matchAll(TITLE_TOKEN)].map((match) => match[1]);
 }
 
 /** A linha de comando: os dois modos do cabeçalho. */
@@ -242,16 +248,30 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
 
   // Os testes das suítes. Relatório ausente ou ilegível reprova, sem aprovar critério.
   const tests = [];
+  let unreadable = false;
   for (const spec of reportSpecs) {
     const [, kind, file] = spec.match(/^(vitest|playwright):(.+)$/) ?? [];
     try {
       const report = JSON.parse(fs.readFileSync(file, 'utf8'));
       tests.push(...(kind === 'vitest' ? vitestTests(report) : playwrightTests(report)));
     } catch (cause) {
+      unreadable = true;
       error(`o relatório ${spec} não pôde ser lido (${cause.message}). Sem ele, o aceite não pode ser conferido.`);
     }
   }
-  if (errors.length > 0) finish();
+  // O token no título que não está nas tags não cobre critério: reprova para o ID não ficar sem teste em silêncio.
+  for (const test of tests) {
+    const inTags = idsOf(test);
+    const ids = titleIdsOf(test).filter((id) => !inTags.has(id));
+    if (ids.length > 0) {
+      error(
+        `o teste "${test.title}" tem ${ids.map((id) => `@${id}`).join(', ')} no título e não nas tags. ` +
+          'Mova o ID para uma tag do teste e tire o token do título.',
+      );
+    }
+  }
+  // Sem um relatório legível, a cobertura não é conferida: o resto só repetiria a falta dele.
+  if (unreadable) finish();
 
   // Estado dos testes por ID.
   const byId = new Map();
@@ -276,7 +296,7 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
     if (statuses.length === 0) {
       error(
         `${criterion.id} (${criterion.file}) não tem nenhum teste. ` +
-          `Escreva o teste e ponha @${criterion.id} no título dele. Se um teste foi apagado, restaure-o.`,
+          `Escreva o teste e ponha a tag @${criterion.id} nele. Se um teste foi apagado, restaure-o.`,
       );
     } else if (statuses.some((status) => status !== 'passed')) {
       const state = statuses.includes('failed') ? 'falhou' : 'foi pulado';

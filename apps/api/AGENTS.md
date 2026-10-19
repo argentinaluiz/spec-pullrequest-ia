@@ -51,6 +51,8 @@ O arquivo de teste leva o nome do arquivo testado, como descrito em `.claude/rul
 
 Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/rules/nest-testing.md`.
 
+**ID de critério de aceite:** o teste que prova um critério leva o ID numa tag, no formato de `.claude/skills/plan-ticket/formatos/aceite.md`, seção "Teste de aceite". As configs têm `strictTags: false`, pelo motivo da "Cobertura" do `AGENTS.md` da raiz.
+
 ## Aplicação HTTP
 
 - **Prefixo:** o `/v1` é aplicado a todas as rotas por `configureApp()`, em `src/app.setup.ts`, que o `main.ts` e a base de testes chamam. Os controllers declaram a rota sem o prefixo.
@@ -61,7 +63,7 @@ Como escrever o teste (AAA, dublês, base de `test/support/`) está em `.claude/
 
 ### Contrato OpenAPI
 
-O contrato das rotas é o `openapi.json`, gerado do código pelo `@nestjs/swagger` e conferido pela verificação (`docs/harness.md`, etapa 8). O plugin do Nest (`nest-cli.json`) lê os DTOs, então eles não levam decorators do Swagger.
+O contrato das rotas é o `openapi.json`, gerado do código pelo `@nestjs/swagger` e conferido pela verificação. O plugin do Nest (`nest-cli.json`) lê os DTOs, então eles não levam decorators do Swagger.
 
 - **Rota nova ou alterada:** o controller leva `@ApiTags`, o tipo de sucesso (`@ApiOkResponse({ type })` ou o tipo de retorno) e um `@ApiProblem(status, ...códigos)`, de `src/common/openapi/`, para cada erro que a rota pode devolver. A resposta é uma classe, e não uma `interface`, porque o plugin só lê classes.
 - **Rota protegida:** acrescente `@ApiBearerAuth()` ao controller.

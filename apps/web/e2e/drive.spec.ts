@@ -15,7 +15,7 @@ import {
   tokenCookies,
 } from "./support/session";
 
-test("depois de entrar, o Usuário vê \"Meus arquivos\" na casca do Drive @LUI-166-CA6", async ({
+test("depois de entrar, o Usuário vê \"Meus arquivos\" na casca do Drive", { tag: "@LUI-166-CA6" }, async ({
   page,
 }) => {
   const email = uniqueEmail();
@@ -36,7 +36,7 @@ test("depois de entrar, o Usuário vê \"Meus arquivos\" na casca do Drive @LUI-
   ).toHaveText("Meus arquivos");
 });
 
-test("sair pelo menu da conta encerra a Sessão e leva à tela de entrar @LUI-166-CA9", async ({
+test("sair pelo menu da conta encerra a Sessão e leva à tela de entrar", { tag: "@LUI-166-CA9" }, async ({
   page,
   context,
 }) => {
@@ -56,7 +56,7 @@ test("sair pelo menu da conta encerra a Sessão e leva à tela de entrar @LUI-16
   await expectSessionExpiredNotice(page);
 });
 
-test("a Pasta raiz vazia mostra o estado vazio com o convite para enviar arquivos @LUI-166-CA7", async ({
+test("a Pasta raiz vazia mostra o estado vazio com o convite para enviar arquivos", { tag: "@LUI-166-CA7" }, async ({
   page,
 }) => {
   const email = uniqueEmail();
@@ -74,7 +74,7 @@ test("a Pasta raiz vazia mostra o estado vazio com o convite para enviar arquivo
   await expect(main.getByRole("table")).toHaveCount(0);
 });
 
-test("a lista mostra nome, tipo, tamanho e data, e \"Carregar mais\" acrescenta a página seguinte até o fim @LUI-166-CA8", async ({
+test("a lista mostra nome, tipo, tamanho e data, e \"Carregar mais\" acrescenta a página seguinte até o fim", { tag: "@LUI-166-CA8" }, async ({
   page,
 }) => {
   const email = uniqueEmail();

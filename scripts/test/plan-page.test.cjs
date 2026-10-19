@@ -13,19 +13,19 @@ const { panel, text } = require('./helpers.cjs');
 const ORIGIN = 'Montada da pasta de trabalho.';
 
 const ACCEPTANCE = [
-  '# Aceite do LUI-900',
+  '# Aceite do PROJ-900',
   '',
   'Ticket de exemplo.',
   '',
-  '## LUI-900-CA1',
+  '## PROJ-900-CA1',
   '',
   '**Marca:** teste HTTP',
   '',
   '**Cenário:** Dado um item, quando o Usuário o copia, então a cópia é criada.',
   '',
-  '**Teste previsto:** testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item @LUI-900-CA1".',
+  '**Teste previsto:** testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item @PROJ-900-CA1".',
   '',
-  '## LUI-900-CA2',
+  '## PROJ-900-CA2',
   '',
   '**Marca:** documento',
   '',
@@ -35,34 +35,34 @@ const ACCEPTANCE = [
 
 test('mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, lidos pelo parser do conferidor @LUI-173-CA3', () => {
   // O parser do conferidor do aceite é o da skill (plan.cjs), que o conferidor importa.
-  const { intro, criteria } = parseAcceptanceFile('LUI-900.md', ACCEPTANCE);
+  const { intro, criteria } = parseAcceptanceFile('PROJ-900.md', ACCEPTANCE);
 
   assert.equal(intro, 'Ticket de exemplo.');
   assert.deepEqual(criteria, [
     {
-      id: 'LUI-900-CA1',
-      file: 'LUI-900.md',
+      id: 'PROJ-900-CA1',
+      file: 'PROJ-900.md',
       check: 'teste http',
       scenario: 'Dado um item, quando o Usuário o copia, então a cópia é criada.',
-      plannedTest: 'testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item @LUI-900-CA1".',
+      plannedTest: 'testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item @PROJ-900-CA1".',
     },
     {
-      id: 'LUI-900-CA2',
-      file: 'LUI-900.md',
+      id: 'PROJ-900-CA2',
+      file: 'PROJ-900.md',
       check: 'documento',
       scenario: 'Dado o LLD, quando se lê a seção de cópia, então ela descreve a cota.',
       plannedTest: null,
     },
   ]);
 
-  const aceite = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance: ACCEPTANCE }), 'aceite');
+  const aceite = panel(build({ ticket: 'PROJ-900', origin: 'Montada da pasta de trabalho.', acceptance: ACCEPTANCE }), 'aceite');
   const rows = aceite.match(/<tr class="criterio"[\s\S]*?<\/tr>/g) ?? [];
   assert.equal(rows.length, 2, aceite);
 
   const [first, second] = rows;
-  assert.match(text(first), /^LUI-900-CA1 teste HTTP Dado um item, quando o Usuário o copia, então a cópia é criada\./);
-  assert.match(first, /<details><summary>Teste previsto<\/summary>[\s\S]*items\.e2e-spec\.ts[\s\S]*copia o item @LUI-900-CA1[\s\S]*<\/details>/);
-  assert.match(text(second), /^LUI-900-CA2 documento Dado o LLD, quando se lê a seção de cópia, então ela descreve a cota\.$/);
+  assert.match(text(first), /^PROJ-900-CA1 teste HTTP Dado um item, quando o Usuário o copia, então a cópia é criada\./);
+  assert.match(first, /<details><summary>Teste previsto<\/summary>[\s\S]*items\.e2e-spec\.ts[\s\S]*copia o item @PROJ-900-CA1[\s\S]*<\/details>/);
+  assert.match(text(second), /^PROJ-900-CA2 documento Dado o LLD, quando se lê a seção de cópia, então ela descreve a cota\.$/);
   assert.doesNotMatch(second, /<details/);
 });
 
@@ -72,7 +72,7 @@ test('mostra em negrito o trecho que contém código, sem sobrar asteriscos @LUI
     'Ticket de exemplo.\n\n**Como o teste faz o `GET` da URL.** O resto do parágrafo.',
   ).replace('então a cópia é criada.', 'então a cópia é criada. **Atenção:** use `node:http`');
 
-  const aceite = panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance }), 'aceite');
+  const aceite = panel(build({ ticket: 'PROJ-900', origin: 'Montada da pasta de trabalho.', acceptance }), 'aceite');
   assert.match(aceite, /<p><strong>Como o teste faz o <code>GET<\/code> da URL\.<\/strong> O resto do parágrafo\.<\/p>/);
   assert.match(aceite, /então a cópia é criada\. <strong>Atenção:<\/strong> use <code>node:http<\/code><\/p>/);
   assert.doesNotMatch(aceite, /\*\*/);
@@ -80,7 +80,7 @@ test('mostra em negrito o trecho que contém código, sem sobrar asteriscos @LUI
   // Um `**` sem par continua como texto, e o código continua escapado.
   const unpaired = ACCEPTANCE.replace('quando se lê a seção de cópia', 'quando se lê 2 ** 3 em `<b>**</b>`');
   assert.match(
-    panel(build({ ticket: 'LUI-900', origin: 'Montada da pasta de trabalho.', acceptance: unpaired }), 'aceite'),
+    panel(build({ ticket: 'PROJ-900', origin: 'Montada da pasta de trabalho.', acceptance: unpaired }), 'aceite'),
     /quando se lê 2 \*\* 3 em <code>&lt;b&gt;\*\*&lt;\/b&gt;<\/code>, então ela descreve a cota\./,
   );
 });
@@ -107,7 +107,7 @@ test('monta a aba Contrato do Markdown recebido, ou diz que o projeto não decla
     '',
   ].join('\n');
 
-  const tab = panel(build({ ticket: 'LUI-900', origin: ORIGIN, contract }), 'contrato');
+  const tab = panel(build({ ticket: 'PROJ-900', origin: ORIGIN, contract }), 'contrato');
 
   assert.match(tab, /<h2>Rotas novas &lt;i&gt;<\/h2>/);
   assert.match(tab, /<thead><tr><th>Nome<\/th><th>Tipo<\/th><th>Nota<\/th><\/tr><\/thead>/);
@@ -122,7 +122,7 @@ test('monta a aba Contrato do Markdown recebido, ou diz que o projeto não decla
   // A seção `# Contrato` vira a aba, e não um título dentro dela.
   assert.doesNotMatch(tab, /<h1>/);
 
-  const none = build({ ticket: 'LUI-900', origin: ORIGIN, contract: null });
+  const none = build({ ticket: 'PROJ-900', origin: ORIGIN, contract: null });
   assert.equal(text(panel(none, 'contrato')), 'O projeto não declara contrato.');
   assert.equal(text(panel(none, 'schema')), 'O projeto não declara contrato.');
 });
@@ -152,9 +152,9 @@ const DOCS_DIFF = [
 ].join('\n');
 
 const MESSAGE = [
-  'docs: plan the item copy (LUI-900)',
+  'docs: plan the item copy (PROJ-900)',
   '',
-  'Acceptance file docs/tickets/LUI-899/LUI-900/aceite.md (CA1-CA2).',
+  'Acceptance file docs/tickets/PROJ-899/PROJ-900/aceite.md (CA1-CA2).',
   '',
   'Decision: the copy reserves quota before writing, so a full Disk fails early.',
   '',
@@ -195,7 +195,7 @@ const CONTRACT = [
 ].join('\n');
 
 const SOURCES = {
-  ticket: 'LUI-900',
+  ticket: 'PROJ-900',
   origin: 'Montada da pasta de trabalho.',
   acceptance: ACCEPTANCE.replace('quando o Usuário o copia', 'quando o Usuário o copia com o nome <script>alert(1)</script>'),
   contract: CONTRACT,
@@ -217,8 +217,8 @@ test('monta a página com as seis abas, cada uma com o conteúdo da sua fonte @L
 
   // Cada aba traz o conteúdo da sua fonte.
   const aceite = text(panel(html, 'aceite'));
-  assert.match(aceite, /LUI-900-CA1/);
-  assert.match(aceite, /LUI-900-CA2/);
+  assert.match(aceite, /PROJ-900-CA1/);
+  assert.match(aceite, /PROJ-900-CA2/);
   const contrato = text(panel(html, 'contrato'));
   assert.match(contrato, /endpoint added POST \/v1\/items\/\{id\}\/copies/);
   assert.match(contrato, /Rota nova · POST \/v1\/items\/\{id\}\/copies · protegida \(bearer\)/);

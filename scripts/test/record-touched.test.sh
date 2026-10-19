@@ -53,7 +53,7 @@ run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"$project/apps/api/sr
 run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"apps/web/src/b.tsx\"}}"
 expect_touched "não repete o arquivo e aceita o caminho relativo" s1 "apps/api/src/a.ts"$'\n'"apps/web/src/b.tsx"
 
-run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"$project/docs/harness.md\"}}"
+run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"$project/docs/lld.md\"}}"
 run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"/fora/do/projeto/apps/x.ts\"}}"
 expect_touched "ignora o arquivo fora de apps/" s1 "apps/api/src/a.ts"$'\n'"apps/web/src/b.tsx"
 

@@ -1,6 +1,7 @@
 // Repórter do `node:test` que grava o relatório no formato do Vitest, só com os testes e os totais:
 // é o formato que o conferidor de aceite (scripts/check-acceptance.cjs) e o `check-report.cjs` leem,
-// e assim eles continuam com dois formatos. O desenho está no docs/harness.md, seção "Testes do harness".
+// e assim eles continuam com dois formatos. O `node:test` não tem tag: o token `@<ticket>-CA<n>` que
+// o título de um teste do harness traz vira também a tag do relatório, e o título fica como está.
 //
 // Uso: node --test --test-reporter=<este arquivo> --test-reporter-destination=<relatório> <testes>
 
@@ -9,6 +10,13 @@ function statusOf(event, passed) {
   if (!passed) return 'failed';
   if (event.skip) return 'pending';
   return event.todo ? 'todo' : 'passed';
+}
+
+const TOKEN = /@[A-Z][A-Z0-9]*-\d+-CA\d+/g;
+
+/** Os tokens de ID do título, como tags. */
+function tagsOf(name) {
+  return [...name.matchAll(TOKEN)].map((match) => match[0]);
 }
 
 module.exports = async function* nodeTestReport(source) {
@@ -23,6 +31,7 @@ module.exports = async function* nodeTestReport(source) {
       title: data.name,
       fullName: data.name,
       ancestorTitles: [],
+      tags: tagsOf(data.name),
       status: statusOf(data, type === 'test:pass'),
     });
     files.set(name, results);

@@ -1,7 +1,7 @@
 name: Guarda do harness
 
 # Reprova o pull request que altera um arquivo protegido do harness. Sem isto, um pull request
-# poderia enfraquecer a CI e ser aprovado pela CI enfraquecida. O desenho está no docs/harness.md.
+# poderia enfraquecer a CI e ser aprovado pela CI enfraquecida.
 #
 # O `pull_request_target` roda a versão da `main` deste workflow e do script, e não a do pull
 # request. O código do pull request nunca é baixado nem executado aqui.

@@ -16,7 +16,7 @@ test.describe("Emulador de storage", () => {
     await signIn(page, email);
   });
 
-  test("envia o arquivo em 2 chunks, com 308 no primeiro e 200 no segundo @LUI-165-CA5", async ({
+  test("envia o arquivo em 2 chunks, com 308 no primeiro e 200 no segundo", { tag: "@LUI-165-CA5" }, async ({
     page,
     context,
   }) => {
@@ -49,7 +49,7 @@ test.describe("Emulador de storage", () => {
     expect(completed.item.sizeBytes).toBe(2 * CHUNK);
   });
 
-  test("envia um arquivo vazio num único PUT @LUI-165-CA6", async ({
+  test("envia um arquivo vazio num único PUT", { tag: "@LUI-165-CA6" }, async ({
     page,
     context,
   }) => {
@@ -69,7 +69,7 @@ test.describe("Emulador de storage", () => {
     expect(completed.item.sizeBytes).toBe(0);
   });
 
-  test("entrega ao navegador URLs de sessão e de download que ele alcança @LUI-165-CA7", async ({
+  test("entrega ao navegador URLs de sessão e de download que ele alcança", { tag: "@LUI-165-CA7" }, async ({
     page,
     context,
   }) => {
