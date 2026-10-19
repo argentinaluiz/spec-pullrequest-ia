@@ -258,7 +258,7 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 - **Branch principal:** `main`. Nunca faça commit direto nela.
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
-- **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
+- **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que a `/sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
 - **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR.
 
