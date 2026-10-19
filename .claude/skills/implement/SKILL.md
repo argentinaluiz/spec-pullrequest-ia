@@ -18,6 +18,6 @@ Implement one ticket, in this session and in this checkout (the front of the tic
 
 6. **Bring the main.** Call the Skill tool with "sincronizar", for the end of the ticket (its second ending): it merges the current `main`, adapts, reviews if needed, commits the merge and gives control back, without running the `full` or pushing, because the single complete verification is the next step. It does nothing when nothing entered.
 
-7. **Verify.** Run `scripts/verify.sh full` once, in the background, as the root `AGENTS.md`, section "Definição de pronto", describes. A subagent never runs it.
+7. **Verify.** Run `scripts/verify.sh full` once, in the background, as the root `AGENTS.md`, section "Definição de pronto", describes. If the branch changes `apps/`, save the body of the pull request, with its `## Aceite` section, in a file and pass it as `ACCEPTANCE_BODY_FILE=<file>`, here and in every run after a fix: without it the `full` records the acceptance as skipped and the push hook refuses the approval, which would need another complete run ("Antes do push" of that file). A subagent never runs it.
 
 8. **Close.** If the `full` led to fixes, commit them and run it again, as that section says. The push and the pull request come after the `full` passes, as the root `AGENTS.md` describes. The merge of the pull request is the user's, as its section "Convenções de Git" says: this skill never merges.
