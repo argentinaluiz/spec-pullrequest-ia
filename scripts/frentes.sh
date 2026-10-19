@@ -4,7 +4,7 @@
 # próprio ambiente e o próprio PR.
 #
 #   scripts/frentes.sh novo <ticket> [tipo]        cria a frente do ticket (PREFIXO-N) e sobe o ambiente dela
-#   scripts/frentes.sh listar                      as frentes abertas, com slot, branch, portas e PR
+#   scripts/frentes.sh listar                      as frentes abertas, com slot, branch, portas, PR e conflitos
 #   scripts/frentes.sh remover <ticket> [--forcar] desmonta a frente do ticket
 #
 # Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>
@@ -34,6 +34,16 @@
 # encontrou. Então derruba o ambiente com os volumes (`docker compose down -v`), remove o worktree e apaga
 # a branch local. O `--forcar` pula as duas conferências e remove com força, para abandonar um ticket sem
 # merge: é só do usuário, e o hook de antes do comando (.claude/hooks/push-verify.sh) o nega ao agente.
+#
+# O `listar` mostra também com quem cada frente conflita, na última coluna ("conflita com") e numa seção
+# "CONFLITOS" abaixo da tabela, que traz os arquivos de cada par de frentes e de cada frente contra a main do
+# remoto da base. É um merge de três vias só de leitura (`git merge-tree`) entre as pontas das branches: conta o
+# que está em commit, como o merge de verdade, e não muda pasta, índice nem ref de nenhuma frente. Antes de
+# calcular, busca a main do remoto (sem falhar se a rede faltar). Os arquivos em conflito saem em dois grupos:
+# os pontos de convergência com regra mecânica, cada um com o tipo (gerado, migracoes ou registros), e os que
+# pedem atenção, que são o código e os documentos (um documento leva o tipo documentos, porque se junta à mão).
+# A classificação, os quatro tipos e os arquivos de cada um, é de scripts/pontos-de-convergencia.txt, o dono
+# único dela: este script e a skill /sincronizar a leem, e um ponto novo é uma linha lá.
 #
 # Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`, que a
 # coluna de conflitos do `listar` vai usar. Os testes (scripts/test/frentes.test.sh) rodam com
@@ -218,14 +228,103 @@ require_free_ports() {
     die "O slot $1 não está livre na máquina:" "${busy[@]/#/- }" "Pare o que ocupa as portas e rode de novo."
 }
 
+# O marcador de um par cujo merge não deu para calcular, no lugar do arquivo.
+COMPUTE_ERROR="@@erro"
+
+# O tipo de um ponto de convergência (gerado, migracoes, registros ou documentos), pela classificação de
+# scripts/pontos-de-convergencia.txt; nada, se o arquivo é código.
+# convergence_type <arquivo>
+convergence_type() {
+  local type pattern
+  while IFS=$'\t' read -r type pattern; do
+    [[ -z "$type" || "$type" == \#* ]] && continue
+    # shellcheck disable=SC2053
+    [[ "$1" == $pattern ]] && { echo "$type"; return 0; }
+  done <"$SCRIPT_DIR/pontos-de-convergencia.txt"
+  return 0
+}
+
+# Os arquivos em que dois pontos do histórico conflitam, um por linha. Sai com 0 sem conflito, 1 com conflito
+# e 2 quando não deu para calcular. É um merge de três vias só de leitura: o `git merge-tree` escreve objetos
+# no banco do Git e não mexe em pasta, índice nem ref.
+# conflict_files <a> <b>
+conflict_files() {
+  local out code
+  out="$(git -c core.quotePath=false merge-tree --write-tree --name-only --no-messages "$1" "$2" 2>/dev/null)"
+  code=$?
+  # O 1 também é o código de uma referência que não se alcança. Num conflito de verdade, a primeira linha da
+  # saída é o id da árvore; sem ela, ou com qualquer outro código além do 0 e do 1, é um erro do Git.
+  if [[ $code -eq 1 && "$(head -n 1 <<<"$out")" =~ ^[0-9a-f]{40,64}$ ]]; then
+    sed 1d <<<"$out"
+    return 1
+  fi
+  [[ $code -eq 0 ]] || code=2
+  return $code
+}
+
+# Os conflitos entre as pontas das frentes, uma linha por arquivo: "a<TAB>b<TAB>arquivo", com o b sendo a main
+# do remoto da base, escrita como `main`. Só o que está em commit entra, como no merge de verdade.
+# front_conflicts <branch...>
+front_conflicts() {
+  local i j a b file code
+  for ((i = 1; i <= $#; i++)); do
+    a="${!i}"
+    for ((j = i + 1; j <= $# + 1; j++)); do
+      if ((j > $#)); then b="$BASE_REF"; else b="${!j}"; fi
+      [[ -n "$a" && -n "$b" ]] || continue
+      while IFS= read -r file; do
+        [[ -n "$file" ]] && printf '%s\t%s\t%s\n' "$a" "${b#"$REMOTE"/}" "$file"
+      done < <(conflict_files "$a" "$b" || { [[ $? -eq 2 ]] && echo "$COMPUTE_ERROR"; true; })
+    done
+  done
+}
+
 cmd_listar() {
-  local dir branch slot
-  printf '%-34s %-5s %-40s %-22s %s\n' PASTA SLOT BRANCH PORTAS PR
+  local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention failed
+  # A main do remoto, sem perguntar nada e sem esperar mais de 20 s: sem rede, vale a do último fetch.
+  GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q "$REMOTE" "$MAIN_BRANCH" 2>/dev/null
   while IFS=$'\t' read -r dir branch; do
-    slot="$(slot_of "$dir")"
-    printf '%-34s %-5s %-40s %-22s %s\n' "$(basename "$dir")" "$slot" "${branch:-(HEAD solto)}" \
-      "$(ports_of_slot "$slot")" "$(pr_label "$branch")"
+    dirs+=("$dir")
+    branches+=("$branch")
   done < <(fronts)
+  conflicts="$(front_conflicts "${branches[@]}")"
+
+  printf '%-34s %-5s %-40s %-22s %-18s %s\n' PASTA SLOT BRANCH PORTAS PR "CONFLITA COM"
+  for i in "${!dirs[@]}"; do
+    slot="$(slot_of "${dirs[$i]}")"
+    branch="${branches[$i]}"
+    printf '%-34s %-5s %-40s %-22s %-18s %s\n' "$(basename "${dirs[$i]}")" "$slot" "${branch:-(HEAD solto)}" \
+      "$(ports_of_slot "$slot")" "$(pr_label "$branch")" \
+      "$(awk -F'\t' -v me="$branch" '
+        $1 == me { print ($2 ~ /\// ? substr($2, index($2, "/") + 1) : $2) ($3 == "@@erro" ? "?" : "") }
+        $2 == me { print substr($1, index($1, "/") + 1) ($3 == "@@erro" ? "?" : "") }' <<<"$conflicts" | sort -u | paste -sd ' ')"
+  done
+
+  [[ -n "$conflicts" ]] || return 0
+  printf '\nCONFLITOS\n'
+  while IFS=$'\t' read -r a b file; do
+    pair="$a × $b"
+    [[ "$pair" == "$last" ]] || { [[ -z "$last" ]] || flush_conflict "$last" "$mechanical" "$attention"; last="$pair"; mechanical=""; attention=""; }
+    if [[ "$file" == "$COMPUTE_ERROR" ]]; then
+      attention+="    não deu para calcular o merge deste par (a referência não existe, ou o Git falhou)"$'\n'
+      continue
+    fi
+    type="$(convergence_type "$file")"
+    case "$type" in
+      gerado | migracoes | registros) mechanical+="    $type: $file"$'\n' ;;
+      documentos) attention+="    $file (documentos)"$'\n' ;;
+      *) attention+="    $file"$'\n' ;;
+    esac
+  done <<<"$conflicts"
+  flush_conflict "$last" "$mechanical" "$attention"
+}
+
+# Escreve os conflitos de um par: os pontos de convergência com regra mecânica à parte, e os que pedem atenção.
+# flush_conflict <par> <mecânicos> <atenção>
+flush_conflict() {
+  printf '%s\n' "$1"
+  [[ -z "$2" ]] || printf '  ponto de convergência (regra mecânica):\n%s' "$2"
+  [[ -z "$3" ]] || printf '  pede atenção:\n%s' "$3"
 }
 
 # A trava dos slots: duas criações ao mesmo tempo nunca pegam o mesmo slot. Espera quem chegou depois, e sai

@@ -67,6 +67,12 @@ git clone -q "$remote" "$seed" 2>/dev/null
 git -C "$seed" checkout -q -b main
 echo "services: {}" >"$seed/compose.dev.yaml"
 printf '.env\n' >"$seed/.gitignore"
+mkdir -p "$seed/src" "$seed/apps/api/src" "$seed/apps/api/prisma/migrations/20260101000000_a" "$seed/docs"
+echo "valor = base" >"$seed/src/codigo.ts"
+echo '{"versao":"base"}' >"$seed/apps/api/openapi.json"
+echo "lld base" >"$seed/docs/lld.md"
+echo "-- base" >"$seed/apps/api/prisma/migrations/20260101000000_a/migration.sql"
+echo "imports base" >"$seed/apps/api/src/app.module.ts"
 git -C "$seed" add -A
 git -C "$seed" "${GIT_ID[@]}" commit -q -m inicial
 git -C "$seed" push -q origin main
@@ -91,6 +97,25 @@ pr() {
   local state
   case "$3" in ABERTO) state=OPEN ;; MERGEADO) state=MERGED ;; *) state=CLOSED ;; esac
   printf '[{"number":%s,"state":"%s"}]\n' "$2" "$state" >"$GH_STATES/${1//\//_}"
+}
+
+# change <pasta> <arquivo> <conteúdo>: grava o arquivo na pasta e faz o commit.
+change() {
+  mkdir -p "$(dirname "$1/$2")"
+  printf '%s\n' "$3" >"$1/$2"
+  git -C "$1" add -A
+  git -C "$1" "${GIT_ID[@]}" commit -q -m "muda $2"
+}
+
+# snapshot <pasta...>: o estado das pastas que o listar não pode mudar: o status, o arquivo do índice e o
+# commit da branch de cada uma.
+snapshot() {
+  local dir
+  for dir in "$@"; do
+    git -C "$dir" status --porcelain
+    sha1sum "$(git -C "$dir" rev-parse --absolute-git-dir)/index"
+    git -C "$dir" rev-parse HEAD
+  done
 }
 
 # frentes <pasta> <argumentos...>: roda o script na pasta, com a saída em $out e o código em $code.
@@ -359,5 +384,83 @@ invalid_input() {
   [[ $code -eq 0 ]] && contains "(HEAD solto)" && contains "sem PR"
 }
 check "as entradas inválidas são recusadas, e a branch em maiúsculas e o HEAD solto são tratados" invalid_input
+
+# --- LUI-187-CA1: o listar mostra os conflitos entre as frentes e contra a main, sem mudar nada ---
+conflicts_column() {
+  local a="$work/conf/principal-lui-1" b="$work/conf/principal-lui-2" c="$work/conf/principal-lui-3" before after
+  fresh conf
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-3 && [[ $code -eq 0 ]] || return 1
+  # As frentes 1 e 2 mudam a mesma linha do mesmo arquivo, e a 3 mexe num arquivo que ninguém toca.
+  change "$a" src/codigo.ts "valor = um"
+  change "$b" src/codigo.ts "valor = dois"
+  change "$c" src/outro.ts "valor = tres"
+  # A main do remoto anda e muda a mesma linha: as frentes 1 e 2 passam a conflitar com ela, a 3 não.
+  change "$seed" src/codigo.ts "valor = main"
+  git -C "$seed" push -q origin main
+
+  before="$(snapshot "$a" "$b" "$c" "$repo")"
+  frentes "$repo" listar
+  after="$(snapshot "$a" "$b" "$c" "$repo")"
+  [[ $code -eq 0 && "$before" == "$after" ]] || return 1
+
+  # A coluna: a frente 1 conflita com a 2 e com a main; a 3 com ninguém.
+  local line
+  line="$(grep 'feature/lui-1 ' <<<"$out" | head -n 1)"
+  [[ "$line" == *lui-2* && "$line" == *main* ]] || return 1
+  line="$(grep 'feature/lui-3 ' <<<"$out" | head -n 1)"
+  [[ "$line" != *lui-1* && "$line" != *lui-2* && "$line" != *"conflita"* ]] || return 1
+  # A seção: o par 1 e 2, e cada uma contra a main, com o arquivo; o par 1 e 3 não aparece.
+  contains "feature/lui-1 × feature/lui-2" && contains "feature/lui-1 × main" && contains "feature/lui-2 × main" || return 1
+  contains "src/codigo.ts" || return 1
+  [[ "$out" != *"feature/lui-1 × feature/lui-3"* && "$out" != *"feature/lui-3 × main"* ]]
+}
+check "o listar mostra, para cada par de frentes e para cada frente contra a main, se há conflito e em quais arquivos, sem mudar nada @LUI-187-CA1" conflicts_column
+
+# --- LUI-187-CA2: o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo ---
+convergence_split() {
+  local a="$work/split/principal-lui-1" b="$work/split/principal-lui-2" mechanical attention file
+  fresh split
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  # As duas frentes mudam, cada uma do seu jeito, um arquivo de cada tipo e um de código.
+  for file in apps/api/openapi.json apps/api/prisma/migrations/20260101000000_a/migration.sql apps/api/src/app.module.ts \
+    docs/lld.md src/codigo.ts; do
+    change "$a" "$file" "versao do um"
+    change "$b" "$file" "versao do dois"
+  done
+
+  frentes "$repo" listar
+  [[ $code -eq 0 ]] || return 1
+  # Os pontos de convergência com regra mecânica ficam à parte, cada um com o tipo.
+  mechanical="$(sed -n '/ponto de convergência (regra mecânica):/,/pede atenção:/p' <<<"$out")"
+  [[ "$mechanical" == *"gerado: apps/api/openapi.json"* ]] || return 1
+  [[ "$mechanical" == *"migracoes: apps/api/prisma/migrations/20260101000000_a/migration.sql"* ]] || return 1
+  [[ "$mechanical" == *"registros: apps/api/src/app.module.ts"* ]] || return 1
+  # O código e o documento pedem atenção, o documento com o tipo dele, e nenhum dos dois cai no grupo mecânico.
+  attention="$(sed -n '/pede atenção:/,$p' <<<"$out")"
+  [[ "$attention" == *"src/codigo.ts"* && "$attention" == *"docs/lld.md (documentos)"* ]] || return 1
+  [[ "$mechanical" != *"src/codigo.ts"* && "$mechanical" != *"docs/lld.md"* ]] || return 1
+  [[ "$attention" != *"openapi.json"* && "$attention" != *"app.module.ts"* ]]
+}
+check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código e o de documento pedem atenção @LUI-187-CA2" convergence_split
+
+# --- Um erro ao calcular o merge é dito, e não passa por "sem conflito"; o nome com acento sai sem aspas ---
+conflict_errors() {
+  local a="$work/erro/principal-lui-1" b="$work/erro/principal-lui-2"
+  fresh erro
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  change "$a" "src/ação.ts" "versao do um"
+  change "$b" "src/ação.ts" "versao do dois"
+  # O nome com acento sai como é, sem as aspas e as barras do Git.
+  frentes "$repo" listar
+  [[ $code -eq 0 ]] && contains "src/ação.ts" && [[ "$out" != *'\303'* ]] || return 1
+  # Uma base que não existe: o merge contra ela falha, e o listar diz que não calculou, em vez de aprovar.
+  out="$(cd "$repo" && HARNESS_BASE_REF=origin/nao-existe "$FRENTES" listar 2>&1)"
+  [[ $? -eq 0 ]] && contains "não deu para calcular" && [[ "$out" != *"(não deu para calcular)"*"pede atenção"* ]]
+}
+check "um erro ao calcular o merge é dito, e não passa por sem conflito, e o nome com acento sai sem aspas" conflict_errors
 
 finish "do script de frentes"
