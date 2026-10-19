@@ -200,30 +200,29 @@ node_in_api() {
 # escrita, e o `check_report` e o conferidor o leem como o de uma suíte da API. A pasta dele nasce no
 # `api_full`, que roda antes, porque o Node não a cria.
 HARNESS_REPORT=reports/harness/node-tests.json
+# O dos testes em shell do harness, na mesma pasta e no mesmo formato. É outro arquivo porque quem o grava
+# é o executor, na máquina (scripts/test/shell-tests.sh), e o do Node é gravado no contêiner: cada
+# relatório tem um escritor só.
+HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 
 # Roda os testes do harness: os do conferidor, do renderizador do contrato e os da skill de plano (o
-# parser e a página do plano) no contêiner `api`, e os dos hooks de congelamento e de antes do comando
-# e os da trava do modo completo na máquina.
+# parser e a página do plano) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
+# completo e os modos do verify.sh) na máquina, pelo executor que grava o relatório delas. Os dois
+# relatórios passam pelo `check_report`, e um grupo que falha não impede o outro de rodar.
 harness_tests() {
+  local code=0
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.
   node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
     --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     scripts/test/*.test.cjs "$PLAN_SKILL_SCRIPTS"/test/*.test.cjs &&
-    check_report api vitest "$HARNESS_REPORT" &&
-    # Os hooks (o do congelamento, o do push, o que anota os arquivos da sessão e o de fim de turno)
-    # usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que roda na máquina:
-    # os testes deles rodam aqui.
-    scripts/test/freeze-acceptance.test.sh &&
-    scripts/test/plan-page.test.sh &&
-    scripts/test/verify-plan.test.sh &&
-    scripts/test/verify-review.test.sh &&
-    scripts/test/harness-guard.test.sh &&
-    scripts/test/push-verify.test.sh &&
-    scripts/test/full-lock.test.sh &&
-    scripts/test/record-touched.test.sh &&
-    scripts/test/stop-verify.test.sh
+    check_report api vitest "$HARNESS_REPORT" || code=1
+  # As suítes em shell usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que
+  # roda na máquina: elas rodam aqui. O relatório é o que faz um caso delas provar um critério.
+  scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh &&
+    check_report api vitest "$HARNESS_SHELL_REPORT" || code=1
+  return $code
 }
 
 # Falha, dizendo por quê, quando o ACCEPTANCE_BODY_FILE aponta para um arquivo que não existe. Sem
@@ -310,10 +309,10 @@ acceptance() {
 
   # O conferidor roda no contêiner `api` (`node_in_api`), na raiz do /repo, e lê de lá os arquivos de
   # aceite, pela pasta dos tickets relativa a ela, e os relatórios, que as suítes gravam na pasta de
-  # cada app, e o dos testes do harness, na da API. O corpo do PR, que não está no repositório, vai
-  # pela entrada padrão. O relatório que falta o conferidor reprova, dizendo qual; aqui sai também o
-  # que fazer.
-  specs+=("vitest:/repo/apps/api/$HARNESS_REPORT")
+  # cada app, e os dos testes do harness (o do Node e o das suítes em shell), na da API. O corpo do PR,
+  # que não está no repositório, vai pela entrada padrão. O relatório que falta o conferidor reprova,
+  # dizendo qual; aqui sai também o que fazer.
+  specs+=("vitest:/repo/apps/api/$HARNESS_REPORT" "vitest:/repo/apps/api/$HARNESS_SHELL_REPORT")
   for app in "${APPS[@]}"; do
     ref="${app}_reports[@]"
     for spec in "${!ref}"; do
