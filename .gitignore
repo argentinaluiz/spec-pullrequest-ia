@@ -6,3 +6,5 @@ docs/tickets/*/*/*
 # O estado interno do harness: a trava e as aprovações.
 .harness/
 docs/research/
+# O .env do Compose, com o slot do checkout (docs/lld.md, seção 6, "Ambiente local por slot").
+/.env

@@ -82,4 +82,6 @@ docker compose -f compose.dev.yaml exec api pnpm start:dev
 | API | <http://localhost:3001/v1> |
 | E-mails capturados | <http://localhost:8025> |
 
+São os endereços do slot 0, o de um checkout sem `.env` na raiz. Vários checkouts ao mesmo tempo usam um slot cada um, com portas próprias: o contrato do `.env` está no [`docs/lld.md`](./docs/lld.md), seção 6, "Ambiente local por slot".
+
 Os detalhes do ambiente e os demais comandos estão no [`AGENTS.md`](./AGENTS.md).

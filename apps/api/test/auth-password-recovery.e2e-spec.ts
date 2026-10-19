@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types.js';
+import { appConfig } from '../src/config/app.config.js';
 import {
   authRoutes,
   PASSWORD,
@@ -38,7 +39,7 @@ describe('Recuperação de senha', () => {
       expect(mail.subject).toBe(RESET_SUBJECT);
       expect(mail.to).toEqual([email]);
       expect(mail.text).toContain(
-        'http://localhost:3000/redefinir-senha?token=',
+        `${app.get(appConfig.KEY).webOrigin}/redefinir-senha?token=`,
       );
       expect(mail.text).toContain('1 hora');
       expect(resetToken(mail)).toMatch(/^[\w-]{43}$/);
@@ -137,7 +138,9 @@ describe('Recuperação de senha', () => {
       expect(mail.subject).toBe(PASSWORD_CHANGED_SUBJECT);
       expect(mail.to).toEqual([email]);
       expect(mail.text).not.toContain('token=');
-      expect(mail.text).toContain('http://localhost:3000/esqueci-minha-senha');
+      expect(mail.text).toContain(
+        `${app.get(appConfig.KEY).webOrigin}/esqueci-minha-senha`,
+      );
     });
 
     it('aceita o link uma vez só: o segundo uso devolve invalid_token e não troca a senha de novo', async () => {

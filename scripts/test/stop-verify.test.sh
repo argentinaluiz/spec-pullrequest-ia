@@ -82,10 +82,9 @@ expect_stop() {
   local name="$1" want="$2" ran="$3" text="${4:-}" got_ran="não roda"
   [[ -s "$FAKE_LOG" ]] && got_ran="roda"
   if [[ $code -ne $want || "$got_ran" != "$ran" || "$err$out" != *"$text"* ]]; then
-    echo "FALHOU: $name (saída $code, esperava $want; $got_ran, esperava $ran; erro: $err; saída: $out)"
-    failed=$((failed + 1))
+    fail_case "$name" "saída $code, esperava $want; $got_ran, esperava $ran; erro: $err; saída: $out"
   else
-    echo "ok: $name"
+    pass_case "$name"
   fi
 }
 

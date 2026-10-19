@@ -12,9 +12,9 @@ import { requiredEnv } from "./e2e/support/env";
 const chromium = {
   ...devices["Desktop Chrome"],
   launchOptions: {
-    // O endereço público do emulador de storage é `localhost:4443`, e as URLs que a API
-    // entrega valem para o navegador de quem desenvolve. Neste contêiner, `localhost` não é
-    // o storage: o Chromium o resolve para o serviço `storage` (docs/lld.md, seção 4.6).
+    // O endereço público do emulador de storage é `localhost:4443` no slot 0 (a porta segue o slot), e as
+    // URLs que a API entrega valem para o navegador de quem desenvolve. Neste contêiner, `localhost` não
+    // é o storage: o Chromium o resolve para o serviço `storage`, mantendo a porta (docs/lld.md, seção 4.6).
     args: ["--host-resolver-rules=MAP localhost storage"],
   },
 };

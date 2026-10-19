@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { signIn } from "./support/account";
 import { uniqueEmail } from "./support/mailpit";
 import { accessTokenOf } from "./support/session";
-import { completeUpload, createUpload, downloadUrlOf } from "./support/storage";
+import { completeUpload, createUpload, downloadUrlOf, storagePublicHost } from "./support/storage";
 
 const CHUNK = 256 * 1024;
 
@@ -99,8 +99,8 @@ test.describe("Emulador de storage", () => {
       chunks.push(chunk as Buffer);
     }
 
-    expect(new URL(uploadUrl).host).toBe("localhost:4443");
-    expect(new URL(readUrl).host).toBe("localhost:4443");
+    expect(new URL(uploadUrl).host).toBe(storagePublicHost());
+    expect(new URL(readUrl).host).toBe(storagePublicHost());
     expect(status).toBe(200);
     expect(download.suggestedFilename()).toBe("relatório.pdf");
     expect(Buffer.concat(chunks).toString()).toBe(content);

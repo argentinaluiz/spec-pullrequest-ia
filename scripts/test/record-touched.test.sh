@@ -31,10 +31,9 @@ expect_touched() {
   local got
   got="$(touched "$2")"
   if [[ "$got" == "$3" ]]; then
-    echo "ok: $1"
+    pass_case "$1"
   else
-    echo "FALHOU: $1 (anotado: ${got:-nada}; esperava: ${3:-nada})"
-    failed=$((failed + 1))
+    fail_case "$1" "anotado: ${got:-nada}; esperava: ${3:-nada}"
   fi
 }
 
@@ -43,7 +42,7 @@ run() {
   local code
   "$HOOK" <<<"$1" >/dev/null 2>&1
   code=$?
-  [[ $code -eq 0 ]] || { echo "FALHOU: o hook saiu com $code para $1"; failed=$((failed + 1)); }
+  [[ $code -eq 0 ]] || fail_case "o hook saiu com código diferente de 0" "saída $code para $1"
 }
 
 run "{\"session_id\":\"s1\",\"tool_input\":{\"file_path\":\"$project/apps/api/src/a.ts\"}}"
@@ -101,7 +100,7 @@ run_in() {
   local code
   CLAUDE_PROJECT_DIR="$1" "$HOOK" <<<"$2" >/dev/null 2>&1
   code=$?
-  [[ $code -eq 0 ]] || { echo "FALHOU: o hook saiu com $code sem a pasta de estado"; failed=$((failed + 1)); }
+  [[ $code -eq 0 ]] || fail_case "o hook sem a pasta de estado saiu com código diferente de 0" "saída $code"
 }
 run_in "$project/nao-existe" "{\"session_id\":\"x1\",\"tool_input\":{\"file_path\":\"$project/apps/api/src/a.ts\"}}"
 expect_touched "sem a raiz do projeto, o hook não anota e sai com 0" x1 ""

@@ -37,7 +37,7 @@ Tudo roda dentro dos contêineres do Docker Compose: instalação de dependênci
 
 O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis serviços:
 
-| Serviço | O que é | Endereço na máquina | Endereço entre contêineres |
+| Serviço | O que é | Endereço na máquina (slot 0) | Endereço entre contêineres |
 | --- | --- | --- | --- |
 | `web` | Frontend em Next.js | `http://localhost:3000` | `http://web:3000` |
 | `api` | API em NestJS, com as rotas sob `/v1` | `http://localhost:3001` | `http://api:3000` |
@@ -45,6 +45,8 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis servi�
 | `storage` | Emulador do Cloud Storage (`fake-gcs-server`), com o bucket `app-files` | `http://localhost:4443` | `http://storage:4443` |
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
+
+A tabela é a do slot 0, o de um checkout sem `.env` na raiz. As portas e os endereços de um slot de 1 a 3 estão no `docs/lld.md`, seção 6, "Ambiente local por slot".
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
@@ -232,7 +234,7 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
 - **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda.
-- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os dois relatórios JSON, o do Vitest e o do Playwright, trazem as tags de cada teste. O `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor: um ID que não está em nenhum arquivo de aceite reprova.
+- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os dois relatórios JSON, o do Vitest e o do Playwright, trazem as tags de cada teste. O `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor: um ID que não está em nenhum arquivo de aceite reprova. Os testes em shell do harness também provam critério: como nomear o caso e onde fica o relatório está no cabeçalho de `scripts/test/sh-helpers.sh`.
 
 ## Convenções de Git
 

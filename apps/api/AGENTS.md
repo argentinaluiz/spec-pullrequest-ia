@@ -8,7 +8,7 @@ docker compose -f compose.dev.yaml exec api <comando>
 
 | Comando | O que faz |
 | --- | --- |
-| `pnpm start:dev` | Sobe a API em modo watch (`http://localhost:3001` na máquina) |
+| `pnpm start:dev` | Sobe a API em modo watch (`http://localhost:3001` na máquina, no slot 0) |
 | `pnpm test` | Suíte de unidade (`*.spec.ts`) |
 | `pnpm test:int` | Suíte de integração (`*.int-spec.ts`) |
 | `pnpm test:e2e` | Suíte de ponta a ponta (`*.e2e-spec.ts`) |

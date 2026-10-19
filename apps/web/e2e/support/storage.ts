@@ -5,6 +5,14 @@ import { requiredEnv } from "./env";
  * envio por `POST /uploads`, o mesmo caminho da tela, conferem o tamanho pela conclusão e pedem a URL de leitura.
  */
 
+/**
+ * O host do endereço público do emulador de storage, o que as URLs da API trazem: o do slot do ambiente
+ * (`STORAGE_PUBLIC_URL`, que o Compose passa quando há um `.env` de slot) ou o do slot 0.
+ */
+export function storagePublicHost(): string {
+  return new URL(process.env.STORAGE_PUBLIC_URL ?? "http://localhost:4443").host;
+}
+
 async function api(
   path: string,
   accessToken: string,

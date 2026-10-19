@@ -489,10 +489,10 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 
 **Endereço público e assinatura local**
 
-- **Dois endereços do emulador:** a API fala com ele por `STORAGE_EMULATOR_HOST` (`http://storage:4443`, o nome do serviço do Compose). O navegador não alcança esse host, e alcança `http://localhost:4443`, a porta que o Compose publica. Esse é o `STORAGE_PUBLIC_URL`, que só existe no ambiente local.
-- **Endereço da sessão:** o emulador monta o endereço da sessão com o `Host` da requisição que recebeu, então ele volta com `storage:4443`. Com `STORAGE_PUBLIC_URL` definido, a implementação troca a origem do endereço por ela antes de devolvê-lo. Sem a variável (staging e produção), o endereço sai como veio do Cloud Storage.
+- **Dois endereços do emulador:** a API fala com ele por `STORAGE_EMULATOR_HOST` (`http://storage:4443` no slot 0, o nome do serviço do Compose). O navegador não alcança esse host, e alcança `http://localhost:4443`, a porta que o Compose publica. Esse é o `STORAGE_PUBLIC_URL`, que só existe no ambiente local. Num slot, o emulador escuta e se anuncia na porta do slot, e os dois endereços a seguem (seção 6, "Ambiente local por slot").
+- **Endereço da sessão:** o emulador monta o endereço da sessão com o `Host` da requisição que recebeu, então ele volta com o host do serviço (`storage:4443` no slot 0). Com `STORAGE_PUBLIC_URL` definido, a implementação troca a origem do endereço por ela antes de devolvê-lo. Sem a variável (staging e produção), o endereço sai como veio do Cloud Storage.
 - **URL assinada:** a implementação passa a origem de `STORAGE_PUBLIC_URL` como `host` da assinatura, e a URL já sai com o endereço que o navegador alcança. O emulador só serve a URL assinada (`/<bucket>/<objeto>`) quando o `Host` da requisição é igual ao `-public-host` dele, que o Compose define com o mesmo host e porta do `STORAGE_PUBLIC_URL`.
-- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`).
+- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`). O `--host-resolver-rules` troca só o host e mantém a porta do endereço público, que por isso é também a porta em que o emulador escuta dentro do contêiner.
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
 - **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
 - **Os testes no navegador não têm rota de apoio:** eles falam com o storage pelas rotas do produto. Criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
@@ -618,8 +618,8 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 | `GCS_BUCKET` | api | Nome do bucket privado |
 | `TASKS_QUEUE`, `WORKER_URL` | api | Fila do Cloud Tasks e endereço do worker |
 | `QUEUE_DRIVER` | api | `cloud-tasks` em staging e produção, `local` no desenvolvimento (chamada HTTP direta ao worker) |
-| `STORAGE_EMULATOR_HOST` | api | Endereço do emulador de storage, só no desenvolvimento (`http://storage:4443`) |
-| `STORAGE_PUBLIC_URL` | api | Origem do emulador que o navegador alcança, só no desenvolvimento (`http://localhost:4443`). Obrigatória quando `STORAGE_EMULATOR_HOST` existe. |
+| `STORAGE_EMULATOR_HOST` | api | Endereço do emulador de storage, só no desenvolvimento (`http://storage:4443` no slot 0) |
+| `STORAGE_PUBLIC_URL` | api | Origem do emulador que o navegador alcança, só no desenvolvimento (`http://localhost:4443` no slot 0). Obrigatória quando `STORAGE_EMULATOR_HOST` existe. |
 | `STORAGE_SIGNER_EMAIL`, `STORAGE_SIGNER_PRIVATE_KEY` | api | Credencial de assinatura das URLs, só no desenvolvimento: um e-mail fictício e uma chave RSA em PEM gerada pelo `setup-env.mjs`. Obrigatórias quando `STORAGE_EMULATOR_HOST` existe, e ausentes em produção, onde a assinatura usa a identidade do serviço. |
 | `TRASH_RETENTION_DAYS`, `PENDING_UPLOAD_TTL_HOURS` | api | Padrões de 30 dias e 24 horas. O prazo dos pendentes é um inteiro maior ou igual a 0, e zero faz todo pendente vencer na hora. |
 | `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS` | api | Validade do token de acesso e do token de renovação, em segundos. Padrões de 900 (15 minutos) e 2592000 (30 dias). |
@@ -631,7 +631,7 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 | `DATABASE_CONNECT_TIMEOUT_MS` | api | Quanto esperar o banco para abrir uma conexão, em milissegundos. Padrão de 10000. |
 | `SMTP_TIMEOUT_MS` | api | Quanto esperar o servidor SMTP para resolver o nome, conectar e saudar, em milissegundos. Padrão de 10000. |
 | `SMTP_IDLE_TIMEOUT_MS` | api | Quanto uma conexão SMTP aberta pode ficar sem tráfego, durante um envio ou entre um envio e outro, em milissegundos. Padrão de 60000. |
-| `WEB_ORIGIN` | api | Origem do frontend, para CORS e links de e-mail: esquema, host e porta, sem caminho nem barra no fim. No desenvolvimento, é o endereço que a pessoa abre no navegador (`http://localhost:3000`). |
+| `WEB_ORIGIN` | api | Origem do frontend, para CORS e links de e-mail: esquema, host e porta, sem caminho nem barra no fim. No desenvolvimento, é o endereço que a pessoa abre no navegador (`http://localhost:3000` no slot 0). |
 | `INTERNAL_API_SECRET` | api e web | Segredo que autoriza a web a repassar o IP do usuário (segredo). Tem pelo menos 32 caracteres, e o valor é o mesmo nos dois projetos. |
 | `LOGIN_RATE_LIMIT_PER_EMAIL`, `LOGIN_RATE_LIMIT_PER_IP`, `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | api | Tentativas de login por e-mail e por IP, e a janela, em segundos. Padrões de 5, 20 e 900 (15 minutos). |
 | `EMAIL_REQUEST_RATE_LIMIT_PER_EMAIL`, `EMAIL_REQUEST_RATE_LIMIT_PER_IP`, `EMAIL_REQUEST_RATE_LIMIT_WINDOW_SECONDS` | api | Cadastros, reenvios de verificação e pedidos de "esqueci a senha" por e-mail e por IP, e a janela, em segundos. Padrões de 3, 10 e 3600 (1 hora). |
@@ -644,6 +644,26 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 **Ambiente local:** as variáveis da API ficam em `apps/api/.env`, fora do Git. Na primeira subida, o contêiner da API cria esse arquivo como cópia do `apps/api/.env.example`, que é versionado e funciona sem alterações, e um script gera as chaves do JWT e as grava nele. Quando o `.env.example` ganha uma variável, o mesmo script a acrescenta ao `.env` que já existe, sem trocar nenhum valor. Os hosts são sempre os nomes dos serviços do Compose. A `API_URL`, o `COOKIE_SECURE=false` e o `INTERNAL_API_SECRET` da web são definidos no próprio `compose.dev.yaml`, sem arquivo `.env`. O `.env.example` da API traz o mesmo segredo e sobe os tetos por IP, porque no ambiente local o navegador da pessoa e os testes no navegador saem todos do mesmo IP.
 
 **Banco de testes:** os testes da API usam um banco separado no mesmo PostgreSQL, com o nome do banco de `DATABASE_URL` mais o sufixo `_test`. Ele não tem variável própria.
+
+**Ambiente local por slot:** cada checkout tem um **slot**, de 0 a 3, que dá ao ambiente de desenvolvimento um bloco próprio de portas na máquina, para vários ambientes ficarem no ar juntos. O slot vem de um `.env` na raiz do checkout, que o Git ignora e que o Compose lê sozinho, com o mesmo `compose.dev.yaml` e o mesmo comando. Sem o arquivo, vale o slot 0, as portas de hoje, e é assim que ficam o checkout principal e a CI. O `.env` da raiz é do Compose e não é o `apps/api/.env`: o Compose passa à API só o que a tabela abaixo manda.
+
+- **Fórmula:** a porta de hoje mais slot × 10, para a web, a API, o storage e os e-mails. Os endereços entre contêineres não mudam, com uma exceção: o emulador de storage escuta, dentro do contêiner, na porta do slot, e por isso o endereço dele entre contêineres segue o slot (`STORAGE_EMULATOR_HOST`).
+- **Dono:** este documento decide os nomes e a fórmula. Quem grava o `.env` (o script de frentes, ou a pessoa à mão) só os segue.
+- **Sem padrão na passagem:** as variáveis da API e do `playwright` abaixo não têm valor padrão no Compose: sem o `.env`, elas não existem no ambiente do serviço, e a API usa o `apps/api/.env`, como hoje. Um padrão no Compose as faria existir no slot 0, e a configuração resolvida deixaria de ser igual à de antes do slot.
+
+| Variável do `.env` | Slot 0 (padrão do Compose) | Slot 1 | Quem lê |
+| --- | --- | --- | --- |
+| `SLOT` | não precisa existir | `1` | Só informa: o Compose não a lê, e o script de frentes a usa para achar o slot de cada pasta |
+| `WEB_PORT` | 3000 | 3010 | Porta publicada da web |
+| `API_PORT` | 3001 | 3011 | Porta publicada da API |
+| `STORAGE_PORT` | 4443 | 4453 | Porta publicada do storage, e a em que o emulador escuta e se anuncia (`-port` e `-public-host`) |
+| `MAILPIT_PORT` | 8025 | 8035 | Porta publicada da tela e da API HTTP dos e-mails |
+| `WEB_ORIGIN` | ausente | `http://localhost:3010` | Passada à API, que a usa nos links dos e-mails e no CORS (tabela acima) |
+| `STORAGE_PUBLIC_URL` | ausente | `http://localhost:4453` | Passada à API e ao `playwright` (tabela acima, e a seção 4.6) |
+| `STORAGE_EMULATOR_HOST` | ausente | `http://storage:4453` | Passada à API (tabela acima, e a seção 4.6) |
+| `GIT_MASK_TYPE`, `GIT_MASK_SOURCE` | `tmpfs` e vazio | `bind` e `/dev/null` | A máscara do `.git` no contêiner da API, abaixo |
+
+**Máscara do `.git`:** o contêiner da API monta o repositório só para leitura e cobre o `.git` por cima, para o histórico, os hooks e a configuração do Git ficarem fora do alcance do que roda nele. No checkout principal e na CI, o `.git` é uma pasta, e a máscara é um `tmpfs`. Num worktree, o `.git` é um arquivo, onde o `tmpfs` não monta e o contêiner não sobe: o `.env` do worktree traz `GIT_MASK_TYPE=bind` e `GIT_MASK_SOURCE=/dev/null`, que cobre o arquivo com um vazio. A varredura de segredos também precisa do histórico, que num worktree está no `.git` comum, fora da pasta dele: o `scripts/verify.sh` monta esse `.git` e aponta o `GIT_DIR` do Git para o do worktree, porque o arquivo `.git` pode trazer um caminho relativo, que no contêiner não leva a lugar nenhum.
 
 Os valores marcados como segredo vêm do Secret Manager e não ficam em arquivos versionados.
 
