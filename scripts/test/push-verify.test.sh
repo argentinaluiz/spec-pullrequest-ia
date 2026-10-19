@@ -138,4 +138,12 @@ expect 2 "nega a entrada ilegível que cita o verify.sh e o CI=" \
 
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
 
+# O `remover` com a opção de abandono, no script de frentes, é só do usuário.
+expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualquer posição @LUI-186-CA7" \
+  "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
+expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
+  "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar LUI-186'")" "só o usuário abandona uma frente"
+expect 0 "libera o remover sem a opção, o novo e o listar @LUI-186-CA7" \
+  "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
+
 finish "do hook"
