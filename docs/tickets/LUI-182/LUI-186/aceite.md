@@ -80,4 +80,4 @@ A base da frente é a `HARNESS_BASE_REF` do `scripts/verify.sh` (`origin/main` p
 
 **Marca:** documento
 
-**Cenário:** Dado o diff do PR, quando se lê a seção "Frentes paralelas" do `AGENTS.md` da raiz, então ela diz o que é uma frente, o slot, o limite de três, os três comandos apontando para o cabeçalho do script, e a colisão de cookies no navegador da pessoa (um slot por janela anônima ou por perfil); e o cabeçalho do `scripts/frentes.sh` descreve a fórmula do slot, o `.env`, as recusas, a remoção e o `--forcar` (que é só do humano), sem que um repita o outro.
+**Cenário:** Dado o diff do PR, quando se lê a seção "Frentes paralelas" do `AGENTS.md` da raiz, então ela diz o que é uma frente, o slot, o limite de três, os três comandos apontando para o cabeçalho do script, e a colisão de cookies no navegador da pessoa (um perfil do navegador por slot, porque as janelas anônimas da mesma sessão dividem os cookies); e o cabeçalho do `scripts/frentes.sh` descreve a fórmula do slot, o `.env`, as recusas, a remoção e o `--forcar` (que é só do humano), sem que um repita o outro.
