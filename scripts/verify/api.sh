@@ -25,8 +25,10 @@ api_full() {
     "renomeie a migração nova que a mensagem aponta para um nome posterior à mais recente da base, como ela explica." \
     api_migration_order
   # Relatório antigo não vale como evidência desta execução. A pasta do relatório dos testes do
-  # harness (`HARNESS_REPORT`, no scripts/verify.sh), que o Node não cria, nasce vazia aqui.
-  in_container api sh -c "rm -rf reports && mkdir -p '$(dirname "$HARNESS_REPORT")'"
+  # harness (`HARNESS_REPORT`, no scripts/verify.sh), que o Node não cria, nasce vazia aqui. Quem a cria é
+  # o contêiner, e os testes em shell do harness, que rodam na máquina, gravam nela: onde o usuário da
+  # máquina não é o do contêiner (o runner da CI), ela abre para todos.
+  in_container api sh -c "rm -rf reports && mkdir -p '$(dirname "$HARNESS_REPORT")' && chmod a+rwx reports '$(dirname "$HARNESS_REPORT")'"
   api_suite "de unidade" test reports/unit.json
   api_suite "de integração" test:int reports/int.json
   api_suite "de ponta a ponta" test:e2e reports/e2e.json

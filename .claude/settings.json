@@ -1,23 +1,6 @@
 {
   "permissions": {
-    "deny": [
-      "Read(./docs/sessoes/**)",
-      "Edit(./docs/sessoes/**)",
-      "Read(./docs/specs/**)",
-      "Edit(./docs/specs/**)",
-      "Read(./docs/Gerenciador de arquivos.fig)",
-      "Edit(./docs/Gerenciador de arquivos.fig)",
-      "Edit(./.harness/**)",
-      "Bash(gh pr merge:*)"
-    ],
-    "ask": [
-      "Edit(./.github/**)",
-      "Edit(./.claude/settings.json)",
-      "Edit(./.claude/hooks/**)",
-      "Edit(./.claude/agents/**)",
-      "Edit(./scripts/**)",
-      "Edit(./.claude/skills/plan-ticket/scripts/**)"
-    ]
+    
   },
   "hooks": {
     "PreToolUse": [
