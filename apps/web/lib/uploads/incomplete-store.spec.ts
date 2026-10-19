@@ -22,7 +22,7 @@ const record = (itemId: string) => ({
 });
 
 describe("armazenamento dos envios incompletos", () => {
-  it("os incompletos de um Usuário não aparecem para outro no mesmo navegador @LUI-171-CA4", () => {
+  it("os incompletos de um Usuário não aparecem para outro no mesmo navegador", { tags: ["@LUI-171-CA4"] }, () => {
     const storage = memoryStorage();
     createIncompleteStore(storage, "user-a").save(record("item-a"));
 

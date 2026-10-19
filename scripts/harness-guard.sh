@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Guarda do harness. Lê, pela entrada padrão, os caminhos que um pull request altera (um por
-# linha) e reprova quando algum deles é um arquivo protegido do harness. O desenho está no
-# docs/harness.md.
+# linha) e reprova quando algum deles é um arquivo protegido do harness.
 #
 # Quem chama é o workflow "Guarda do harness", que roda com a versão da `main` deste script,
 # e não com a do pull request.

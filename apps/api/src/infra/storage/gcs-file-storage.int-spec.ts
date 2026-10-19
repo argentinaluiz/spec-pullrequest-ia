@@ -45,63 +45,79 @@ describe('Storage de arquivos no emulador', () => {
     expect(response.status).toBe(200);
   }
 
-  it('cria a sessão com o endereço público e lê o tamanho do objeto enviado @LUI-165-CA2', async () => {
-    const objectName = `ca2/${randomUUID()}`;
+  it(
+    'cria a sessão com o endereço público e lê o tamanho do objeto enviado',
+    { tags: ['@LUI-165-CA2'] },
+    async () => {
+      const objectName = `ca2/${randomUUID()}`;
 
-    const session = await storage.createUploadSession({
-      objectName,
-      mimeType: 'text/plain',
-      origin: 'http://localhost:3000',
-    });
-    await fetch(viaEmulator(session), { method: 'PUT', body: 'ola!!' });
+      const session = await storage.createUploadSession({
+        objectName,
+        mimeType: 'text/plain',
+        origin: 'http://localhost:3000',
+      });
+      await fetch(viaEmulator(session), { method: 'PUT', body: 'ola!!' });
 
-    expect(new URL(session).origin).toBe(config.publicUrl);
-    expect(await storage.getObjectSize(objectName)).toBe(5);
-    expect(await storage.getObjectSize(`ca2/${randomUUID()}`)).toBeNull();
-  });
+      expect(new URL(session).origin).toBe(config.publicUrl);
+      expect(await storage.getObjectSize(objectName)).toBe(5);
+      expect(await storage.getObjectSize(`ca2/${randomUUID()}`)).toBeNull();
+    },
+  );
 
-  it('assina uma URL de leitura que devolve os bytes do objeto, com o nome do arquivo @LUI-165-CA3', async () => {
-    const objectName = `ca3/${randomUUID()}`;
-    await putObject(objectName, 'ola!!');
-    const signedAt = Date.now();
+  it(
+    'assina uma URL de leitura que devolve os bytes do objeto, com o nome do arquivo',
+    { tags: ['@LUI-165-CA3'] },
+    async () => {
+      const objectName = `ca3/${randomUUID()}`;
+      await putObject(objectName, 'ola!!');
+      const signedAt = Date.now();
 
-    const { url: signedUrl, expiresAt } = await storage.signReadUrl({
-      objectName,
-      fileName: 'relatório.pdf',
-      expiresInSeconds: 120,
-    });
-    const response = await getSignedUrlOnEmulator(
-      config.emulatorHost,
-      signedUrl,
-    );
+      const { url: signedUrl, expiresAt } = await storage.signReadUrl({
+        objectName,
+        fileName: 'relatório.pdf',
+        expiresInSeconds: 120,
+      });
+      const response = await getSignedUrlOnEmulator(
+        config.emulatorHost,
+        signedUrl,
+      );
 
-    expect(new URL(signedUrl).origin).toBe(config.publicUrl);
-    expect(new URL(signedUrl).searchParams.get('X-Goog-Expires')).toBe('120');
-    expect(Math.abs(expiresAt.getTime() - signedAt - 120 * 1000)).toBeLessThan(
-      5_000,
-    );
-    expect(response.status).toBe(200);
-    expect(response.body.toString()).toBe('ola!!');
-    expect(response.headers['content-disposition']).toBe(
-      "attachment; filename*=UTF-8''relat%C3%B3rio.pdf",
-    );
-  });
+      expect(new URL(signedUrl).origin).toBe(config.publicUrl);
+      expect(new URL(signedUrl).searchParams.get('X-Goog-Expires')).toBe('120');
+      expect(
+        Math.abs(expiresAt.getTime() - signedAt - 120 * 1000),
+      ).toBeLessThan(5_000);
+      expect(response.status).toBe(200);
+      expect(response.body.toString()).toBe('ola!!');
+      expect(response.headers['content-disposition']).toBe(
+        "attachment; filename*=UTF-8''relat%C3%B3rio.pdf",
+      );
+    },
+  );
 
-  it('apaga o objeto e cancela a sessão, sem erro se repetir @LUI-165-CA4', async () => {
-    const objectName = `ca4/${randomUUID()}`;
-    await putObject(objectName, 'ola!!');
-    const session = await storage.createUploadSession({
-      objectName: `ca4/${randomUUID()}`,
-      mimeType: 'text/plain',
-      origin: 'http://localhost:3000',
-    });
+  it(
+    'apaga o objeto e cancela a sessão, sem erro se repetir',
+    { tags: ['@LUI-165-CA4'] },
+    async () => {
+      const objectName = `ca4/${randomUUID()}`;
+      await putObject(objectName, 'ola!!');
+      const session = await storage.createUploadSession({
+        objectName: `ca4/${randomUUID()}`,
+        mimeType: 'text/plain',
+        origin: 'http://localhost:3000',
+      });
 
-    await storage.deleteObject(objectName);
-    const sizeAfterDelete = await storage.getObjectSize(objectName);
+      await storage.deleteObject(objectName);
+      const sizeAfterDelete = await storage.getObjectSize(objectName);
 
-    expect(sizeAfterDelete).toBeNull();
-    await expect(storage.deleteObject(objectName)).resolves.toBeUndefined();
-    await expect(storage.cancelUploadSession(session)).resolves.toBeUndefined();
-    await expect(storage.cancelUploadSession(session)).resolves.toBeUndefined();
-  });
+      expect(sizeAfterDelete).toBeNull();
+      await expect(storage.deleteObject(objectName)).resolves.toBeUndefined();
+      await expect(
+        storage.cancelUploadSession(session),
+      ).resolves.toBeUndefined();
+      await expect(
+        storage.cancelUploadSession(session),
+      ).resolves.toBeUndefined();
+    },
+  );
 });

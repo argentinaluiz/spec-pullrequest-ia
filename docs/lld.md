@@ -132,7 +132,7 @@ erDiagram
     subscriptions ||--o{ payment_events : recebe
 ```
 
-**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente (`docs/harness.md`, etapa 8). Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
+**Tabelas implementadas:** `users`, `refresh_tokens`, `email_tokens`, `rate_limits`, `items`, `quotas` e `plans` são descritas pelo `apps/api/prisma/schema.prisma`, que é o dono delas: colunas, tipos e observações. Uma verificação confere que o schema tem a migração correspondente. Quando um ticket implementa uma tabela, ela sai desta seção e passa a morar no schema.
 
 **Formato de uma tabela no schema:** toda tabela planejada ou alterada traz os itens do formato de tabela da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Tabela"). Neste projeto, o dono é o `schema.prisma`, e cada item se escreve assim:
 
@@ -201,7 +201,7 @@ Como só o hash é guardado, a URL do link é exibida uma única vez, na criaç�
 
 ## 3. Contrato da API
 
-**Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base (`docs/harness.md`, etapa 8). As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
+**Dono do contrato:** para as rotas implementadas, a forma (campos, tipos, status e erros por rota) é o `apps/api/openapi.json`, gerado do código. Uma verificação confere que o código bate com ele e que a mudança não quebra o contrato da base. As tabelas abaixo guardam as convenções, o comportamento de cada rota e as rotas ainda não implementadas; se a forma de uma rota implementada divergir do snapshot, vale o snapshot. Quando um ticket implementa uma rota, o desenho dela vai para o snapshot, no commit de plano.
 
 **Formato de uma rota no snapshot:** toda rota planejada ou alterada traz, no snapshot, os itens do formato de rota da skill de plano (`.claude/skills/plan-ticket/formatos/contrato.md`, "Rota") que ela usa. Neste projeto, cada item é assim:
 
@@ -306,9 +306,9 @@ Todo erro sai com `Content-Type: application/problem+json` e este corpo:
 | Método e rota | Entrada | Saída |
 | --- | --- | --- |
 | `GET /items/{id}` | | O item e a trilha de pastas até a raiz |
-| `GET /items/{id}/children` | `limit`, `cursor` | Lista de itens ativos da pasta |
+| `GET /items/{id}/children` | `limit`, `cursor`, `type` (opcional, `folder`) | Lista de itens ativos da pasta |
 | `POST /folders` | `name`, `parentId` | 201, a pasta criada |
-| `PATCH /items/{id}` | `name` e/ou `parentId` | O item atualizado |
+| `PATCH /items/{id}` | `name` e/ou `parentId` | O item atualizado. Hoje só o `name` está implementado, e é obrigatório: o `parentId` entra com o mover, que o torna opcional. Renomear a Pasta raiz responde `validation_error`, e o atalho `root` vale no caminho. |
 | `DELETE /items/{id}` | | 204. Envia para a lixeira. |
 | `GET /trash` | `limit`, `cursor` | Itens enviados diretamente à lixeira |
 | `POST /items/{id}/restore` | | O item restaurado |
@@ -318,7 +318,8 @@ Todo erro sai com `Content-Type: application/problem+json` e este corpo:
 
 O id `root` é aceito como atalho para a pasta raiz do usuário. Na primeira vez que ele é usado, a raiz nasce (seção 4.1).
 
-- **`GET /items/{id}/children` antes das pastas:** até a funcionalidade de pastas, a rota aceita só `root`, e qualquer outro id responde `not_found`. A data que a lista mostra é a de modificação (`updatedAt`). A forma da resposta está no snapshot da OpenAPI.
+- **`GET /items/{id}/children`:** aceita `root` ou qualquer pasta ativa do Usuário; outro valor (inexistente, de outro Usuário, arquivo, não-UUID, `pending` ou `deleting`) responde `not_found`. O parâmetro `type=folder` é opcional e filtra para só pastas, para o seletor de "Mover para…"; qualquer outro valor responde `validation_error`. A ordenação, o cursor e o limite não mudam. A data que a lista mostra é a de modificação (`updatedAt`). A forma da resposta está no snapshot da OpenAPI.
+- **`GET /items/{id}`:** devolve o Item e a trilha do topo (a Pasta raiz, "Meus arquivos") até ele; o atalho `root` devolve a trilha só com a raiz. Item inexistente, de outro Usuário, de id inválido ou não ativo responde `not_found`.
 
 ### 3.4 Upload e download
 
@@ -380,7 +381,9 @@ stateDiagram-v2
 - **Consequência para busca e links públicos:** como os descendentes não são marcados, essas consultas precisam conferir se algum ancestral está na lixeira. A conferência é feita com uma consulta recursiva sobre a página de resultados (até 200 itens, até 50 níveis).
 - **Restaurar** devolve o item à pasta de origem. Se ela não existir mais ou estiver na lixeira, o item volta para a raiz.
 - **Expurgo de uma pasta** remove todos os descendentes, de baixo para cima.
-- **Mover:** a API sobe pelos ancestrais do destino e rejeita o pedido se encontrar o próprio item (`invalid_move`) ou se a profundidade passar de 50 níveis.
+- **Profundidade:** conta as pastas do caminho, sem a Pasta raiz: uma pasta direto em "Meus arquivos" está no nível 1, e o 50º é o último que pode existir. Criar uma pasta no 50º nível responde `max_depth_exceeded`.
+- **Lock consultivo por Usuário:** a transação que grava mudando a árvore (criar pasta e, no ticket de mover, mover) toma `pg_advisory_xact_lock` sobre o id do dono antes de conferir e gravar, para duas verificações do mesmo Usuário nunca enxergarem a árvore antiga ao mesmo tempo. Só as gravações do mesmo Usuário esperam umas pelas outras, e o lock se solta no fim da transação.
+- **Mover:** a API sobe pelos ancestrais do destino e rejeita o pedido se encontrar o próprio item (`invalid_move`). O limite de 50 níveis vale para a árvore inteira: a profundidade do destino mais a altura da subárvore movida (consulta recursiva para baixo, só de pastas) não pode passar de 50 (`max_depth_exceeded`).
 - **Pasta raiz:** nasce sob demanda, na primeira vez que o usuário a usa (o atalho `root`), com `INSERT ... ON CONFLICT DO NOTHING` seguido da leitura. O índice único da raiz garante uma só, mesmo com chamadas simultâneas. Ela se chama "Meus arquivos", nunca aparece numa listagem e não pode ser renomeada, movida nem excluída.
 
 ### 4.2 Cota
@@ -462,7 +465,7 @@ O navegador envia cada arquivo em chunks sequenciais para a sessão de upload re
 - **Conclusão simultânea ao expurgo:** a ativação (`UPDATE ... WHERE status = 'pending'`) não encontra um item `deleting`, e a conclusão responde `not_found` na hora, sem esperar o storage. Se a conclusão ativa antes, o expurgo não toma o item, e o cancelamento responde `not_found`, com o objeto intacto. Nunca fica um item ativo sem o objeto.
 - **Falha do storage no expurgo:** o item fica `deleting`, com o espaço já devolvido, e não volta a `pending`. O cancelamento responde `internal_error`; um novo cancelamento do mesmo item pelo dono refaz os passos 2 e 3 e responde 204. A limpeza conta a falha, segue com os demais e, nas próximas execuções, pega também os itens `deleting` tomados há mais que a carência da seção 5 e refaz os passos 2 e 3. Ela conta como removido só o item cuja linha ela mesma apagou: o que outro expurgo terminou no meio não entra na contagem.
 
-**Como o upload de um arquivo é executado (LUI-167)**
+**Como o upload de um arquivo é executado**
 
 - **Ordem do início:** (1) o destino é resolvido (`root` ou uma pasta `active` do usuário; qualquer outro valor, inclusive um texto que não é UUID, é `not_found`); (2) uma transação cria a linha da cota, reserva o tamanho e cria o item `pending`, com a chave do objeto (UUID aleatório) e sem a sessão; (3) fora da transação, a sessão é criada no storage; (4) o endereço dela é gravado no item. Chamar o storage dentro da transação a prenderia durante uma chamada de rede. Se o passo 3 falhar, uma transação de compensação apaga o item pendente e devolve o espaço, e o erro sobe (`internal_error`). Se a compensação também falhar, o item fica `pending` e a limpeza o remove.
 - **Validade da sessão:** `expiresAt` é a criação do item mais 24 horas, o prazo em que a limpeza remove um pendente (seção 5). O Cloud Storage guarda a sessão por mais tempo, e esse prazo não é o que o cliente vê.
@@ -489,10 +492,10 @@ Uma falha do fornecedor (rede, permissão, bucket inexistente) sai como `Storage
 - **Dois endereços do emulador:** a API fala com ele por `STORAGE_EMULATOR_HOST` (`http://storage:4443`, o nome do serviço do Compose). O navegador não alcança esse host, e alcança `http://localhost:4443`, a porta que o Compose publica. Esse é o `STORAGE_PUBLIC_URL`, que só existe no ambiente local.
 - **Endereço da sessão:** o emulador monta o endereço da sessão com o `Host` da requisição que recebeu, então ele volta com `storage:4443`. Com `STORAGE_PUBLIC_URL` definido, a implementação troca a origem do endereço por ela antes de devolvê-lo. Sem a variável (staging e produção), o endereço sai como veio do Cloud Storage.
 - **URL assinada:** a implementação passa a origem de `STORAGE_PUBLIC_URL` como `host` da assinatura, e a URL já sai com o endereço que o navegador alcança. O emulador só serve a URL assinada (`/<bucket>/<objeto>`) quando o `Host` da requisição é igual ao `-public-host` dele, que o Compose define com o mesmo host e porta do `STORAGE_PUBLIC_URL`.
-- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`, como descrito no `docs/harness.md`, seção "Script de verificação").
+- **Navegador dos testes:** o navegador do serviço `playwright` está noutro contêiner, onde `localhost` não é o storage. A configuração do Playwright o faz resolver `localhost` para o serviço `storage` (`--host-resolver-rules`), e as páginas continuam na web (`http://web:3000`, ou o build servido pelo `scripts/verify.sh`).
 - **Assinatura sem segredo real:** o SDK precisa de uma chave privada para assinar, mesmo apontado para o emulador. Em produção, a assinatura usa a identidade do serviço no Cloud Run, sem chave no ambiente. Localmente, o `scripts/setup-env.mjs` gera, na primeira subida, um par RSA descartável e grava a chave privada e um e-mail fictício no `.env`, como faz com o par do JWT, e não os versiona. O emulador não confere a assinatura nem a validade da URL: uma URL adulterada ou vencida também é servida.
 - **Origem do SDK:** o SDK também lê `STORAGE_EMULATOR_HOST` do ambiente e, com ela definida, usa o valor como endereço-base sem o `/storage/v1`, o que dá 404 em toda chamada contra o emulador (verificado na versão 8.4.0). A implementação passa o endereço por configuração (`apiEndpoint`) e cria o SDK com a variável fora do ambiente, que volta em seguida.
-- **Rota de apoio:** `/v1/dev/storage/*` existiu no LUI-165, para os testes no navegador alcançarem a interface de storage. As rotas da sessão e do tamanho saíram com o `POST /uploads` (LUI-167), e a de leitura, com o `GET /items/{id}/download-url` (LUI-168), que com ela tirou o módulo de apoio inteiro. Os testes no navegador criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
+- **Os testes no navegador não têm rota de apoio:** eles falam com o storage pelas rotas do produto. Criam a sessão por `POST /uploads`, conferem o tamanho pela conclusão e pedem a URL de leitura a `GET /items/{id}/download-url`.
 
 **Resultado da validação contra o emulador (`fake-gcs-server` 1.56.1)**
 
@@ -666,8 +669,8 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/redefinir-senha/link-invalido` | Pública | | Pede outro link de redefinição | Existe |
 | `/sessao-encerrada` | Pública, rota que só redireciona | `POST /auth/refresh` | Renova a Sessão ou a encerra | Existe |
 | `/termos`, `/privacidade` | Pública | | | Existe, provisórias |
-| `/` | Protegida | `GET /me`, `GET /items/root/children` | Sair (`POST /auth/logout`), pelo menu da conta, "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
-| `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children` | Criar pasta, renomear, mover, excluir, enviar arquivos, compartilhar | A detalhar |
+| `/` | Protegida | `GET /me`, `GET /items/root`, `GET /items/root/children`, `POST /folders` | Sair (`POST /auth/logout`), pelo menu da conta, breadcrumb, abrir uma pasta por duplo clique, "Nova pasta" (Server Action), "Carregar mais" e "Enviar" (`POST /uploads` e `POST /uploads/{itemId}/complete`, por Server Action). "Baixar", no menu da linha de um arquivo, é um link para `/arquivos/[id]/baixar`. | Existe: "Meus arquivos", a lista da pasta raiz |
+| `/pasta/[id]` | Protegida | `GET /items/{id}`, `GET /items/{id}/children`, `POST /folders` | Abrir uma pasta por duplo clique, breadcrumb, "Carregar mais", "Nova pasta" (Server Action) e "Enviar" para a pasta aberta. Id de arquivo, inexistente, de outro Usuário, não-UUID ou de Item não ativo mostra a página de não encontrado. Renomear, mover, excluir e compartilhar ficam para os tickets seguintes | Existe (renomear, mover e excluir a detalhar) |
 | `/lixeira` | Protegida | `GET /trash` | Restaurar, excluir definitivamente, esvaziar | A detalhar |
 | `/busca?q=` | Protegida | `GET /search` | | A detalhar |
 | `/planos` | Protegida | `GET /plans`, `GET /billing/subscription` | `POST /billing/checkout`, `POST /billing/subscription/cancel` | A detalhar |
@@ -678,10 +681,10 @@ Esta seção descreve o que a web apresenta e protege: as rotas e telas, a Sess�
 | `/s/[token]/baixar/[id]` | Pública, rota que só redireciona | `GET /public/links/{token}/items/{id}/download-url` | | A detalhar (seção 7.6) |
 
 - **Casca do `(drive)` hoje:** a barra superior com a marca e o menu da conta (o e-mail e "Sair"), a navegação só com "Meus arquivos", aberta como gaveta pelo botão de menu abaixo de `lg`, o botão "Enviar", que escolhe arquivos e os envia num único `PUT` ao storage (o corte em chunks, a repetição, os vários arquivos e o arrastar e soltar entram com os arquivos grandes), o painel de envios, com o nome e o estado (enviando, concluído ou falhou, com o erro em português) de cada arquivo, num provider de cliente do layout, e a área de conteúdo, com o título da pasta. O que o item seguinte descreve e ainda não existe entra com a funcionalidade dona, sem link morto nem botão desabilitado.
-- **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura nem seleção. Uma linha de arquivo tem o botão "Mais ações", que abre o menu só com "Baixar"; a linha de pasta não tem o botão, porque ainda não há ação de pasta. O duplo clique não faz nada até a pré-visualização existir. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
+- **Linha da lista hoje:** ícone do tipo, nome, tipo, tamanho e data de modificação, sem miniatura nem seleção. Toda linha tem o botão "Mais ações": o menu do arquivo tem "Baixar" e "Renomear", e o da pasta, só "Renomear" ("Mover para…" e "Excluir" entram com o mover e a lixeira). "Renomear" abre um diálogo com o nome atual todo selecionado, a extensão inclusive, e o erro de nome inválido aparece nele, sem fechá-lo. O duplo clique não faz nada até a pré-visualização existir. O tipo é "Pasta" ou um rótulo tirado do `mimeType`, com os rótulos do Figma. O tamanho e a data saem formatados em português, a data no fuso `America/Sao_Paulo`, porque o Server Component roda em UTC.
 - **Layout do `(drive)`:** mostra a navegação (início, lixeira, busca, planos), o indicador de uso da cota (`usedBytes` e `quotaBytes` de `GET /me`) e o painel de envios (seção 7.4). Uma conta somente leitura (`readOnly`) tem o envio desligado, com o motivo e o caminho para `/planos`.
 - **Estado na URL:** a pasta atual (`/pasta/[id]`), a busca (`q`) e o arquivo aberto na pré-visualização (`?ver=<id>`) ficam na URL.
-- **Paginação das listas:** o Server Component mostra a primeira página, e um botão "Carregar mais", no fim da lista, busca a seguinte por Server Action e a acrescenta no cliente. O cursor não vai para a URL. Depois de um upload, o `router.refresh()` atualiza a primeira página, e as páginas acrescentadas ficam como estavam. O diálogo de compartilhar e o menu de cada item são estado de cliente.
+- **Paginação das listas:** o Server Component mostra a primeira página, e um botão "Carregar mais", no fim da lista, busca a seguinte por Server Action e a acrescenta no cliente. O cursor não vai para a URL. Depois de um upload, o `router.refresh()` atualiza a primeira página, e as páginas acrescentadas ficam como estavam. Depois de renomear, o diálogo descarta as páginas acrescentadas e volta à primeira página do servidor, porque o `router.refresh()` não atualiza uma linha já acrescentada. O diálogo de compartilhar e o menu de cada item são estado de cliente.
 - **Pré-visualização:** abre sobre a lista, a partir de `?ver=<id>`, e usa a rota `/arquivos/[id]/visualizar` como origem da imagem, do vídeo, do áudio, do PDF e do texto.
 - **Estrutura de pastas:** a árvore da seção 1 mostra a organização do código. As rotas desta tabela entram nos grupos `(auth)`, `(drive)` e `s/[token]` dela.
 

@@ -4,7 +4,7 @@
 # O arquivo de aceite de um ticket fica congelado depois do commit de plano: quando o agente vai
 # editar um docs/tickets/<issue>/<ticket>/aceite.md que já está em commit, nega a edição. Criar um arquivo
 # de aceite novo e editar qualquer outro arquivo, inclusive os outros da pasta do ticket, continuam
-# liberados. O desenho está no docs/harness.md.
+# liberados.
 #
 # Sai com 0 para deixar a edição rodar e com 2 para negá-la. No 2, o que foi escrito na saída de
 # erro volta para o agente.

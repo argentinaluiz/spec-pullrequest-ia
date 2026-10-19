@@ -19,21 +19,21 @@ contains() {
   [[ "$err" == *"$1"* ]]
 }
 
-plan LUI-171
+plan PROJ-171
 check "recusa só o ticket, com código 2" test $code -eq 2
 check "diz que falta o <pai>" contains "falta o <pai>"
 check "mostra a ordem nova, com exemplo" contains "plan <pai> <ticket> [<commit>]"
-check "o exemplo traz uma issue pai e um ticket" contains "scripts/verify.sh plan LUI-162 LUI-171"
+check "o exemplo traz uma issue pai e um ticket" contains "scripts/verify.sh plan PROJ-1 PROJ-123"
 
-plan LUI-171 abc1234
+plan PROJ-171 abc1234
 check "recusa a ordem antiga, ticket e commit, com código 2" test $code -eq 2
 check "diz que o comando agora é com o <pai>" contains "plan <pai> <ticket> [<commit>]"
 
-plan pai LUI-171
+plan pai PROJ-171
 check "recusa um <pai> que não tem a forma PREFIXO-N" test $code -eq 2
 check "a mensagem do <pai> inválido mostra o comando novo" contains "plan <pai> <ticket> [<commit>]"
 
-plan LUI-162 ticket
+plan PROJ-162 ticket
 check "recusa um <ticket> que não tem a forma PREFIXO-N" test $code -eq 2
 check "a mensagem do <ticket> inválido mostra o comando novo" contains "plan <pai> <ticket> [<commit>]"
 

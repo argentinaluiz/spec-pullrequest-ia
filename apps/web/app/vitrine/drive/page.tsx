@@ -14,6 +14,9 @@ import { UploadItem } from "@/components/uploads/upload-item";
 import { UploadPanel } from "@/components/uploads/upload-panel";
 import { UploadProvider } from "@/components/uploads/upload-provider";
 import { Dropzone } from "@/components/files/dropzone";
+import { Breadcrumb } from "@/components/navigation/breadcrumb";
+import { NewFolderButton } from "@/components/files/new-folder-button";
+import { ToastProvider } from "@/components/ui/toast";
 import { Banner } from "@/components/ui/banner";
 import { FOLDER_DROPPED_MESSAGE } from "@/lib/uploads/panel";
 import type {
@@ -27,6 +30,14 @@ import type { Item } from "@/lib/api/types";
 
 /** Os arquivos das telas do Figma, para comparar a lista com o desenho. */
 const ITEMS: Item[] = [
+  {
+    id: "0199e2a4-7c1b-7d2e-9f3a-4b5c6d7e8f90",
+    type: "folder",
+    name: "Projetos",
+    mimeType: null,
+    sizeBytes: 0,
+    updatedAt: "2026-10-14T15:00:00.000Z",
+  },
   file("Contrato de locação.pdf", "application/pdf", 2_516_582, "2026-10-12"),
   file("Férias na praia.jpg", "image/jpeg", 5_033_165, "2026-10-10"),
   file("Apresentação final.mp4", "video/mp4", 1_288_490_189, "2026-10-08"),
@@ -49,6 +60,20 @@ function file(
     updatedAt: `${date}T15:00:00.000Z`,
   };
 }
+
+/** O "Nova pasta" da vitrine só confirma, sem chamar a API. */
+async function createFolderNoop(): Promise<{ ok: true; name: string }> {
+  "use server";
+  return { ok: true, name: "Nova pasta" };
+}
+
+const TRAIL = [
+  { id: "root", name: ROOT_FOLDER_LABEL },
+  { id: "1", name: "Projetos" },
+  { id: "2", name: "2026" },
+  { id: "3", name: "Contratos" },
+  { id: "4", name: "Assinados" },
+];
 
 async function noop() {
   "use server";
@@ -185,6 +210,7 @@ export default function VitrineDrivePage() {
       cancelUpload={cancelUploadNoop}
       resumeUpload={resumeUploadGone}
     >
+      <ToastProvider>
       <main className="flex flex-1 flex-col gap-12 bg-canvas py-6">
         <h1 className="px-6 text-display text-ink">Drive</h1>
 
@@ -214,6 +240,17 @@ export default function VitrineDrivePage() {
               nextCursor="vitrine"
               load={loadMore}
             />
+          </div>
+        </Section>
+
+        <Section title="breadcrumb e toolbar">
+          <div className="flex flex-col px-4 lg:px-6">
+            <div className="flex h-12 items-center">
+              <Breadcrumb trail={TRAIL} />
+            </div>
+            <div className="flex h-12 items-center">
+              <NewFolderButton parentId="root" create={createFolderNoop} />
+            </div>
           </div>
         </Section>
 
@@ -264,6 +301,7 @@ export default function VitrineDrivePage() {
         </Section>
       </main>
       <UploadPanel />
+      </ToastProvider>
     </UploadProvider>
   );
 }

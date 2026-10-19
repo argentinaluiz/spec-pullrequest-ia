@@ -8,7 +8,6 @@ Em `docs/` estão os documentos que definem o produto, a arquitetura e os detalh
 2. `docs/hld.md`: High-level design, documento de arquitetura de alto nível. Aqui ficam as decisões de arquitetura, os fluxos principais e a visão geral do sistema.
 3. `docs/lld.md`: Low-level design, documento de arquitetura de baixo nível. Aqui ficam a estrutura de pastas, as bibliotecas escolhidas, os esquemas de banco, os contratos de API, os estados, as regras de cota, as tarefas do worker, o upload em chunks e as variáveis de ambiente, os componentes da API e como se comunicam, e o comportamento da web: o mapa de rotas e telas, a Sessão no navegador, a entrega de arquivos e a reação aos erros da API.
 4. `docs/design-system.md`: linguagem visual da interface. Aqui ficam os tokens de cor, tipografia, espaçamento, raio e sombra, os estados de interação, os componentes, o comportamento responsivo e o fluxo de trabalho com o Figma.
-5. `docs/harness.md`: como o trabalho dos agentes é verificado. Aqui ficam o script de verificação, a CI, a política do que bloqueia e do que só avisa e o que ficou de fora.
 
 Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da stack e as práticas de código dele:
 
@@ -49,7 +48,7 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis servi�
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
-O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (`docs/harness.md`, linha "Comando do Node" da etapa 7).
+O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (o "Comando do Node" dos valores da skill de plano, abaixo).
 
 ### Subir e derrubar
 
@@ -119,7 +118,7 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 Uma mudança no código está pronta quando:
 
-1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no `docs/harness.md`, seção "Script de verificação".
+1. O `scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no cabeçalho e nos grupos de `scripts/verify.sh`.
 2. Em mudança de interface, a validação visual descrita em `docs/design-system.md` foi feita. É a única exigência que o script não confere.
 
 Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
@@ -132,7 +131,7 @@ scripts/verify.sh full
 - **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade").
 - **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
-- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava. O desenho está no `docs/harness.md`, seção "Trava das reprovações repetidas".
+- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 - **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
@@ -159,57 +158,18 @@ Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Ac
 docs/tickets/<issue>/<ticket>/aceite.md
 ```
 
-- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano: `docs/tickets/<issue>/<ticket>/aceite.md` (o desenho das pastas está no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket"). Os critérios e os testes não se repetem no PR.
+- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano: `docs/tickets/<issue>/<ticket>/aceite.md`. Os critérios e os testes não se repetem no PR.
 - **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
-- **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID no título que rodou e passou; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
-- **Critério sem teste:** escreva o teste, com o ID no título. Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
+- **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID numa tag que rodou e passou; o teste que ainda traz o ID no título e não tem tag reprova; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
+- **Critério sem teste:** escreva o teste, com o ID numa tag (formato em `.claude/skills/plan-ticket/formatos/aceite.md`, seção "Teste de aceite"). Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
 O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR, e o que só ele confere, em `.claude/agents/revisor-conformidade.md`. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit.
-
-1. **Gere o diff, a mensagem do plano e a visão do desvio na pasta do ticket,** `docs/tickets/<issue>/<ticket>/`, a mesma do arquivo de aceite que o commit de plano criou; numa mudança sem ticket, `docs/tickets/sem-ticket/<nome>/` (o desenho e a regra do `<nome>` estão no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket"). O diff é o da pasta de trabalho contra a base, com os arquivos novos, porque a revisão vem antes do commit:
-
-   ```bash
-   git add -N -- <arquivos novos da mudança>
-   git diff origin/main > docs/tickets/<issue>/<ticket>/review.diff
-   plano="$(git log --follow --diff-filter=A --format=%h -1 -- docs/tickets/<issue>/<ticket>/aceite.md)"
-   git show -s --format=%B "$plano" > docs/tickets/<issue>/<ticket>/plano.txt
-   scripts/verify.sh contract "$plano" > docs/tickets/<issue>/<ticket>/contract-drift.txt
-   ```
-
-   O `git add -N` só registra que os arquivos novos existem, para o diff trazê-los, sem prepará-los para o commit. Confira com o `git status --short` que nenhum arquivo da mudança ficou de fora: o que não está no diff fica fora da revisão, sem aviso. Sem commit de plano, não há mensagem nem visão do desvio. Os arquivos não aparecem no `git status`, porque o Git os ignora (`docs/harness.md`, seção "Por que o aceite fica na pasta do ticket").
-
-2. **Chame o subagente `revisor-conformidade`** passando só o caminho do diff, o identificador do ticket e os caminhos da mensagem do plano e da visão do desvio, ou o aviso de que elas não existem. Numa mudança sem ticket, passe os critérios de aceite. Não passe o seu resumo da mudança, a sua opinião sobre ela nem o que você acha que merece atenção: o valor da revisão está em ela não partir das suas conclusões. Rode a revisão no checkout da branch, porque ele lê o arquivo de aceite dela.
-3. **Corrija os achados com que você concorda** e siga para o `full` (ver "Definição de pronto").
-4. **Publique o resultado como comentário no PR,** quando ele for aberto, com o título `## Revisão de conformidade`, neste formato:
-
-   ```markdown
-   ## Revisão de conformidade
-
-   | # | Severidade | Achado | Situação | Motivo |
-   | --- | --- | --- | --- | --- |
-   | 1 | alta | O que o revisor apontou | Corrigido | O que mudou, e em que commit |
-   | 2 | média | O que o revisor apontou | Não corrigido | Por que ficou como está |
-
-   <details>
-   <summary>Relatório do revisor, na íntegra</summary>
-
-   (o relatório, sem edição)
-
-   </details>
-   ```
-
-- **Todo achado entra na tabela,** inclusive o que você considera errado. Nesse caso, a situação é "Não corrigido" e o motivo diz por quê. Não omita achado nem edite o relatório.
-- **A revisão não bloqueia.** O que fazer com um achado não corrigido é decisão do usuário no merge. A CI não lê esse comentário.
-- **Sem achados também é resultado:** publique o comentário mesmo assim, com o relatório.
-- **Em agente sem subagentes,** faça a revisão numa sessão nova, com as instruções de `.claude/agents/revisor-conformidade.md`, e publique o comentário do mesmo jeito.
-
-O desenho e os limites da revisão estão em `docs/harness.md`, seção "Revisor de conformidade". O desenho e os motivos das demais verificações estão no mesmo documento, na seção de cada uma.
+No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit. A revisão não bloqueia: todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
@@ -243,27 +203,27 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - Pegue só tickets cujos bloqueios já foram concluídos.
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
 - Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
-- Use o identificador da issue no nome da branch, por exemplo `feature/lui-137-cadastro-e-verificacao`.
+- Use o identificador da issue no nome da branch.
 - Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
 
 ### Plano do ticket
 
-Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado. O desenho e os motivos estão em `docs/harness.md`, seção "Plano do ticket (planejado)".
+Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado.
 
 1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
-2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill, e o desenho, no `docs/harness.md`, etapa 7.
+2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill.
 3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
-**Os formatos são da skill.** A skill de plano, em `.claude/skills/plan-ticket/`, é a dona dos formatos do plano: o ID e a marca do critério, o arquivo de aceite e o token do ID no título do teste (`formatos/aceite.md`), a mensagem do commit de plano (`formatos/mensagem.md`) e o contrato de rota e de tabela, com a saída do comando do contrato (`formatos/contrato.md`). Siga-os; aqui fica só o que é deste projeto.
+**Os formatos são da skill.** A skill de plano, em `.claude/skills/plan-ticket/`, é a dona dos formatos do plano: o ID e a marca do critério, o arquivo de aceite e a tag do ID no teste (`formatos/aceite.md`), a mensagem do commit de plano (`formatos/mensagem.md`) e o contrato de rota e de tabela, com a saída do comando do contrato (`formatos/contrato.md`). Siga-os; aqui fica só o que é deste projeto.
 
 **Valores da skill de plano**
 
-- **Pasta dos tickets:** `docs/tickets`. O que o Git versiona nela está no `docs/harness.md`, seção "Por que o aceite fica na pasta do ticket".
+- **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite de cada pasta de ticket.
 - **Pasta dos documentos:** `docs`.
 - **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
-- **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema (`docs/harness.md`, etapa 8).
+- **Comando do contrato:** `scripts/verify.sh contract`, a visão legível do contrato e do schema.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
 O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o script da página da skill com esses valores (a `<issue>` é a issue pai do ticket, que vai no `--pai` do script); use-o nos passos de parada e de commit da skill.
@@ -271,8 +231,8 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 **Neste projeto**
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
-- **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda (ver `docs/harness.md`, seção "Congelamento do aceite").
-- **Cobertura:** a CI confere o ID no título do teste, como descrito em "Aceite no pull request". O ID vai no título, e não nas `tags` do Vitest, porque cada tag teria de ser declarada no config da API, que não enxerga os arquivos de aceite.
+- **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda.
+- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os dois relatórios JSON, o do Vitest e o do Playwright, trazem as tags de cada teste. O `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor: um ID que não está em nenhum arquivo de aceite reprova.
 
 ## Convenções de Git
 
@@ -280,7 +240,7 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** quem faz o merge é o usuário, nunca o agente, nem a pedido. O `.claude/settings.json` nega o `gh pr merge`, e não use outro caminho para fazê-lo.
-- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário, como descrito em `docs/harness.md`, seção "Proteção da `main` e guarda do harness". Avise isso ao abrir o PR.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR.
 
 ## Consulta à documentação de bibliotecas
 

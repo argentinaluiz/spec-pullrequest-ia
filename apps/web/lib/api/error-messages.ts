@@ -18,6 +18,8 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   file_too_large: "O arquivo passa do limite de 5 GB",
   upload_size_mismatch: "O arquivo chegou com um tamanho diferente do original",
   upload_incomplete: "O arquivo ainda não chegou inteiro. Tente de novo.",
+  max_depth_exceeded:
+    "As pastas podem ter no máximo 50 níveis. Crie esta pasta em outro lugar.",
   internal_error: "Algo deu errado. Tente de novo em instantes.",
 };
 

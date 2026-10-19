@@ -12,7 +12,7 @@ const sendReport = (page: Page) =>
     { name: "relatorio.txt", mimeType: "text/plain", buffer: Buffer.from(CONTENT) },
   ]);
 
-test("o Usuário envia um arquivo pelo botão Enviar, vê o envio no painel e o arquivo na lista sem recarregar @LUI-167-CA12", async ({
+test("o Usuário envia um arquivo pelo botão Enviar, vê o envio no painel e o arquivo na lista sem recarregar", { tag: "@LUI-167-CA12" }, async ({
   page,
 }) => {
   await signIn(page, uniqueEmail());
@@ -35,7 +35,7 @@ test("o Usuário envia um arquivo pelo botão Enviar, vê o envio no painel e o 
   ).toBe("mesma-pagina");
 });
 
-test("um envio sem espaço na Cota aparece no painel como erro daquele arquivo @LUI-167-CA13", async ({
+test("um envio sem espaço na Cota aparece no painel como erro daquele arquivo", { tag: "@LUI-167-CA13" }, async ({
   page,
 }) => {
   const email = uniqueEmail();

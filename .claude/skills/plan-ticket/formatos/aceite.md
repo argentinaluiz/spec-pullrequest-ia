@@ -26,7 +26,7 @@ Ticket de exemplo. O CA1 é provado por teste HTTP, e o CA2, pela leitura do dif
 
 **Cenário:** Dado um Usuário com um item, quando ele o copia, então a cópia é criada com o nome dado.
 
-**Teste previsto:** testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item @PROJ-123-CA1".
+**Teste previsto:** testes de ponta a ponta da API, `items.e2e-spec.ts`, "copia o item".
 
 ## PROJ-123-CA2
 
@@ -41,4 +41,17 @@ O arquivo de aceite não muda depois do commit de plano. Descongelar é do usuá
 
 ## Teste de aceite
 
-Cada teste de aceite leva no título o token `@<ticket>-CA<n>`, com o `@`, como `@PROJ-123-CA3`. O nome e o arquivo do teste podem mudar durante a implementação, porque a ligação com o critério é o ID.
+Cada teste de aceite leva o ID do critério numa tag, `@<ticket>-CA<n>`, com o `@`, como `@PROJ-123-CA3`, e não no título. O nome e o arquivo do teste podem mudar durante a implementação, porque a ligação com o critério é o ID. Um teste que prova mais de um critério leva uma tag por critério. O token no título não vale como ID.
+
+No Vitest, a tag vai nas opções do teste:
+
+```ts
+it('copia o item', { tags: ['@PROJ-123-CA1'] }, async () => {});
+```
+
+No Playwright, vai na opção `tag`, e várias tags formam uma lista:
+
+```ts
+test('o Usuário copia o item', { tag: '@PROJ-123-CA1' }, async ({ page }) => {});
+test('o Usuário copia e move o item', { tag: ['@PROJ-123-CA1', '@PROJ-123-CA2'] }, async ({ page }) => {});
+```

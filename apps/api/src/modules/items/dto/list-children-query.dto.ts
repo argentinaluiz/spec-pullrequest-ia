@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -25,4 +26,9 @@ export class ListChildrenQueryDto {
   @IsString()
   @IsNotEmpty()
   cursor?: string;
+
+  /** Só `folder`: devolve apenas as pastas. Ausente, devolve pastas e arquivos. */
+  @IsOptional()
+  @IsIn(['folder'])
+  type?: 'folder';
 }

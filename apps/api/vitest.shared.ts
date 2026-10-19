@@ -11,6 +11,9 @@ export const baseConfig = defineConfig({
     root: './',
     // Desfaz sozinho, depois de cada teste, o que ele trocou com `vi.stubEnv`.
     unstubEnvs: true,
+    // O ID de critério de aceite é a tag do teste; o motivo do `strictTags: false` está na
+    // "Cobertura" do AGENTS.md da raiz.
+    strictTags: false,
   },
 });
 

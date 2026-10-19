@@ -113,7 +113,7 @@ expect 2 "nega a entrada ilegível que cita a pasta de estado" \
 expect 0 "libera o ls -a, que não cita a pasta de estado" \
   "$(command_input 'ls -a')"
 expect 0 "libera nomes parecidos, que não são a pasta de estado" \
-  "$(command_input 'ls docs/harness.md scripts/harness-guard.sh my.harness-x .harnessrc')"
+  "$(command_input 'ls docs/lld.md scripts/harness-guard.sh my.harness-x .harnessrc')"
 
 expect 2 "nega o verify.sh com CI= na frente, e diz que a variável desligaria a trava" \
   "$(command_input 'CI=true scripts/verify.sh full')" "desligariam a trava"
@@ -130,7 +130,7 @@ expect 0 "libera o verify.sh com um CI= que é só texto entre aspas, como o pad
 expect 0 "libera o CI= dentro da mensagem de um commit antes do verify.sh" \
   "$(command_input "git commit -m 'set CI= in workflow' && scripts/verify.sh full")"
 expect 0 "libera o verify.sh sem as variáveis da CI, mesmo com outras na frente" \
-  "$(command_input 'ACCEPTANCE_BODY_FILE=docs/tickets/LUI-100/LUI-1/pr.md MY_CI=1 scripts/verify.sh full')"
+  "$(command_input 'ACCEPTANCE_BODY_FILE=docs/tickets/PROJ-100/PROJ-1/pr.md MY_CI=1 scripts/verify.sh full')"
 expect 0 "libera o CI= num comando que não roda o verify.sh" \
   "$(command_input 'CI=true npx playwright test')"
 expect 2 "nega a entrada ilegível que cita o verify.sh e o CI=" \

@@ -14,6 +14,13 @@ export interface SeedItem {
   updatedAt?: Date;
 }
 
+/** Põe o token de acesso no cabeçalho quando ele é passado. */
+function withAuth(call: request.Test, accessToken?: string): request.Test {
+  return accessToken
+    ? call.set('Authorization', `Bearer ${accessToken}`)
+    : call;
+}
+
 /** As chamadas da lista de Itens, contra uma aplicação de teste. */
 export function itemRoutes(app: INestApplication<App>) {
   /** `GET /items/{id}/children`, com o token de acesso no cabeçalho quando ele é passado. */
@@ -22,22 +29,46 @@ export function itemRoutes(app: INestApplication<App>) {
     accessToken?: string,
     query: Record<string, string | number> = {},
   ) => {
-    const call = request(app.getHttpServer())
-      .get(`/v1/items/${id}/children`)
-      .query(query);
-    return accessToken
-      ? call.set('Authorization', `Bearer ${accessToken}`)
-      : call;
+    return withAuth(
+      request(app.getHttpServer()).get(`/v1/items/${id}/children`).query(query),
+      accessToken,
+    );
   };
 
   /** `GET /items/{id}/download-url`, com o token de acesso no cabeçalho quando ele é passado. */
   const downloadUrl = (id: string, accessToken?: string) => {
-    const call = request(app.getHttpServer()).get(
-      `/v1/items/${id}/download-url`,
+    return withAuth(
+      request(app.getHttpServer()).get(`/v1/items/${id}/download-url`),
+      accessToken,
     );
-    return accessToken
-      ? call.set('Authorization', `Bearer ${accessToken}`)
-      : call;
+  };
+
+  /** `GET /items/{id}`, com o token de acesso no cabeçalho quando ele é passado. */
+  const get = (id: string, accessToken?: string) => {
+    return withAuth(
+      request(app.getHttpServer()).get(`/v1/items/${id}`),
+      accessToken,
+    );
+  };
+
+  /** `POST /folders`, com o token de acesso no cabeçalho quando ele é passado. */
+  const createFolder = (accessToken: string | undefined, input: object) => {
+    return withAuth(
+      request(app.getHttpServer()).post('/v1/folders').send(input),
+      accessToken,
+    );
+  };
+
+  /** `PATCH /items/{id}`, com o token de acesso no cabeçalho quando ele é passado. */
+  const rename = (
+    id: string,
+    accessToken: string | undefined,
+    body: object,
+  ) => {
+    return withAuth(
+      request(app.getHttpServer()).patch(`/v1/items/${id}`).send(body),
+      accessToken,
+    );
   };
 
   /**
@@ -88,5 +119,13 @@ export function itemRoutes(app: INestApplication<App>) {
     return rows.map((row) => row.id);
   };
 
-  return { listChildren, downloadUrl, rootId, seed };
+  return {
+    listChildren,
+    downloadUrl,
+    get,
+    createFolder,
+    rename,
+    rootId,
+    seed,
+  };
 }

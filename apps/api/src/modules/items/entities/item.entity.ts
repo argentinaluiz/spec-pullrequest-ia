@@ -27,6 +27,46 @@ export interface ItemPage {
  */
 export type ItemPosition = Pick<Item, 'type' | 'name' | 'id'>;
 
+/** Um trecho do caminho até uma pasta. */
+export interface ItemTrailEntry {
+  id: string;
+  name: string;
+}
+
+/** Um trecho do caminho, com a data que a lista mostra. */
+export interface FolderPathEntry extends ItemTrailEntry {
+  updatedAt: Date;
+}
+
+/** Uma pasta e o caminho do topo, a Pasta raiz, até ela. */
+export interface ItemDetail {
+  item: Item;
+  trail: ItemTrailEntry[];
+}
+
+/** A pasta que a criação grava, já com o id e o destino resolvidos. */
+export interface NewFolder {
+  id: string;
+  ownerId: string;
+  parentId: string;
+  name: string;
+}
+
+/** O que a criação de uma pasta resolve: criada, sem destino ou passando do limite. */
+export type CreateFolderResult =
+  | { status: 'created'; folder: Item }
+  | { status: 'parent_not_found' }
+  | { status: 'too_deep' };
+
+/** O que renomear um Item resolve: renomeado, a Pasta raiz (que não se renomeia) ou sem Item ativo do Usuário. */
+export type RenameResult =
+  | { status: 'renamed'; item: Item }
+  | { status: 'root' }
+  | { status: 'not_found' };
+
+/** Quantas pastas o caminho de um Item pode ter, sem contar a Pasta raiz. */
+export const MAX_FOLDER_DEPTH = 50;
+
 /** Um arquivo de um Usuário que ainda está sendo enviado (`pending`) ou já foi concluído (`active`). */
 export interface FileUpload extends Item {
   status: 'pending' | 'active';

@@ -1,7 +1,7 @@
 # A definição única do que conta como "mexer na pasta de estado do harness" num comando de shell: os
 # padrões e a leitura das aspas e dos heredocs. Quem carrega este arquivo com `source` é o hook
-# .claude/hooks/push-verify.sh (o comando do shell). A regra, o que ela deixa passar de propósito e os limites aceitos estão no
-# docs/harness.md, seção "Pasta de estado do harness".
+# .claude/hooks/push-verify.sh (o comando do shell). A regra é a do hook, e o que ela deixa passar de propósito
+# está nos testes dele.
 
 # A pasta de estado como componente de caminho (`.harness`, `.harness/x`, `/.harness`, `./.harness`),
 # mas não `.harness-x`, `x.harness` nem `\.harness` (o ponto escapado de um padrão de busca).

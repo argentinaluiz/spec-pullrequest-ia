@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // O ID de critério de aceite é a tag do teste; o motivo do `strictTags: false` está na
+    // "Cobertura" do AGENTS.md da raiz.
+    strictTags: false,
     include: ["**/*.spec.{ts,tsx}"],
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
   },

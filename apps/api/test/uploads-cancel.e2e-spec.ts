@@ -43,83 +43,115 @@ describe('Cancelamento do envio de um arquivo', () => {
     return { user, usedBefore, pending, objectKey };
   };
 
-  it('cancela o upload pendente com 204 sem corpo, devolve o espaço à Cota e apaga o objeto @LUI-170-CA8', async () => {
-    const { user, usedBefore, pending, objectKey } = await pendingWithObject();
+  it(
+    'cancela o upload pendente com 204 sem corpo, devolve o espaço à Cota e apaga o objeto',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const { user, usedBefore, pending, objectKey } =
+        await pendingWithObject();
 
-    const cancelled = await uploads.cancel(user.accessToken, pending.itemId);
+      const cancelled = await uploads.cancel(user.accessToken, pending.itemId);
 
-    expect(cancelled.status).toBe(204);
-    expect(cancelled.text).toBe('');
-    expect(await uploads.usedBytes(user.userId)).toBe(usedBefore);
-    expect(await uploads.objectStatus(objectKey)).toBe(404);
-  });
+      expect(cancelled.status).toBe(204);
+      expect(cancelled.text).toBe('');
+      expect(await uploads.usedBytes(user.userId)).toBe(usedBefore);
+      expect(await uploads.objectStatus(objectKey)).toBe(404);
+    },
+  );
 
-  it('a conclusão de um upload cancelado responde not_found @LUI-170-CA8', async () => {
-    const { user, pending } = await pendingWithObject();
-    await uploads.cancel(user.accessToken, pending.itemId).expect(204);
+  it(
+    'a conclusão de um upload cancelado responde not_found',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const { user, pending } = await pendingWithObject();
+      await uploads.cancel(user.accessToken, pending.itemId).expect(204);
 
-    const completed = await uploads.complete(user.accessToken, pending.itemId);
+      const completed = await uploads.complete(
+        user.accessToken,
+        pending.itemId,
+      );
 
-    expectProblem(completed, NOT_FOUND);
-  });
+      expectProblem(completed, NOT_FOUND);
+    },
+  );
 
-  it('cancelar de novo o mesmo upload responde not_found, sem devolver o espaço outra vez @LUI-170-CA8', async () => {
-    const { user, usedBefore, pending } = await pendingWithObject();
-    await uploads.cancel(user.accessToken, pending.itemId).expect(204);
+  it(
+    'cancelar de novo o mesmo upload responde not_found, sem devolver o espaço outra vez',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const { user, usedBefore, pending } = await pendingWithObject();
+      await uploads.cancel(user.accessToken, pending.itemId).expect(204);
 
-    const again = await uploads.cancel(user.accessToken, pending.itemId);
+      const again = await uploads.cancel(user.accessToken, pending.itemId);
 
-    expectProblem(again, NOT_FOUND);
-    expect(await uploads.usedBytes(user.userId)).toBe(usedBefore);
-  });
+      expectProblem(again, NOT_FOUND);
+      expect(await uploads.usedBytes(user.userId)).toBe(usedBefore);
+    },
+  );
 
-  it('cancelar um arquivo ativo responde not_found e não muda a Cota nem o objeto @LUI-170-CA8', async () => {
-    const { user, pending, objectKey } = await pendingWithObject();
-    await uploads.complete(user.accessToken, pending.itemId).expect(200);
-    const usedWithActive = await uploads.usedBytes(user.userId);
+  it(
+    'cancelar um arquivo ativo responde not_found e não muda a Cota nem o objeto',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const { user, pending, objectKey } = await pendingWithObject();
+      await uploads.complete(user.accessToken, pending.itemId).expect(200);
+      const usedWithActive = await uploads.usedBytes(user.userId);
 
-    const cancelled = await uploads.cancel(user.accessToken, pending.itemId);
+      const cancelled = await uploads.cancel(user.accessToken, pending.itemId);
 
-    expectProblem(cancelled, NOT_FOUND);
-    expect(await uploads.usedBytes(user.userId)).toBe(usedWithActive);
-    expect(await uploads.objectStatus(objectKey)).toBe(200);
-  });
+      expectProblem(cancelled, NOT_FOUND);
+      expect(await uploads.usedBytes(user.userId)).toBe(usedWithActive);
+      expect(await uploads.objectStatus(objectKey)).toBe(200);
+    },
+  );
 
-  it('cancelar o upload pendente de outro Usuário responde not_found e não muda a Cota dele @LUI-170-CA8', async () => {
-    const a = await auth.signedInUser();
-    const b = await pendingWithObject();
-    const usedByB = await uploads.usedBytes(b.user.userId);
+  it(
+    'cancelar o upload pendente de outro Usuário responde not_found e não muda a Cota dele',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const a = await auth.signedInUser();
+      const b = await pendingWithObject();
+      const usedByB = await uploads.usedBytes(b.user.userId);
 
-    const cancelled = await uploads.cancel(a.accessToken, b.pending.itemId);
+      const cancelled = await uploads.cancel(a.accessToken, b.pending.itemId);
 
-    expectProblem(cancelled, NOT_FOUND);
-    expect(await uploads.usedBytes(b.user.userId)).toBe(usedByB);
-    expect(await uploads.itemStatus(b.pending.itemId)).toBe('pending');
-  });
+      expectProblem(cancelled, NOT_FOUND);
+      expect(await uploads.usedBytes(b.user.userId)).toBe(usedByB);
+      expect(await uploads.itemStatus(b.pending.itemId)).toBe('pending');
+    },
+  );
 
   it.each([
     ['um id que não existe', uuidv7()],
     ['um id que não é UUID', 'nao-e-uuid'],
-  ])('responde not_found a %s @LUI-170-CA8', async (_case, itemId) => {
-    const user = await auth.signedInUser();
+  ])(
+    'responde not_found a %s',
+    { tags: ['@LUI-170-CA8'] },
+    async (_case, itemId) => {
+      const user = await auth.signedInUser();
 
-    const cancelled = await uploads.cancel(user.accessToken, itemId);
+      const cancelled = await uploads.cancel(user.accessToken, itemId);
 
-    expectProblem(cancelled, NOT_FOUND);
-  });
+      expectProblem(cancelled, NOT_FOUND);
+    },
+  );
 
-  it('sem token, responde 401 unauthenticated @LUI-170-CA8', async () => {
-    const { pending } = await pendingWithObject();
+  it(
+    'sem token, responde 401 unauthenticated',
+    { tags: ['@LUI-170-CA8'] },
+    async () => {
+      const { pending } = await pendingWithObject();
 
-    const cancelled = await uploads.cancel(undefined, pending.itemId);
+      const cancelled = await uploads.cancel(undefined, pending.itemId);
 
-    expectProblem(cancelled, {
-      title: 'Unauthorized',
-      status: 401,
-      code: 'unauthenticated',
-      detail: expect.any(String),
-    });
-  });
+      expectProblem(cancelled, {
+        title: 'Unauthorized',
+        status: 401,
+        code: 'unauthenticated',
+        detail: expect.any(String),
+      });
+    },
+  );
 
   describe('com o storage atrás de um proxy que segura ou recusa um pedido', () => {
     // A mesma API, com o storage atrás do proxy.

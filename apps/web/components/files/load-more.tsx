@@ -23,9 +23,20 @@ interface LoadMoreState {
   pending: boolean;
   error: string | null;
   loadMore: () => void;
+  /** Descarta as páginas acrescentadas e volta à primeira, a do servidor. */
+  reset: () => void;
 }
 
 const LoadMoreContext = createContext<LoadMoreState | null>(null);
+
+/**
+ * Quem muda uma linha por uma ação (como renomear) chama o que esta função devolve, para as
+ * páginas acrescentadas não mostrarem o dado antigo: o `router.refresh()` só refaz a primeira
+ * página. Fora de uma lista com "Carregar mais", não faz nada.
+ */
+export function useResetLoadedPages(): () => void {
+  return use(LoadMoreContext)?.reset ?? (() => {});
+}
 
 function useLoadMore(): LoadMoreState {
   const state = use(LoadMoreContext);
@@ -70,9 +81,15 @@ export function LoadMoreProvider({
     });
   }
 
+  function reset() {
+    setRows([]);
+    setCursor(initialCursor);
+    setError(null);
+  }
+
   return (
     <LoadMoreContext
-      value={{ rows, hasMore: cursor !== null, pending, error, loadMore }}
+      value={{ rows, hasMore: cursor !== null, pending, error, loadMore, reset }}
     >
       {children}
     </LoadMoreContext>

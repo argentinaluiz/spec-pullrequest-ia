@@ -35,7 +35,7 @@ async function reloadedMidUpload(page: Page) {
 const chunksSince = (storage: StorageSession, from: number) =>
   storage.requests.slice(from).filter((range) => /^bytes \d+-\d+\//.test(range));
 
-test("retoma depois de recarregar a aba sem reenviar o que o storage já tinha @LUI-171-CA6", async ({
+test("retoma depois de recarregar a aba sem reenviar o que o storage já tinha", { tag: "@LUI-171-CA6" }, async ({
   page,
 }) => {
   const { storage, path, item } = await reloadedMidUpload(page);
@@ -48,7 +48,7 @@ test("retoma depois de recarregar a aba sem reenviar o que o storage já tinha @
   expect(chunksSince(storage, before)[0]).toBe(`bytes ${8 * MiB}-${16 * MiB - 1}/${SIZE}`);
 });
 
-test("recusa um arquivo diferente sem enviar nada @LUI-171-CA7", async ({ page }) => {
+test("recusa um arquivo diferente sem enviar nada", { tag: "@LUI-171-CA7" }, async ({ page }) => {
   const { storage, item } = await reloadedMidUpload(page);
   const other = await writeDiskFile("outro.bin", Buffer.alloc(SIZE, 9));
   const before = storage.requests.length;
@@ -60,7 +60,7 @@ test("recusa um arquivo diferente sem enviar nada @LUI-171-CA7", async ({ page }
   expect(storage.requests.slice(before)).toEqual([]);
 });
 
-test("cancelar um incompleto o tira do painel e devolve o espaço @LUI-171-CA8", async ({
+test("cancelar um incompleto o tira do painel e devolve o espaço", { tag: "@LUI-171-CA8" }, async ({
   page,
 }) => {
   const { email, item } = await reloadedMidUpload(page);
@@ -75,7 +75,7 @@ test("cancelar um incompleto o tira do painel e devolve o espaço @LUI-171-CA8",
   await expect(panelOf(page)).toBeHidden();
 });
 
-test("o armazenamento local não guarda a URL da sessão @LUI-171-CA9", async ({ page }) => {
+test("o armazenamento local não guarda a URL da sessão", { tag: "@LUI-171-CA9" }, async ({ page }) => {
   await signIn(page, uniqueEmail());
   const storage = await interceptStorageSession(page);
   const path = await writeDiskFile(NAME, Buffer.alloc(SIZE, 7));

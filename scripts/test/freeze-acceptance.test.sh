@@ -20,14 +20,14 @@ trap 'rm -rf "$project"' EXIT
 git -C "$project" init -q
 git -C "$project" config user.email t@t
 git -C "$project" config user.name t
-t="docs/tickets/LUI-100/LUI-1"
+t="docs/tickets/PROJ-100/PROJ-1"
 mkdir -p "$project/$t" "$project/apps"
 echo congelado >"$project/$t/aceite.md"
 # Outro arquivo da pasta do ticket, em commit só para provar que o congelamento é só do aceite.
 echo nota >"$project/$t/notas.md"
 # Um aceite que ficou no desenho de um nível, de antes da pasta da issue pai.
-mkdir -p "$project/docs/tickets/LUI-7"
-echo antigo >"$project/docs/tickets/LUI-7/aceite.md"
+mkdir -p "$project/docs/tickets/PROJ-7"
+echo antigo >"$project/docs/tickets/PROJ-7/aceite.md"
 echo x >"$project/apps/a.ts"
 git -C "$project" add -A
 git -C "$project" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m plano || exit 2
@@ -43,15 +43,15 @@ expect() {
 expect 2 "nega a edição de um arquivo de aceite já versionado, e diz que descongelar é do usuário" \
   "{\"tool_input\":{\"file_path\":\"$project/$t/aceite.md\"}}" "Descongelar é do usuário"
 expect 2 "nega a edição de um aceite versionado no caminho antigo, de um nível, e manda movê-lo para a pasta da issue pai" \
-  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/LUI-7/aceite.md\"}}" "docs/tickets/<issue>/<ticket>/"
+  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-7/aceite.md\"}}" "docs/tickets/<issue>/<ticket>/"
 expect 0 "libera a criação de um aceite novo no caminho antigo, de um nível" \
-  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/LUI-8/aceite.md\"}}"
+  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-8/aceite.md\"}}"
 expect 2 "nega a entrada ilegível que cita um aceite no caminho antigo" \
-  "isto não é json docs/tickets/LUI-7/aceite.md"
+  "isto não é json docs/tickets/PROJ-7/aceite.md"
 expect 0 "libera a criação de um arquivo de aceite novo, na pasta de outro ticket da mesma issue pai" \
-  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/LUI-100/LUI-2/aceite.md\"}}"
+  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-100/PROJ-2/aceite.md\"}}"
 expect 0 "libera a criação de um arquivo de aceite novo, na pasta de outra issue pai" \
-  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/LUI-200/LUI-3/aceite.md\"}}"
+  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-200/PROJ-3/aceite.md\"}}"
 expect 0 "libera a edição de outro arquivo da pasta do ticket, mesmo em commit" \
   "{\"tool_input\":{\"file_path\":\"$project/$t/notas.md\"}}"
 expect 0 "libera a mensagem proposta do plano, na pasta do ticket" \
