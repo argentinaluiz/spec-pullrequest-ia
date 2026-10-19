@@ -222,6 +222,7 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
+- **Pare e pergunte** diante de uma decisão que não está no ticket nem no plano e que outro ticket em andamento também tomaria, ou diante de mudar algo que outro ticket em andamento usa. Decidir sozinho é como dois tickets paralelos passam nos próprios testes e quebram na integração. As decisões que o ticket consome de outros, e o dono de cada uma, estão na seção "Decisões de outros tickets" dele.
 
 ### Plano do ticket
 
