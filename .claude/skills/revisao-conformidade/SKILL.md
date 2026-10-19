@@ -29,9 +29,9 @@ The skill has two parts, at two moments: **Review**, after `/code-review` and be
    - **Disagree:** the situation is `Não corrigido`, and the reason says why it stays as it is.
    - **High severity you would leave unfixed:** stop and ask the user before going on. Write the decision and that it was the user's in the reason.
 
-   In `/implement-spec`, one implementer subagent fixes the findings of `/code-review` and of every ticket's review, as that skill says. The commit after the fixes does not go through the reviewer again: the `full` verifies it.
+   In `/implement`, the session fixes the findings of `/code-review` and the ones accepted here. The commit after the fixes does not go through the reviewer again: the `full` verifies it.
 
-6. **Go on** to the `full`, as the root `AGENTS.md` says in "Definição de pronto". In `/implement-spec`, that is after every ticket's review and the fixes, and not after each ticket.
+6. **Go on** to the `full`, as the root `AGENTS.md` says in "Definição de pronto". In `/implement`, that is after this review and the fixes, and after `/sincronizar`.
 
 ## Publish
 
