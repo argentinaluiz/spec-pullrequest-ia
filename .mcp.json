@@ -3,13 +3,15 @@
     "chrome-devtools": {
       "command": "npx",
       "args": [
-        "chrome-devtools-mcp@latest"
+        "chrome-devtools-mcp@latest",
+        "--isolated"
       ]
     },
     "playwright": {
       "command": "npx",
       "args": [
-        "@playwright/mcp@latest"
+        "@playwright/mcp@latest",
+        "--isolated"
       ]
     },
     "linear-server": {

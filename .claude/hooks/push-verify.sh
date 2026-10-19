@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente cinco
-# comandos: o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
+# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente seis
+# comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário;
+# o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
 # o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
 # `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; o que mexe
 # na pasta de estado do harness (`.harness/`), onde ficam a trava e a aprovação; e o `git push`
@@ -31,6 +32,11 @@ deny_unlock() {
   deny "O comando foi negado: só o usuário destrava o modo completo." "Como resolver: ${FULL_LOCK_ASK:-}"
 }
 
+deny_forcar() {
+  deny "O comando foi negado: só o usuário abandona uma frente com o \`--forcar\`." \
+    "O \`frentes.sh remover --forcar\` remove a frente sem o merge e apaga o trabalho dela; abandonar um ticket é decisão do usuário, que a toma no prompt com \`! scripts/frentes.sh remover <ticket> --forcar\`."
+}
+
 deny_ci() {
   deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do scripts/verify.sh." \
     "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`scripts/verify.sh\` sem elas."
@@ -56,6 +62,9 @@ at_command=$'(^|[;&|(\n])[[:space:]]*('"$assignment"')*'
 # pegar também o que vem embrulhado (`timeout`, `nohup`, `bash -c`, `eval`, um `if`). Uma mensagem
 # que cite os dois também é negada: o hook falha fechado.
 verify_unlock='verify\.sh.*unlock'
+# O `frentes.sh` com o `--forcar` em qualquer ponto do comando, como o `unlock`: o `remover --forcar`
+# abandona uma frente sem merge, e isso é do usuário. Uma mensagem que cite os dois também é negada.
+frentes_forcar='frentes\.sh.*--forcar'
 # O modo completo do `verify.sh`, com ou sem apps, em qualquer ponto do comando, como o `unlock`.
 verify_full="verify\\.sh[\"']?[[:space:]]+[\"']?full([^[:alnum:]_-]|\$)"
 # Uma atribuição da variável CI ou GITHUB_ACTIONS: no começo, depois de um espaço (o que cobre o
@@ -93,6 +102,7 @@ input="$(cat)"
 # a falha do `jq` não liberá-lo.
 if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; then
   [[ "$input" =~ $verify_unlock ]] && deny_unlock
+  [[ "$input" =~ $frentes_forcar ]] && deny_forcar
   harness_state_in_raw "$input" && deny_state
   [[ "$input" == *verify.sh* && "$input" =~ $ci_mention ]] && deny_ci
   [[ "$input" =~ git.*push ]] || exit 0
@@ -100,6 +110,7 @@ if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; 
 fi
 
 [[ "$command" =~ $verify_unlock ]] && deny_unlock
+[[ "$command" =~ $frentes_forcar ]] && deny_forcar
 harness_state_touched "$command" && deny_state
 # O Claude Code põe o `agent_id` na entrada quando o comando vem de um subagente.
 [[ -n "$(jq -r '.agent_id // empty' <<<"$input" 2>/dev/null)" && "$command" =~ $verify_full ]] &&

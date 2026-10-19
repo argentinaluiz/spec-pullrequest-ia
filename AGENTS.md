@@ -101,6 +101,18 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 **Exceção:** quando o processo fala com algo que roda no mesmo contêiner, o endereço é `127.0.0.1`. É o caso do healthcheck de um serviço, que confere o próprio contêiner, e de um teste que abre um servidor temporário no contêiner onde roda.
 
+## Frentes paralelas
+
+Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando está numa branch que não é a `main`, e o limite é de 3 frentes ao todo.
+
+- **Criar:** `scripts/frentes.sh novo <ticket> [tipo]` cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
+- **Listar:** `scripts/frentes.sh listar` mostra o slot, a branch, as portas e o estado do PR de cada frente.
+- **Remover:** `scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega.
+
+As regras de cada comando (a fórmula do slot, o `.env`, as recusas e a remoção) estão no cabeçalho do `scripts/frentes.sh`, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+
+**Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta, e o login de um derruba o do outro: use um slot por janela anônima, ou por perfil do navegador.
+
 ## Princípios de trabalho
 
 - **Responsabilidade única:** cada módulo e cada função tem uma responsabilidade clara. Reavalie isso a cada passo. Quando um módulo começa a criar ou alterar entidades de outro domínio, extraia a lógica para o módulo certo na hora, em vez de deixar para uma tarefa futura.
