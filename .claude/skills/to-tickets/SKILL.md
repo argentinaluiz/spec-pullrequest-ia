@@ -37,6 +37,13 @@ Break the work into **tracer bullet** tickets.
 
 Give each ticket its **blocking edges**: the other tickets that must complete before it can start. A ticket with no blockers can start immediately.
 
+**Look for shared decisions.** Blocking edges say what can start; they do not say what can run at the same time. Two tickets with no edge between them may each have to take the same **decision**: the same field, the same rule, the same contract format. Each takes it its own way, both pass their own tests, and the integration breaks. So, among the tickets with no blocking edge between them, look for the decisions more than one of them would have to take, and give each a destination:
+
+- move it into an **earlier ticket** that blocks the ones that use it (the earlier ticket decides it once, and the others consume the decision), or
+- **chain** the tickets, when moving it out is not worth a ticket of its own.
+
+The criterion of parallelism is the decision, not the area. Two tickets that touch the same file or module, with no decision in common, can still run in parallel: the textual conflict is solved at integration. Do not give a ticket owned or forbidden file paths; the writing rule already keeps paths out of tickets.
+
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
 
 ### 4. Quiz the user
@@ -47,10 +54,16 @@ Present the proposed breakdown as a numbered list. For each ticket, show:
 - **Blocked by**: which other tickets (if any) must complete first
 - **What it delivers**: the end-to-end behaviour this ticket makes work
 
+Then show what the blocking edges allow:
+
+- the **waves**, computed from the blocking edges: the tickets that can start together, wave by wave;
+- the **table of shared decisions**: one row per decision, with the tickets that would take it and its destination (an earlier ticket that blocks the others, or the chaining of the tickets).
+
 Ask the user:
 
 - Does the granularity feel right? (too coarse / too fine)
 - Are the blocking edges correct: does each ticket only depend on tickets that genuinely gate it?
+- Is the destination of each shared decision right?
 - Should any tickets be merged or split further?
 
 Iterate until the user approves the breakdown.
@@ -90,6 +103,12 @@ A reference to the parent issue on the tracker (if the source was an existing is
 ## What to build
 
 The end-to-end behaviour this ticket makes work, from the user's perspective, not layer-by-layer implementation.
+
+## Decisões de outros tickets
+
+Optional. The decisions this ticket consumes without taking, and the ticket that owns each one. Omit the section when the ticket consumes no decision from another.
+
+- The decision, in one line, and a reference to the ticket that owns it.
 
 ## Acceptance criteria
 
