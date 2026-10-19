@@ -14,10 +14,10 @@ Implement one ticket, in this session and in this checkout (the front of the tic
 
 4. **Escalate, do not decide.** Stop and ask when the implementation needs a decision that is not in the ticket or in the plan and that another ticket in progress would also take, or needs to change something another ticket in progress uses (the escalation rule of the root `AGENTS.md`, "Ao trabalhar em um ticket"). The decisions the ticket takes from others, and who owns each, are in its section "Decisões de outros tickets".
 
-5. **Review.** Once done, call the Skill tool with "simplify" and then with "code-review" to review the work. If the change alters code in `apps/`, call the Skill tool with "revisao-conformidade" to run the conformance review and triage its findings, as that skill describes. Fix what you accept.
+5. **Review.** Once done, call the Skill tool with "simplify" and then with "code-review" to review the work. If the change alters code in `apps/`, call the Skill tool with "revisao-conformidade" to run the conformance review and triage its findings, as that skill describes. Fix what you accept. Then commit the work and the fixes to the current branch, which is never `main`, without pushing: the next step needs a clean folder.
 
-6. **Bring the main.** Call the Skill tool with "sincronizar", so that the single complete verification of the task runs against the current `main`. It does nothing when nothing entered.
+6. **Bring the main.** Call the Skill tool with "sincronizar", for the end of the ticket (its second ending): it merges the current `main`, adapts, reviews if needed, commits the merge and gives control back, without running the `full` or pushing, because the single complete verification is the next step. It does nothing when nothing entered.
 
-7. **Verify.** Run `scripts/verify.sh full` once, in the background, before the commit that closes the work, as the root `AGENTS.md`, section "Definição de pronto", describes. A subagent never runs it.
+7. **Verify.** Run `scripts/verify.sh full` once, in the background, as the root `AGENTS.md`, section "Definição de pronto", describes. A subagent never runs it.
 
-8. **Commit.** Commit your work to the current branch, which is never `main`. The push, the pull request and the merge come after the `full`, as the root `AGENTS.md` describes; do not merge a pull request unless the user asked for it.
+8. **Close.** If the `full` led to fixes, commit them and run it again, as that section says. The push and the pull request come after the `full` passes, as the root `AGENTS.md` describes. The merge of the pull request is the user's, as its section "Convenções de Git" says: this skill never merges.
