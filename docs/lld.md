@@ -645,6 +645,26 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 
 **Banco de testes:** os testes da API usam um banco separado no mesmo PostgreSQL, com o nome do banco de `DATABASE_URL` mais o sufixo `_test`. Ele não tem variável própria.
 
+**Ambiente local por slot:** cada checkout tem um **slot**, de 0 a 3, que dá ao ambiente de desenvolvimento um bloco próprio de portas na máquina, para vários ambientes ficarem no ar juntos. O slot vem de um `.env` na raiz do checkout, que o Git ignora e que o Compose lê sozinho, com o mesmo `compose.dev.yaml` e o mesmo comando. Sem o arquivo, vale o slot 0, as portas de hoje, e é assim que ficam o checkout principal e a CI. O `.env` da raiz é do Compose e não é o `apps/api/.env`: o Compose passa à API só o que a tabela abaixo manda.
+
+- **Fórmula:** a porta de hoje mais slot × 10, para a web, a API, o storage e os e-mails. Os endereços entre contêineres não mudam, com uma exceção: o emulador de storage escuta, dentro do contêiner, na porta do slot, e por isso o endereço dele entre contêineres segue o slot (`STORAGE_EMULATOR_HOST`).
+- **Dono:** este documento decide os nomes e a fórmula. Quem grava o `.env` (o script de frentes, ou a pessoa à mão) só os segue.
+- **Sem padrão na passagem:** as variáveis da API e do `playwright` abaixo não têm valor padrão no Compose: sem o `.env`, elas não existem no ambiente do serviço, e a API usa o `apps/api/.env`, como hoje. Um padrão no Compose as faria existir no slot 0, e a configuração resolvida deixaria de ser igual à de antes do slot.
+
+| Variável do `.env` | Slot 0 (padrão do Compose) | Slot 1 | Quem lê |
+| --- | --- | --- | --- |
+| `SLOT` | não precisa existir | `1` | Só informa: o Compose não a lê, e o script de frentes a usa para achar o slot de cada pasta |
+| `WEB_PORT` | 3000 | 3010 | Porta publicada da web |
+| `API_PORT` | 3001 | 3011 | Porta publicada da API |
+| `STORAGE_PORT` | 4443 | 4453 | Porta publicada do storage, e a em que o emulador escuta e se anuncia (`-port` e `-public-host`) |
+| `MAILPIT_PORT` | 8025 | 8035 | Porta publicada da tela e da API HTTP dos e-mails |
+| `WEB_ORIGIN` | ausente | `http://localhost:3010` | Passada à API, que a usa nos links dos e-mails e no CORS (tabela acima) |
+| `STORAGE_PUBLIC_URL` | ausente | `http://localhost:4453` | Passada à API e ao `playwright` (tabela acima, e a seção 4.6) |
+| `STORAGE_EMULATOR_HOST` | ausente | `http://storage:4453` | Passada à API (tabela acima, e a seção 4.6) |
+| `GIT_MASK_TYPE`, `GIT_MASK_SOURCE` | `tmpfs` e vazio | `bind` e `/dev/null` | A máscara do `.git` no contêiner da API, abaixo |
+
+**Máscara do `.git`:** o contêiner da API monta o repositório só para leitura e cobre o `.git` por cima, para o histórico, os hooks e a configuração do Git ficarem fora do alcance do que roda nele. No checkout principal e na CI, o `.git` é uma pasta, e a máscara é um `tmpfs`. Num worktree, o `.git` é um arquivo, onde o `tmpfs` não monta e o contêiner não sobe: o `.env` do worktree traz `GIT_MASK_TYPE=bind` e `GIT_MASK_SOURCE=/dev/null`, que cobre o arquivo com um vazio. A varredura de segredos também precisa do histórico, que num worktree está no `.git` comum, fora da pasta dele: o `scripts/verify.sh` monta esse `.git` e aponta o `GIT_DIR` do Git para o do worktree, porque o arquivo `.git` pode trazer um caminho relativo, que no contêiner não leva a lugar nenhum.
+
 Os valores marcados como segredo vêm do Secret Manager e não ficam em arquivos versionados.
 
 
