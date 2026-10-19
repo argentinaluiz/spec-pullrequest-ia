@@ -37,7 +37,7 @@ Tudo roda dentro dos contêineres do Docker Compose: instalação de dependênci
 
 O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis serviços:
 
-| Serviço | O que é | Endereço na máquina | Endereço entre contêineres |
+| Serviço | O que é | Endereço na máquina (slot 0) | Endereço entre contêineres |
 | --- | --- | --- | --- |
 | `web` | Frontend em Next.js | `http://localhost:3000` | `http://web:3000` |
 | `api` | API em NestJS, com as rotas sob `/v1` | `http://localhost:3001` | `http://api:3000` |
@@ -45,6 +45,8 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis servi�
 | `storage` | Emulador do Cloud Storage (`fake-gcs-server`), com o bucket `app-files` | `http://localhost:4443` | `http://storage:4443` |
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
+
+A tabela é a do slot 0, o de um checkout sem `.env` na raiz. As portas e os endereços de um slot de 1 a 3 estão no `docs/lld.md`, seção 6, "Ambiente local por slot".
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 

@@ -3,7 +3,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { signIn } from "./support/account";
 import { uniqueEmail } from "./support/mailpit";
 import { accessTokenOf } from "./support/session";
-import { completeUpload, createUpload } from "./support/storage";
+import { completeUpload, createUpload, storagePublicHost } from "./support/storage";
 
 /**
  * Deixa na lista um arquivo ativo de nome e conteúdo conhecidos: cria o envio pela API, manda os
@@ -90,7 +90,7 @@ test("o HTML da lista não traz URL assinada do storage, só o caminho da web", 
 }) => {
   await signIn(page, uniqueEmail());
   const itemId = await seedFile(page, context, "relatorio.txt", "ola!!");
-  const forbidden = ["localhost:4443", "X-Goog-Signature", "response-content-disposition"];
+  const forbidden = [storagePublicHost(), "X-Goog-Signature", "response-content-disposition"];
 
   const served = await context.request.get("/");
   const servedHtml = await served.text();

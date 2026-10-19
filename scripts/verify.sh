@@ -78,6 +78,10 @@ APPROVAL_FILE="$HARNESS_DIR/full-ok"
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
 source scripts/full-lock.sh
+# O que o contêiner da varredura de segredos precisa para ler o histórico num worktree, com a função
+# `gitleaks_git_args` do scripts/git-mount.sh.
+# shellcheck source=git-mount.sh
+source scripts/git-mount.sh
 # A pasta dos tickets.
 TICKETS_DIR=docs/tickets
 
@@ -335,8 +339,14 @@ require_base() {
 }
 
 secret_scan() {
+  local extra=() mounts
   require_base
-  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "$GITLEAKS_IMAGE" \
+  # Num worktree, o histórico está no `.git` comum, fora da pasta montada; num repositório, não há extra.
+  mounts="$(gitleaks_git_args)" ||
+    abort "não deu para achar o .git comum deste checkout, que a varredura de segredos monta." \
+      "confira se o repositório do Git está íntegro, com \`git status\`."
+  [[ -z "$mounts" ]] || mapfile -t extra <<<"$mounts"
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" "${extra[@]}" "$GITLEAKS_IMAGE" \
     git /repo --no-banner --redact --log-opts="$BASE_REF..HEAD"
 }
 

@@ -6,7 +6,9 @@ services:
     # Faz o contêiner parado encerrar na hora no `down`.
     init: true
     ports:
-      - "3000:3000"
+      # A porta da máquina segue o slot (docs/lld.md, seção 6, "Ambiente local por slot"); sem o `.env`,
+      # é a de hoje.
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       - ./apps/web:/app
     environment:
@@ -32,17 +34,28 @@ services:
       dockerfile: Dockerfile.dev
     init: true
     ports:
-      # Na máquina a API fica na 3001; entre contêineres, em http://api:3000.
-      - "3001:3000"
+      # Na máquina a API fica na 3001 do slot 0; entre contêineres, em http://api:3000.
+      - "${API_PORT:-3001}:3000"
+    environment:
+      # Os endereços que seguem o slot (docs/lld.md, seção 6, "Ambiente local por slot"). Sem valor: o
+      # Compose os lê do `.env`, e sem o `.env` eles não existem aqui, e a API usa o `apps/api/.env`. O
+      # ambiente do processo vale mais do que o `.env` da API.
+      WEB_ORIGIN:
+      STORAGE_PUBLIC_URL:
+      STORAGE_EMULATOR_HOST:
     volumes:
       - ./apps/api:/app
       # O repositório inteiro, só para leitura, para o Node do harness (scripts/node-in-api.sh) ler
       # os scripts, os arquivos de aceite e os relatórios das apps sem cópia. As escritas continuam
       # em /app.
       - .:/repo:ro
-      # O .git do repositório fica coberto por uma pasta vazia: nada no contêiner usa o Git, e assim o
-      # histórico, os hooks e a configuração dele ficam fora do alcance do que roda aqui.
-      - type: tmpfs
+      # O .git do repositório fica coberto: nada no contêiner usa o Git, e assim o histórico, os hooks e
+      # a configuração dele ficam fora do alcance do que roda aqui. No checkout principal e na CI, o .git
+      # é uma pasta, e a máscara é uma pasta vazia (tmpfs). Num worktree, o .git é um arquivo, onde o tmpfs
+      # não monta: o `.env` do worktree traz GIT_MASK_TYPE=bind e GIT_MASK_SOURCE=/dev/null, que o cobre
+      # com um arquivo vazio (docs/lld.md, seção 6, "Máscara do `.git`").
+      - type: ${GIT_MASK_TYPE:-tmpfs}
+        source: ${GIT_MASK_SOURCE:-}
         target: /repo/.git
         read_only: true
     depends_on:
@@ -83,6 +96,9 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/app
       # A API, para os testes criarem o envio e pedirem a URL de leitura (POST /uploads e GET /items/{id}/download-url).
       API_URL: http://api:3000
+      # O endereço público do storage do slot, que os testes conferem nas URLs. Sem valor: o Compose a
+      # lê do `.env`, e sem o `.env` ela não existe, e os testes usam o do slot 0.
+      STORAGE_PUBLIC_URL:
     depends_on:
       # Usa a `node_modules` que o contêiner `web` instala.
       web:
@@ -116,7 +132,7 @@ services:
     image: axllent/mailpit:v1.30
     ports:
       # Tela e API HTTP dos e-mails capturados. O SMTP (1025) só é usado entre contêineres.
-      - "8025:8025"
+      - "${MAILPIT_PORT:-8025}:8025"
 
   storage:
     # Emulador do Cloud Storage. A versão é fixa: o comportamento do emulador está medido
@@ -124,17 +140,18 @@ services:
     image: fsouza/fake-gcs-server:1.56.1
     init: true
     ports:
-      # É a porta que o navegador de quem desenvolve alcança (STORAGE_PUBLIC_URL).
-      - "4443:4443"
+      # É a porta que o navegador de quem desenvolve alcança (STORAGE_PUBLIC_URL). O emulador escuta
+      # nela também dentro do contêiner, para o navegador dos testes, que só troca o host, chegar a ele.
+      - "${STORAGE_PORT:-4443}:${STORAGE_PORT:-4443}"
     # O emulador monta o endereço da sessão e serve a URL assinada pelo `Host` da requisição,
     # e só atende a URL assinada quando ele é o `-public-host`. O bucket nasce da pasta
     # /data/app-files, que o entrypoint cria antes de iniciar o emulador.
     entrypoint:
       - sh
       - -c
-      - mkdir -p /data/app-files && exec /bin/fake-gcs-server -data /data -scheme http -backend memory -port 4443 -public-host localhost:4443
+      - mkdir -p /data/app-files && exec /bin/fake-gcs-server -data /data -scheme http -backend memory -port ${STORAGE_PORT:-4443} -public-host localhost:${STORAGE_PORT:-4443}
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4443/storage/v1/b/app-files"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${STORAGE_PORT:-4443}/storage/v1/b/app-files"]
       interval: 5s
       timeout: 3s
       retries: 5
