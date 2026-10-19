@@ -427,7 +427,7 @@ convergence_split() {
   frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
   # As duas frentes mudam, cada uma do seu jeito, um arquivo de cada tipo e um de código.
   for file in apps/api/openapi.json apps/api/prisma/migrations/20260101000000_a/migration.sql apps/api/src/app.module.ts \
-    docs/lld.md src/codigo.ts; do
+    apps/api/prisma/schema.prisma apps/api/.env.example docs/lld.md src/codigo.ts; do
     change "$a" "$file" "versao do um"
     change "$b" "$file" "versao do dois"
   done
@@ -443,9 +443,12 @@ convergence_split() {
   attention="$(sed -n '/pede atenção:/,$p' <<<"$out")"
   [[ "$attention" == *"src/codigo.ts"* && "$attention" == *"docs/lld.md (documentos)"* ]] || return 1
   [[ "$mechanical" != *"src/codigo.ts"* && "$mechanical" != *"docs/lld.md"* ]] || return 1
-  [[ "$attention" != *"openapi.json"* && "$attention" != *"app.module.ts"* ]]
+  [[ "$attention" != *"openapi.json"* && "$attention" != *"app.module.ts"* ]] || return 1
+  # O schema e o arquivo de variáveis se juntam à mão: pedem atenção, com o tipo manual, e não são mecânicos.
+  [[ "$attention" == *"apps/api/prisma/schema.prisma (manual)"* && "$attention" == *"apps/api/.env.example (manual)"* ]] || return 1
+  [[ "$mechanical" != *"schema.prisma"* && "$mechanical" != *".env.example"* ]]
 }
-check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código e o de documento pedem atenção @LUI-187-CA2" convergence_split
+check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção @LUI-187-CA2 @LUI-192-CA2" convergence_split
 
 # --- Um erro ao calcular o merge é dito, e não passa por "sem conflito"; o nome com acento sai sem aspas ---
 conflict_errors() {
