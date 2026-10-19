@@ -39,6 +39,17 @@
 # completo confere também o aceite: a seção "Aceite" do PR e a cobertura dos critérios por testes.
 # E, sem bloquear, avisa quando o contrato ou o schema mudou depois do commit de plano.
 #
+# O modo completo sem apps (o veredito) roda um por vez na máquina, entre todos os checkouts do
+# repositório. A trava fica na pasta `harness/` do `.git` comum, que os checkouts dividem, e o `full` que
+# chega com outro em andamento espera, mostrando o checkout, a branch, o PID e a hora de início do que está
+# rodando. A espera não conta como reprovação na trava das reprovações repetidas nem apaga a aprovação
+# anterior, mesmo interrompida. Não vale na CI. O mecanismo está no scripts/full-semaphore.sh. Como a
+# espera soma ao tempo do `full`, ele deve rodar em segundo plano.
+#
+# Na API, o passo "ordem das migrações" reprova a migração nova da branch (a que a base não tem) com nome
+# anterior à mais recente da base (HARNESS_BASE_REF), porque o Prisma aplica as migrações na ordem do
+# nome, e diz como recriá-la com um nome posterior.
+#
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
 set -uo pipefail
@@ -78,6 +89,9 @@ APPROVAL_FILE="$HARNESS_DIR/full-ok"
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
 source scripts/full-lock.sh
+# O semáforo do modo completo, com as funções do scripts/full-semaphore.sh.
+# shellcheck source=full-semaphore.sh
+source scripts/full-semaphore.sh
 # O que o contêiner da varredura de segredos precisa para ler o histórico num worktree, com a função
 # `gitleaks_git_args` do scripts/git-mount.sh.
 # shellcheck source=git-mount.sh
@@ -134,7 +148,7 @@ step() {
   local name="$1" hint="$2"
   shift 2
   printf '\n=== %s\n' "$name"
-  if "$@"; then
+  if full_semaphore_unheld "$@"; then
     return 0
   fi
   failures+=("$name"$'\n'"    Como corrigir: $hint")
@@ -408,6 +422,13 @@ run_prepush() {
 run_full() {
   local app
   require_base
+  # Um `full` por vez na máquina, fora da CI. A espera vem antes de resumir o estado da pasta e de apagar a
+  # aprovação anterior: ela não é um passo, e a aprovação tem de valer para a pasta que foi verificada.
+  if full_lock_enabled; then
+    full_semaphore_acquire "${HARNESS_DIR%/.harness}" "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')" ||
+      abort "não deu para pegar a trava da máquina do modo completo." \
+        "confira se o \`flock\` (o pacote util-linux) está instalado e se a pasta harness/ do .git comum deste repositório aceita escrita."
+  fi
   # O estado é resumido antes de tudo, para a aprovação valer para o que foi verificado, e não
   # para o que estiver na pasta quando a verificação terminar.
   verified_state="$(worktree_state)" || abort "não deu para resumir o estado da pasta de trabalho." \

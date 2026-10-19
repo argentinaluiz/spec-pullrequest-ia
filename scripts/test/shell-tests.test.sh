@@ -20,6 +20,9 @@ RUNNER="$ROOT/scripts/test/shell-tests.sh"
 mkdir -p "$ROOT/apps/api/reports"
 work="$(mktemp -d -p "$ROOT/apps/api/reports" shell-tests.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
+# O mktemp cria a pasta só para o dono, e o conferidor lê dela no contêiner, com outro usuário se a máquina
+# tem outro (o runner da CI).
+chmod 755 "$work"
 # A pasta de trabalho como o contêiner a vê, e relativa à raiz dele, que é onde o conferidor lê os tickets.
 in_container="/repo/${work#"$ROOT"/}"
 tickets="${work#"$ROOT"/}/tickets"
