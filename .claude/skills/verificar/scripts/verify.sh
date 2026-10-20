@@ -454,7 +454,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, em `scripts/` ou nas pastas `scripts/` e `hooks/` de uma skill (os testes dela ficam na pasta `test/` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou, em \`scripts/\` ou nas pastas \`scripts/\` e \`hooks/\` de uma skill (os testes dela ficam na pasta \`test/\` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
