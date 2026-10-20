@@ -1,5 +1,5 @@
 # A definição única da pasta de estado do harness: a `.harness/` na raiz do checkout, ignorada pelo
-# Git. Quem carrega este arquivo com `source` (o scripts/verify.sh e os hooks) recebe
+# Git. Quem carrega este arquivo com `source` (a verificação e os hooks do projeto) recebe
 # o HARNESS_DIR. A raiz do checkout é a do CLAUDE_PROJECT_DIR, quando definido, e senão a deste script:
 # nunca a da pasta atual de quem chama, porque os hooks rodam na pasta da sessão, que pode mudar. Se a
 # raiz não é uma pasta que se alcança, o HARNESS_DIR fica vazio, e quem chama decide o que fazer.

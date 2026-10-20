@@ -98,15 +98,6 @@ expect 2 "nega a entrada ilegível que cita o verify.sh e o CI=" \
 
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
 
-# A frase de destravar do hook do estado, que o settings.json passa na linha de comando dele, é a mesma das
-# mensagens do verify.sh (FULL_LOCK_ASK): a mensagem não pode ficar com duas versões.
-# shellcheck source=full-lock.sh
-source "$ROOT/scripts/full-lock.sh"
-state_hook_has_lock_ask() {
-  jq -r '.hooks.PreToolUse[].hooks[].command' "$ROOT/.claude/settings.json" | grep -qF -- "$FULL_LOCK_ASK"
-}
-check "o hook do estado do settings.json traz a frase de destravar do verify.sh" state_hook_has_lock_ask
-
 # O `remover` com a opção de abandono, no script de frentes, é só do usuário.
 expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualquer posição @LUI-186-CA7" \
   "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"

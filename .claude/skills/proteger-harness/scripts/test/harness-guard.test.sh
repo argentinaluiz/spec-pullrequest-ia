@@ -89,6 +89,11 @@ check "$case2: sem lista, sai com o código 2 e diz por quê" bash -c '[[ $1 -eq
 out="$(cd "$outside" && echo notas.txt | ./harness-guard.sh 2>&1)"
 code=$?
 check "$case2: sem o argumento da lista, sai com o código 2" exits 2
+printf 'bloqueado\tx/**\n' >"$outside/ilegivel.txt"
+chmod 000 "$outside/ilegivel.txt"
+LIST=ilegivel.txt run_outside x/a
+chmod 600 "$outside/ilegivel.txt"
+check "$case2: a lista ilegível sai com o código 2 @LUI-194-CA2" bash -c '[[ $1 -eq 2 && $2 == *"não se lê"* ]]' _ "$code" "$out"
 printf 'segredo\tx/**\n' >"$outside/ruim.txt"
 LIST=ruim.txt run_outside x/a
 check "$case2: tipo desconhecido sai com o código 2 e nomeia o tipo" bash -c '[[ $1 -eq 2 && $2 == *segredo* ]]' _ "$code" "$out"
