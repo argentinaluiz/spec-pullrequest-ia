@@ -7,7 +7,7 @@
 #   contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>
 #
 # Entrada: o commit de plano; o ponto com que comparar (um commit; vazio é a pasta de trabalho); e o arquivo do desvio, que é
-# onde a visão é acrescentada (a pasta dele é criada). O contrato é comparado como na conferência do snapshot gerado, então um
+# onde a visão é acrescentada (a pasta dele é criada; o caminho é relativo à raiz do repositório, para onde o comando vai). O contrato é comparado como na conferência do snapshot gerado, então um
 # snapshot regenerado que só muda descrições, resumos, exemplos ou a ordem das chaves não é desvio.
 # Saída (a padrão): sem desvio, uma frase que diz que o contrato e o schema estão iguais ao planejado, e o arquivo não é
 # tocado; com desvio, a visão (a mesma do arquivo) e uma anotação `::warning title=Contrato diferente do planejado::...`; e,

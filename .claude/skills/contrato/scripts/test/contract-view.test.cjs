@@ -1,4 +1,4 @@
-// Testes do renderizador da visão do contrato, pela interface que o .claude/skills/verificar/scripts/verify/api.sh usa: dois
+// Testes do renderizador da visão do contrato, pela interface que o contract-lib.sh usa: dois
 // snapshots da OpenAPI na entrada e o Markdown na saída, que a aba Contrato da página de revisão do
 // plano mostra. Rodam com o runner nativo do Node, dentro do contêiner `api`.
 
@@ -183,7 +183,7 @@ test('gera a visão em Markdown, uma seção por rota, com as tabelas de parâme
   // Uma seção por rota que mudou, na ordem do snapshot novo, e nada da que não mudou.
   assert.equal(render(base, head), `${CHILDREN_SECTION}\n\n${COPIES_SECTION}\n`);
 
-  // O modo `contract` do script de verificação imprime o que a linha de comando do renderizador
+  // O comando contract-view.sh imprime o que a linha de comando do renderizador
   // imprime sobre as fontes, em pares nome e valor terminados por NUL na entrada padrão (`-`), como o
   // `contract_view` as escreve: o changelog, esse mesmo Markdown e o diff do schema. Os snapshots
   // vão como o texto dos arquivos.

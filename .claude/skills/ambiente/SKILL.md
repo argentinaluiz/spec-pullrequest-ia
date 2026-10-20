@@ -3,7 +3,7 @@ name: ambiente
 description: "The development environment of this project, the Docker Compose: the rare procedures (start again from zero and recreate the database, recover an API that does not start), the Node in the container, the convergence points of the parallel fronts and the test of the environment by slot. Use when the environment does not come up, when the database has to be recreated, or to run Node for the harness."
 ---
 
-The skill of this project that holds what is about its environment, the Docker Compose (`compose.dev.yaml`, at the root). The root `AGENTS.md`, section "Execução no Docker", keeps the rule (everything runs in the containers, and the host between services is the name of the service), the table of services and the entry commands (start, stop, the database console and the mails). The ports of each slot are in `docs/lld.md`, section 6, "Ambiente local por slot". This skill says where the rest lives and carries the procedures that are rarely needed.
+The skill of this project that holds what is about its environment, the Docker Compose (`compose.dev.yaml`, at the root). The root `AGENTS.md`, section "Execução no Docker", owns the rule, the table of services and the entry commands; the ports of each slot are in `docs/lld.md`, section 6, "Ambiente local por slot". This skill carries the procedures that are rarely needed and says where the rest of the environment lives.
 
 ## Rare procedures
 

@@ -52,8 +52,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 
 # As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
-# uma fica em .claude/skills/verificar/scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports, e, se a
-# app tem contrato, a parte dele que a verificação confere.
+# uma fica em .claude/skills/verificar/scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports.
 APPS=(api web)
 
 COMPOSE=(docker compose -f compose.dev.yaml)
@@ -71,9 +70,11 @@ source scripts/harness-base.sh
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
-# Os scripts da skill de plano, de onde sai a página do plano. No contêiner `api`, ficam no mesmo caminho,
-# dentro do repositório montado em /repo.
+# A página do plano, que o atalho `plan` monta, é da skill de plano, e o desvio do contrato, o único dono da comparação com o
+# commit de plano, é um comando da skill contrato: acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
+# No contêiner `api`, os scripts das skills ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
+CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
 # confere), achadas por skill-tests.sh; o texto de uma skill não entra.
@@ -109,6 +110,11 @@ usage() {
   sed -n '3,/^$/p' "$0" | sed 's/^# \{0,1\}//'
   exit 2
 }
+
+# O `plain_diff` e os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma), da skill contrato, que o grupo da API
+# também carrega.
+# shellcheck source=../../contrato/scripts/contract-lib.sh
+source .claude/skills/contrato/scripts/contract-lib.sh
 
 for app in "${APPS[@]}"; do
   # shellcheck source=/dev/null
@@ -214,7 +220,7 @@ wait_for() {
 
 # O Node no contêiner `api`: o .claude/skills/ambiente/scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
 node_in_api() {
-  .claude/skills/ambiente/scripts/node-in-api.sh "$@"
+  "$CONTRACT_NODE" "$@"
 }
 
 # O relatório dos testes do harness, relativo à pasta da API: o Node o grava em /app, a que aceita
@@ -284,10 +290,6 @@ plan_commit() {
   added_by "$BASE_REF..${HEAD_REF:-HEAD}" "$1"
 }
 
-# O comando do desvio do contrato, da skill contrato: o único dono da comparação com o commit de plano. Acrescenta a visão do
-# desvio ao arquivo que recebe e avisa no PR, sem bloquear.
-CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
-
 # O desvio do plano, pelo comando do /contrato, que acrescenta a visão ao contract-drift.txt da pasta do ticket, que o `run_full`
 # apaga no começo. Só avisa: nunca falha.
 contract_drift() {
@@ -305,7 +307,8 @@ contract_drift() {
   else
     # A pasta do ticket (docs/tickets/<issue>/<ticket>/) é a do arquivo de aceite citado.
     drift="$(dirname "$file")/contract-drift.txt"
-    "$CONTRACT_DRIFT" "$plan" "$HEAD_REF" "$drift" || echo "O comando do desvio do contrato falhou, e o desvio não foi conferido."
+    "$CONTRACT_DRIFT" "$plan" "$HEAD_REF" "$drift" ||
+      echo "::warning title=Desvio do contrato não conferido::O comando do desvio do contrato falhou, e o desvio não foi conferido (veja o log)."
   fi
   return 0
 }
@@ -466,7 +469,7 @@ run_full() {
 run_plan() {
   local args=(
     --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node .claude/skills/ambiente/scripts/node-in-api.sh --contrato .claude/skills/contrato/scripts/contract-view.sh
+    --node "$CONTRACT_NODE" --contrato .claude/skills/contrato/scripts/contract-view.sh
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
   [[ -n "${3:-}" ]] && args+=(--commit "$3")
@@ -501,11 +504,10 @@ review_drift() {
   local plan="$1" drift="$2" out
   rm -f "$drift"
   if out="$("$CONTRACT_DRIFT" "$plan" "" "$drift" 2>&1)"; then
-    [[ -s "$drift" || -z "$out" ]] || printf '%s\n' "$out" >"$drift"
+    [[ -s "$drift" ]] || printf '%s\n' "$out" >"$drift"
   else
     printf 'O desvio do contrato não pôde ser conferido. O que o comando disse:\n\n%s\n' "$out" >>"$drift"
   fi
-  [[ -s "$drift" ]] || echo "Não há desvio a conferir." >"$drift"
 }
 
 # O modo `review`: os insumos do revisor de conformidade, na pasta do ticket, e os caminhos que a

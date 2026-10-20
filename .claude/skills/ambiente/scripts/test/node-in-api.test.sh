@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Teste do Node no contêiner (scripts/node-in-api.sh), que é o comando do Node deste projeto: o `docker` é trocado
+# Teste do Node no contêiner (.claude/skills/ambiente/scripts/node-in-api.sh), que é o comando do Node deste projeto: o `docker` é trocado
 # por um falso, que registra os argumentos e a entrada padrão que recebe e responde o que o caso combinou, então nenhum
 # contêiner entra no caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 

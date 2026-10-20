@@ -17,6 +17,8 @@ bloqueado	.claude/skills/*/scripts/**
 bloqueado	.claude/skills/*/hooks/**
 bloqueado	.claude/skills/verificar/arquivos-protegidos.txt
 bloqueado	scripts/**
+# A classificação dos pontos de convergência, que o script de frentes e a /sincronizar leem: era de scripts/, e segue bloqueada.
+bloqueado	.claude/skills/ambiente/pontos-de-convergencia.txt
 
 # Aceite congelado: um arquivo de aceite que já existe na `main` foi alterado, renomeado ou apagado. Descongelar
 # é legítimo quando um ticket muda um comportamento já entregue, e o humano que faz o merge decide.

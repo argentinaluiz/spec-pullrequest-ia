@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Teste do comando da visão do contrato (scripts/contract-view.sh): o comando roda numa cópia da skill num repositório
+# Teste do comando da visão do contrato (.claude/skills/contrato/scripts/contract-view.sh): o comando roda numa cópia da skill num repositório
 # temporário, com o `docker` trocado por um falso (o oasdiff e o Node no contêiner respondem o que o caso combinou), então
 # nenhum contêiner entra no caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 
