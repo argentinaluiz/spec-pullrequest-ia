@@ -190,6 +190,8 @@ summary_ok() {
   [[ $code -eq 0 ]] &&
     [[ "$(cat "$dir/review.diff")" == *"b/apps/api/novo.ts"* && "$(cat "$dir/review.diff")" == *"b/apps/api/com espaço.ts"* ]] &&
     [[ "$(cat "$dir/review.diff")" == *"b/apps/api/commitado.ts"* && "$(cat "$dir/review.diff")" != *alheio* ]] &&
+    [[ "$(cat "$dir/review.diff")" == *"+export const a = 2;"* && "$(cat "$dir/review.diff")" == *"deleted file mode"* ]] &&
+    [[ "$out" == *"- apps/api/commitado.ts"* && "$out" == *"- apps/api/com espaço.ts"* ]] &&
     [[ "$(cat "$dir/plano.txt")" == "$(git -C "$repo" log -1 --format=%B "$plan")" ]] &&
     [[ "$(cat "$dir/contract-drift.txt")" == *"iguais ao planejado"* ]] &&
     [[ "$out" == *"- apps/api/novo.ts"* && "$out" == *"plano.txt"* ]]

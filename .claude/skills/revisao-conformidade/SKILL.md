@@ -25,11 +25,11 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
 1. **Folder.** With a ticket, the review lives in the ticket's folder, `<tickets folder>/<pai>/<ticket>/`, next to its acceptance file. Without a ticket, it lives in `<tickets folder>/sem-ticket/<nome>/`, with a short lowercase name you choose (letters, digits and hyphens). Without a ticket, first write the acceptance criteria of the change in `criterios.md` in that folder, one numbered criterion per line, from what was asked and not from what was done. The script refuses to run without it.
 
-2. **Inputs.** Run the script of this skill (`<skill folder>/scripts/review-inputs.sh`, from anywhere in the repository), with the values of step 0:
+2. **Inputs.** Run the script of this skill, from anywhere in the repository, with the values of step 0:
 
    ```bash
-   review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] <pai> <ticket>    # with a ticket
-   scripts/review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] sem-ticket <nome>  # without one
+   <skill folder>/scripts/review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] <pai> <ticket>    # with a ticket
+   <skill folder>/scripts/review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] sem-ticket <nome>  # without one
    ```
 
    It writes, in the review folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written; a drift command that fails leaves there that the drift was not checked). It fails, and says what to do, when the ticket has no plan commit, when `criterios.md` is missing, when the base does not exist, or when the inputs would not be ignored by Git. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.
