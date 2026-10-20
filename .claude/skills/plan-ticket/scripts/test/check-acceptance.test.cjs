@@ -695,6 +695,16 @@ test('o teste com o ID na tag continua cobrindo o critério, com ou sem mapa no 
   assert.match(withMap.out, /PROJ-1-CA1: coberto por 1 teste/);
   assert.match(withMap.out, /PROJ-2-CA1: coberto por 1 teste/);
 
+  // O mapa do mesmo ticket que liga só outro critério não tira a cobertura do critério que tem a tag.
+  const sameTicket = check({
+    files: { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste HTTP'], ['PROJ-1-CA2', 'teste HTTP']]) },
+    vitest,
+    extra: { [MAP]: mapLine('PROJ-1-CA2', MAPPED_FILE, 'copia o item') },
+  });
+  assert.equal(sameTicket.code, 0, sameTicket.out);
+  assert.match(sameTicket.out, /PROJ-1-CA1: coberto por 1 teste/);
+  assert.match(sameTicket.out, /PROJ-1-CA2: coberto por 1 teste/);
+
   // O ID na tag e a linha do mapa para o mesmo critério contam como dois testes.
   const both = check({
     files: TICKET,
