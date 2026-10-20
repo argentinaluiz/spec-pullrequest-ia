@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
 LIST="$ROOT/.claude/skills/verificar/arquivos-protegidos.txt"
-# shellcheck source=../../../../../.claude/skills/verificar/scripts/test/sh-helpers.sh
+# shellcheck source=sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }

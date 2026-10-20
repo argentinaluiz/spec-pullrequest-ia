@@ -44,7 +44,7 @@
 # repositório. A trava fica na pasta `harness/` do `.git` comum, que os checkouts dividem, e o `full` que
 # chega com outro em andamento espera, mostrando o checkout, a branch, o PID e a hora de início do que está
 # rodando. A espera não conta como reprovação na trava das reprovações repetidas nem apaga a aprovação
-# anterior, mesmo interrompida. Não vale na CI. O mecanismo está no .claude/skills/verificar/scripts/full-semaphore.sh. Como a
+# anterior, mesmo interrompida. Não vale na CI. O mecanismo está no full-semaphore.sh. Como a
 # espera soma ao tempo do `full`, ele deve rodar em segundo plano.
 #
 # Na API, o passo "ordem das migrações" reprova a migração nova da branch (a que a base não tem) com nome
@@ -81,7 +81,7 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
-# confere), achadas por .claude/skills/verificar/scripts/verify/skill-tests.sh; o texto de uma skill não entra.
+# confere), achadas por skill-tests.sh; o texto de uma skill não entra.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/tickets)
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
@@ -93,15 +93,15 @@ done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs)
 source .claude/skills/proteger-harness/scripts/harness-dir.sh
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
-# A trava das reprovações repetidas do modo completo, com as funções do .claude/skills/verificar/scripts/full-lock.sh.
+# A trava das reprovações repetidas do modo completo, com as funções do full-lock.sh.
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
 source .claude/skills/verificar/scripts/full-lock.sh
-# O semáforo do modo completo, com as funções do .claude/skills/verificar/scripts/full-semaphore.sh.
+# O semáforo do modo completo, com as funções do full-semaphore.sh.
 # shellcheck source=full-semaphore.sh
 source .claude/skills/verificar/scripts/full-semaphore.sh
 # O que o contêiner da varredura de segredos precisa para ler o histórico num worktree, com a função
-# `gitleaks_git_args` do .claude/skills/verificar/scripts/git-mount.sh.
+# `gitleaks_git_args` do git-mount.sh.
 # shellcheck source=git-mount.sh
 source .claude/skills/verificar/scripts/git-mount.sh
 # A pasta dos tickets.
@@ -227,14 +227,14 @@ node_in_api() {
 # `api_full`, que roda antes, porque o Node não a cria.
 HARNESS_REPORT=reports/harness/node-tests.json
 # O dos testes em shell do harness, na mesma pasta e no mesmo formato. É outro arquivo porque quem o grava
-# é o executor, na máquina (.claude/skills/verificar/scripts/test/shell-tests.sh), e o do Node é gravado no contêiner: cada
+# é o executor, na máquina (shell-tests.sh), e o do Node é gravado no contêiner: cada
 # relatório tem um escritor só.
 HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 
 # Roda os testes do harness: os do conferidor e do renderizador do contrato e os das skills (o parser e a
 # página do plano, por exemplo) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
 # completo, os modos do verify.sh e as das skills) na máquina, pelo executor que grava o relatório delas. Os
-# testes das skills são achados por .claude/skills/verificar/scripts/verify/skill-tests.sh, sem lista à mão: uma skill nova com um
+# testes das skills são achados por skill-tests.sh, sem lista à mão: uma skill nova com um
 # teste ao lado do script entra sozinha. Os dois relatórios passam pelo `check_report`, e um grupo que falha
 # não impede o outro de rodar.
 harness_tests() {
@@ -454,7 +454,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, em scripts/ ou na pasta scripts/ ou hooks/ de uma skill (os testes dela ficam na pasta test/ ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou, em `scripts/` ou nas pastas `scripts/` e `hooks/` de uma skill (os testes dela ficam na pasta `test/` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de

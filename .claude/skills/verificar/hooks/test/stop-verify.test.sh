@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Testes do hook .claude/skills/verificar/hooks/stop-verify.sh, pela entrada que o Claude Code entrega a ele (um JSON
+# Testes do hook stop-verify.sh, pela entrada que o Claude Code entrega a ele (um JSON
 # pela entrada padrão) e pela decisão que ele devolve (0 deixa encerrar, 2 bloqueia). O hook roda
-# num repositório temporário, com o `.claude/skills/verificar/scripts/verify.sh` trocado por um falso (variável
+# num repositório temporário, com o `verify.sh` trocado por um falso (variável
 # HARNESS_VERIFY), que registra o que rodou e imprime a saída combinada pelo teste: nenhum contêiner
 # nem o estado deste clone entra no caso. Rodam na máquina, como o hook, porque ele usa o `git` e o
-# `jq`, que o contêiner `api` não tem. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

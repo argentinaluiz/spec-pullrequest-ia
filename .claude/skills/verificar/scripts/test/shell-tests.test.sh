@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Testes do executor das suítes em shell (.claude/skills/verificar/scripts/test/shell-tests.sh) e do relatório dele: o caso com o
+# Testes do executor das suítes em shell (shell-tests.sh) e do relatório dele: o caso com o
 # token de um ID no nome sai com a tag, o conferidor do aceite o conta, e o relatório é refeito a cada
 # execução. Cada teste monta suítes de mentira (scripts que carregam o sh-helpers.sh e rodam um caso com
 # o ID de mentira `PROJ-9`), roda o executor e confere o relatório com o conferidor de verdade, o mesmo
 # do modo completo, pelo scripts/node-in-api.sh. O conferidor roda no contêiner `api`, que monta o
 # repositório em /repo, então a pasta de trabalho fica em apps/api/reports/ (ignorada pelo Git), e o
 # conferidor lê dali o aceite de mentira e o relatório. Rodam na máquina, como o executor, que precisa
-# do `jq`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# do `jq`. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

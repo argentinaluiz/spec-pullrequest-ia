@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Testes do semáforo do modo completo (.claude/skills/verificar/scripts/full-semaphore.sh): um `full` por vez entre os checkouts
+# Testes do semáforo do modo completo (full-semaphore.sh): um `full` por vez entre os checkouts
 # do mesmo repositório, com a espera dizendo de qual checkout é o que está rodando, e a espera, mesmo
 # interrompida, sem contar como reprovação na trava das reprovações repetidas. Usam um repositório
 # temporário com um worktree, que dividem o `.git` comum onde fica a trava. O `full` "de outro checkout"
 # é um processo do próprio teste que segura a trava: nenhuma verificação roda. Rodam na máquina, porque
-# usam o `git` e o `flock`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# usam o `git` e o `flock`. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

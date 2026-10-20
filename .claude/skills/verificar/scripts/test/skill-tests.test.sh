@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Testes da busca dos testes das skills (.claude/skills/verificar/scripts/verify/skill-tests.sh) e do uso dela pela verificação
+# Testes da busca dos testes das skills (skill-tests.sh) e do uso dela pela verificação
 # completa: numa árvore temporária com duas skills, cada uma com um teste ao lado do script ou do hook, a
 # busca acha os dois sem lista à mão, e o executor dos testes em shell reprova pelo que falha e aprova sem
-# ele. Rodam na máquina. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# ele. Rodam na máquina. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

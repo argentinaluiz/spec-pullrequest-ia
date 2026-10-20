@@ -7,10 +7,10 @@
 #   .claude/skills/<skill>/scripts/test/*.test.sh|cjs
 #   .claude/skills/<skill>/hooks/test/*.test.sh|cjs
 #
-#   .claude/skills/verificar/scripts/verify/skill-tests.sh sh|cjs [pasta das skills]    os testes em shell ou em Node, um caminho por linha
-#   .claude/skills/verificar/scripts/verify/skill-tests.sh dirs [pasta das skills]      as pastas scripts/ e hooks/ que têm algum arquivo
+#   skill-tests.sh sh|cjs [pasta das skills]    os testes em shell ou em Node, um caminho por linha
+#   skill-tests.sh dirs [pasta das skills]      as pastas scripts/ e hooks/ que têm algum arquivo
 #
-# A pasta das skills é `.claude/skills` por padrão, relativa à raiz do repositório, de onde o .claude/skills/verificar/scripts/verify.sh
+# A pasta das skills é `.claude/skills` por padrão, relativa à raiz do repositório, de onde o verify.sh
 # roda. Os caminhos saem ordenados e na forma da pasta recebida. Sai com 0, mesmo sem achar nada, e com 2 no
 # uso errado.
 

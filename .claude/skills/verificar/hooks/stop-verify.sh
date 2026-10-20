@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Hook de fim de turno do Claude Code (evento Stop). Quando o agente tenta encerrar o turno, roda
-# o modo rápido do .claude/skills/verificar/scripts/verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
+# o modo rápido do verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
 # arquivos, por sessão, é o record-touched.sh. Cada sessão só responde pelos arquivos dela: o erro
 # que outra sessão deixou no mesmo clone não bloqueia este turno, só avisa. Se falhar num arquivo da
 # sessão, devolve a saída ao agente, que continua o trabalho. A edição por shell não é anotada,
@@ -10,7 +10,7 @@
 # Sai com 0 para deixar o turno encerrar e com 2 para bloquear. No 2, o que foi escrito na
 # saída de erro volta para o agente.
 #
-# A variável HARNESS_VERIFY troca o .claude/skills/verificar/scripts/verify.sh, e só os testes do hook a usam: ela só vale
+# A variável HARNESS_VERIFY troca o verify.sh, e só os testes do hook a usam: ela só vale
 # com a HARNESS_TEST=1, que os testes também definem.
 
 set -uo pipefail

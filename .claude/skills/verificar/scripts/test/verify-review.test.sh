@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Testes do modo `review` do .claude/skills/verificar/scripts/verify.sh: os argumentos, o diff da branch com os arquivos novos
+# Testes do modo `review` do verify.sh: os argumentos, o diff da branch com os arquivos novos
 # sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a
 # mensagem dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios.
 # O verify.sh roda copiado num repositório temporário, com o desvio do contrato trocado por um falso
 # (a comparação real tem os próprios testes) e um `docker` falso, para o contêiner `api` contar como no
-# ar. Rodam na máquina, como o verify.sh. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# ar. Rodam na máquina, como o verify.sh. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

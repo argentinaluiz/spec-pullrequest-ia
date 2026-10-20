@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Testes da trava do modo completo (.claude/skills/verificar/scripts/full-lock.sh), pelas funções que o .claude/skills/verificar/scripts/verify.sh
+# Testes da trava do modo completo (full-lock.sh), pelas funções que o verify.sh
 # chama e pelo próprio verify.sh, nos modos que não rodam a verificação: o `full` travado, que recusa
 # antes de tudo, o `full` que não deu para verificar, e o `unlock`. O verify.sh roda com o GIT_DIR de
 # um repositório temporário, para o estado da trava ser o dele, e não o deste clone. Rodam na máquina,
-# como o verify.sh. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# como o verify.sh. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Teste do passo da ordem das migrações do grupo da API (.claude/skills/verificar/scripts/verify/api.sh): as migrações novas da
+# Teste do passo da ordem das migrações do grupo da API (api.sh): as migrações novas da
 # branch têm de vir depois da mais recente da base, porque o Prisma as aplica na ordem do nome. Roda a
 # função `api_migration_order` num repositório temporário, onde a base é um commit e a branch é a pasta
-# de trabalho. Rodam na máquina, porque usam o `git`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# de trabalho. Rodam na máquina, porque usam o `git`. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

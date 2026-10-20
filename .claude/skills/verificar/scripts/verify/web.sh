@@ -1,4 +1,4 @@
-# Grupo de verificação da web. Quem chama estas funções é o .claude/skills/verificar/scripts/verify.sh, que define os
+# Grupo de verificação da web. Quem chama estas funções é o verify.sh, que define os
 # auxiliares (`step`, `in_container`, `require_container`, `check_report`, `responds`,
 # `wait_for`, `abort`, `fail`).
 

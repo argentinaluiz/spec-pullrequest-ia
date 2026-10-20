@@ -1,6 +1,6 @@
 # A trava do modo completo contra a mesma reprovação repetida. Quem carrega estas funções é o
-# .claude/skills/verificar/scripts/verify.sh, que define FULL_LOCK_FILE, o arquivo do estado, na pasta do harness, e o hook
-# .claude/skills/verificar/hooks/push-verify.sh, que usa só a instrução de destravar.
+# verify.sh, que define FULL_LOCK_FILE, o arquivo do estado, na pasta do harness, e o hook
+# push-verify.sh, que usa só a instrução de destravar.
 #
 # A mesma falha é o mesmo conjunto de passos reprovados, seja qual for o teste que falhou dentro
 # deles. A contagem atravessa as sessões e só zera com uma aprovação ou com o `unlock`, que é do

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Testes do .claude/skills/verificar/scripts/git-mount.sh, que diz o que o contêiner da varredura de segredos precisa para ler o
+# Testes do git-mount.sh, que diz o que o contêiner da varredura de segredos precisa para ler o
 # histórico do Git: nada num repositório (onde o `.git` é uma pasta, dentro da pasta montada), e o `.git`
 # comum e o `GIT_DIR` num worktree (onde o `.git` é um arquivo que aponta para fora dela, com caminho
 # relativo ou absoluto, conforme a configuração do Git de quem o criou). O Docker não entra: o teste confere
-# os argumentos. Rodam na máquina, porque usam o `git`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# os argumentos. Rodam na máquina, porque usam o `git`. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

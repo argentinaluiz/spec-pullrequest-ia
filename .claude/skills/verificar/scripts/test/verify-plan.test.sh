@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Testes dos argumentos do modo `plan` do .claude/skills/verificar/scripts/verify.sh: a ordem antiga (`plan <ticket> [<commit>]`)
+# Testes dos argumentos do modo `plan` do verify.sh: a ordem antiga (`plan <ticket> [<commit>]`)
 # é recusada com a ordem nova (`plan <pai> <ticket> [<commit>]`) e um exemplo. Só os casos recusados
 # rodam aqui, porque param antes de chamar a página do plano. Rodam na máquina, como o verify.sh.
 

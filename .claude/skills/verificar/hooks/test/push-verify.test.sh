@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# Testes do hook .claude/skills/verificar/hooks/push-verify.sh nos comandos que ele nega fora do push (o `unlock` do
-# .claude/skills/verificar/scripts/verify.sh e o `CI=` ou `GITHUB_ACTIONS=` no comando dele; a pasta de estado é do hook da skill
+# Testes do hook push-verify.sh nos comandos que ele nega fora do push (o `unlock` do
+# verify.sh e o `CI=` ou `GITHUB_ACTIONS=` no comando dele; a pasta de estado é do hook da skill
 # proteger-harness), pela entrada que o Claude Code entrega a ele (um
 # JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). O `git push` não entra:
-# ele chama o `.claude/skills/verificar/scripts/verify.sh prepush`, que confere o estado deste clone. Rodam na máquina, como o
-# hook, porque ele usa o `jq`, que o contêiner `api` não tem. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# ele chama o `verify.sh prepush`, que confere o estado deste clone. Rodam na máquina, como o
+# hook, porque ele usa o `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
@@ -116,7 +116,7 @@ expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" 
 
 # A frase de destravar do hook do estado, que o settings.json passa na linha de comando dele, é a mesma das
 # mensagens do verify.sh (FULL_LOCK_ASK): a mensagem não pode ficar com duas versões.
-# shellcheck source=full-lock.sh
+# shellcheck source=../../scripts/full-lock.sh
 source "$ROOT/.claude/skills/verificar/scripts/full-lock.sh"
 state_hook_has_lock_ask() {
   jq -r '.hooks.PreToolUse[].hooks[].command' "$ROOT/.claude/settings.json" | grep -qF -- "$FULL_LOCK_ASK"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Testes do hook .claude/skills/verificar/hooks/record-touched.sh, que anota por sessão os arquivos de apps/ que o
+# Testes do hook record-touched.sh, que anota por sessão os arquivos de apps/ que o
 # agente editou, pela entrada que o Claude Code entrega a ele (um JSON pela entrada padrão). O hook
 # nunca bloqueia, então todo caso confere a saída 0. Rodam na máquina, como o hook, porque ele usa o
-# `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"

@@ -9,7 +9,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
+# shellcheck source=../../scripts/test/sh-helpers.sh
 source "$HERE/../../scripts/test/sh-helpers.sh"
 
 for tool in git jq; do

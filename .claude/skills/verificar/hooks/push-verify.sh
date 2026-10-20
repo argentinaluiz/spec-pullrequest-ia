@@ -3,10 +3,10 @@
 # Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente cinco
 # comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário, ou
 # com as variáveis do modo de teste, que trocam o `gh` e contornariam a conferência do merge;
-# o `.claude/skills/verificar/scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
-# o `.claude/skills/verificar/scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
-# `.claude/skills/verificar/scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; e o `git push`
-# que o `.claude/skills/verificar/scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
+# o `verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
+# o `verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
+# `verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; e o `git push`
+# que o `verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
 # não aprovou o último commit. As guardas são para um agente que coopera, e não uma barreira de
 # segurança.
 #
