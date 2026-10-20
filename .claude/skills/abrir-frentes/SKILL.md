@@ -23,22 +23,23 @@ How to open the parallel fronts of a spec. It prepares the places where the work
 
 2. **Sort them.** Put each ticket in one group:
    - **Done:** leave out.
-   - **Has a front or a pull request:** a worktree whose branch ends in the ticket, or an open pull request, as `scripts/frentes.sh listar` shows. Leave out and say where it is.
+   - **Already taken:** the ticket has a worktree whose branch ends in it (`scripts/frentes.sh listar`), a pull request (open or merged), a local or remote branch (`git fetch`, then `git branch -a --list '*<ticket in lowercase>*'`), or the status "In Progress" or "In Review" in the tracker. Leave out and say where the work is. The `novo` only looks at worktrees: given a ticket that has a branch but no worktree, it would create a second branch for the same ticket, apart from the work already done. How to resume that work is the user's decision.
+   - **No code to build:** a ticket that changes nothing in the repository, like a design in Figma, has no pull request and needs no front. Leave out and say so.
    - **Blocked:** some blocker is not "Done". Done means merged into the `main`, so a blocker with an open pull request still blocks. Leave out and say what unblocks it.
-   - **Free:** no pending blocker and no front. This is the frontier.
+   - **Free:** no pending blocker and not taken. This is the frontier.
 
    If the frontier is empty, say why (everything is blocked, in progress or done) and stop.
 
-3. **How many fit.** Run `scripts/frentes.sh listar` and count the open fronts. The limit is 3 in total (`FRENTES_LIMITE` adjusts it), and the main checkout counts as one when it is on a branch that is not the `main`. The number to open is the least of: the free tickets, the free fronts, and what the user asked for. If it is zero, show the list and stop.
+3. **How many fit.** Run `scripts/frentes.sh listar` and count the open fronts. The limit is 3 in total (`FRENTES_LIMITE` adjusts it), and the main checkout counts as one whenever it is not on the `main` branch, a detached HEAD included. An old worktree counts too, with or without a pull request: name the ones that look abandoned and leave them to the user, because removing a front without a merge is the user's. The number to open is the least of: the free tickets, the free fronts, and what the user asked for. If it is zero, show the list and stop.
 
-4. **Which ones, when there are more free tickets than fronts.** Read each free ticket and its section "Decisões de outros tickets". Prefer tickets that touch different areas, because two fronts on the same files meet in a conflict at the sync, and tickets that unblock the most others. Do not pick two tickets where one takes a decision the other also takes: the escalation rule of the root `AGENTS.md` ("Ao trabalhar em um ticket") sends that to the user, so say it. Propose the choice with the reason of each.
+4. **Overlap, and which ones when there are more free tickets than fronts.** Read each free ticket and its section "Decisões de outros tickets", and compare it with the tickets already taken in step 2, which keep running while the new fronts work. Prefer tickets that touch different areas, because two fronts on the same files meet in a conflict at the sync, and tickets that unblock the most others. Warn when a free ticket overlaps one already taken. Do not pick two tickets where one takes a decision the other also takes: the escalation rule of the root `AGENTS.md` ("Ao trabalhar em um ticket") sends that to the user, so say it. Propose the choice with the reason of each.
 
 5. **Confirm.** Show the proposal: for each ticket, its identifier, title, type (`feature`, or `bugfix` when its label is `Bug`; `hotfix` and `docs` only if the user says) and the slot it will probably take. Say that each front starts a whole Docker environment, which takes minutes. Wait for the user to confirm or change the list. Do not start before.
 
 6. **Create the fronts.** For each confirmed ticket, one after the other, run `scripts/frentes.sh novo <ticket> [type]` in the background (`run_in_background`), because the first start of an environment takes minutes and the commands are not allowed to wait. One after the other, not together: each start builds images and loads the machine. Wait for each to end before the next. If a `novo` refuses (limit, a ticket that already has a front, a port in use on the machine), do not work around it: report the refusal as the script prints it, skip that ticket and go on with the others. If it fails halfway, run `scripts/frentes.sh listar` and say what state the front is in; do not delete anything.
 
 7. **Report.** When all have ended, run `scripts/frentes.sh listar` once and answer in the chat with one row per front: ticket and title, folder, slot and ports, and the command that `novo` printed to open the session. Then, for each ticket, the first thing to run in its session:
-   - `/plan-ticket <ticket>` when the base has no acceptance file for it (`git show <base>:docs/tickets/<spec>/<ticket>/aceite.md` fails).
-   - `/implement <ticket>` when the plan commit already exists on the branch.
+   - `/plan-ticket <ticket>` when the base has no acceptance file for it (`git show <base>:docs/tickets/<spec>/<ticket>/aceite.md` fails). A new front starts from the base, so this is the usual case.
+   - `/implement <ticket>` when the base already has the acceptance file, which means the plan is merged.
 
    Close with what was left out and why (blocked tickets and what unblocks them, tickets already in progress, refusals), and with the reminders that matter to several fronts: one browser profile per slot, and `scripts/frentes.sh listar` shows which fronts will conflict.
