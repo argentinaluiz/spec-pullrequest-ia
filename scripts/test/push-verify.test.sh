@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Testes do hook .claude/hooks/push-verify.sh nos comandos que ele nega fora do push (o `unlock` do
-# scripts/verify.sh, o `CI=` ou `GITHUB_ACTIONS=` no comando dele e a pasta de estado do harness), pela entrada que o Claude Code entrega a ele (um
+# scripts/verify.sh e o `CI=` ou `GITHUB_ACTIONS=` no comando dele; a pasta de estado é do hook da skill
+# proteger-harness), pela entrada que o Claude Code entrega a ele (um
 # JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). O `git push` não entra:
 # ele chama o `scripts/verify.sh prepush`, que confere o estado deste clone. Rodam na máquina, como o
 # hook, porque ele usa o `jq`, que o contêiner `api` não tem. Quem chama é o scripts/verify.sh.
@@ -73,47 +74,6 @@ expect 2 "nega também a mensagem que cita o verify.sh e o unlock, porque o hook
   "$(command_input 'git commit -m "peça ao usuário o scripts/verify.sh unlock"')" "só o usuário destrava"
 expect 2 "nega a entrada ilegível que cita o verify.sh e o unlock" \
   "isto não é json scripts/verify.sh unlock" "só o usuário destrava"
-
-expect 2 "nega apagar a trava na pasta de estado do harness, e diz que o estado é da verificação" \
-  "$(command_input 'rm .harness/full-lock')" "o estado é da verificação"
-expect 2 "nega mexer na aprovação do modo completo por outro caminho" \
-  "$(command_input 'cp /tmp/x "$(git rev-parse --show-toplevel)/.harness/full-ok"')" "o estado é da verificação"
-expect 2 "nega a pasta de estado montada pela raiz do repositório, em um trecho com espaços" \
-  "$(command_input 'cat "$(git rev-parse --show-toplevel)/.harness/full-lock"')" "o estado é da verificação"
-expect 2 "nega ler a aprovação do modo completo" \
-  "$(command_input 'cat .harness/full-ok')" "o estado é da verificação"
-expect 2 "nega apagar a pasta de estado inteira, sem barra no fim" \
-  "$(command_input 'rm -rf .harness')" "o estado é da verificação"
-expect 2 "nega a pasta de estado entre aspas" \
-  "$(command_input 'ls "./.harness"')" "o estado é da verificação"
-expect 2 "nega a pasta de estado seguida de um arquivo, escrita por redirecionamento" \
-  "$(command_input 'echo x > ./.harness/full-ok')" "o estado é da verificação"
-expect 2 "nega a pasta de estado entre aspas, sozinha" \
-  "$(command_input 'rm -rf ".harness"')" "o estado é da verificação"
-expect 2 "nega a pasta de estado montada pela raiz do repositório, fora das aspas" \
-  "$(command_input 'rm $(git rev-parse --show-toplevel)/.harness/full-lock')" "o estado é da verificação"
-expect 2 "nega a pasta de estado dentro do bash -c" \
-  "$(command_input "bash -c 'rm -rf .harness'")" "o estado é da verificação"
-expect 2 "nega a pasta de estado antiga, que também guardava a trava" \
-  "$(command_input 'rm .git/harness/full-lock')" "o estado é da verificação"
-expect 0 "libera um arquivo full- que não é da pasta de estado" \
-  "$(command_input 'cd somewhere && rm harness/full-lock')"
-expect 0 "libera a mensagem de commit que cita a pasta de estado" \
-  "$(command_input 'git commit -m "state moved to .harness/"')"
-expect 0 "libera a mensagem de commit em heredoc que cita a pasta de estado" \
-  "$(command_input $'git commit -m "$(cat <<\'EOF\'\nfix: o estado vai para .harness/full-ok\n\nmais texto sobre .harness\nEOF\n)"')"
-expect 0 "libera o corpo do PR, entre aspas simples, que cita a pasta de estado" \
-  "$(command_input "gh pr create --title 'x' --body 'a pasta .harness guarda a trava (.harness/full-lock)'")"
-expect 0 "libera o padrão de um grep que cita a pasta de estado" \
-  "$(command_input 'grep -rn "the .harness folder" docs')"
-expect 0 "libera o ponto escapado de um padrão de busca" \
-  "$(command_input 'grep -rn "\.harness" docs')"
-expect 2 "nega a entrada ilegível que cita a pasta de estado" \
-  "isto não é json rm .harness/full-lock" "o estado é da verificação"
-expect 0 "libera o ls -a, que não cita a pasta de estado" \
-  "$(command_input 'ls -a')"
-expect 0 "libera nomes parecidos, que não são a pasta de estado" \
-  "$(command_input 'ls docs/lld.md scripts/harness-guard.sh my.harness-x .harnessrc')"
 
 expect 2 "nega o verify.sh com CI= na frente, e diz que a variável desligaria a trava" \
   "$(command_input 'CI=true scripts/verify.sh full')" "desligariam a trava"

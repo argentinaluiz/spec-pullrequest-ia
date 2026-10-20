@@ -78,13 +78,18 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 # Os scripts da skill de plano: o parser do aceite, que o conferidor importa, e a página do plano. No
 # contêiner `api`, ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
-# O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo.
-VERIFIED_PATHS=(apps compose.dev.yaml scripts "$PLAN_SKILL_SCRIPTS" docs/tickets)
+# O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
+# pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
+# confere), achadas por scripts/verify/skill-tests.sh; o texto de uma skill não entra.
+VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/tickets)
+while IFS= read -r skill_dir; do
+  VERIFIED_PATHS+=("$skill_dir")
+done < <(scripts/verify/skill-tests.sh dirs)
 # O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
-# o scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
+# o .claude/skills/proteger-harness/scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
 # estado a exigem, com o `require_state`.
-# shellcheck source=harness-dir.sh
-source scripts/harness-dir.sh
+# shellcheck source=../.claude/skills/proteger-harness/scripts/harness-dir.sh
+source .claude/skills/proteger-harness/scripts/harness-dir.sh
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
 # A trava das reprovações repetidas do modo completo, com as funções do scripts/full-lock.sh.
@@ -225,22 +230,27 @@ HARNESS_REPORT=reports/harness/node-tests.json
 # relatório tem um escritor só.
 HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 
-# Roda os testes do harness: os do conferidor, do renderizador do contrato e os da skill de plano (o
-# parser e a página do plano) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
-# completo e os modos do verify.sh) na máquina, pelo executor que grava o relatório delas. Os dois
-# relatórios passam pelo `check_report`, e um grupo que falha não impede o outro de rodar.
+# Roda os testes do harness: os do conferidor e do renderizador do contrato e os das skills (o parser e a
+# página do plano, por exemplo) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
+# completo, os modos do verify.sh e as das skills) na máquina, pelo executor que grava o relatório delas. Os
+# testes das skills são achados por scripts/verify/skill-tests.sh, sem lista à mão: uma skill nova com um
+# teste ao lado do script entra sozinha. Os dois relatórios passam pelo `check_report`, e um grupo que falha
+# não impede o outro de rodar.
 harness_tests() {
   local code=0
+  local -a skill_node_tests skill_shell_tests
+  mapfile -t skill_node_tests < <(scripts/verify/skill-tests.sh cjs)
+  mapfile -t skill_shell_tests < <(scripts/verify/skill-tests.sh sh)
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.
   node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
     --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
-    scripts/test/*.test.cjs "$PLAN_SKILL_SCRIPTS"/test/*.test.cjs &&
+    scripts/test/*.test.cjs "${skill_node_tests[@]}" &&
     check_report api vitest "$HARNESS_REPORT" || code=1
   # As suítes em shell usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que
   # roda na máquina: elas rodam aqui. O relatório é o que faz um caso delas provar um critério.
-  scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh &&
+  scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh "${skill_shell_tests[@]}" &&
     check_report api vitest "$HARNESS_SHELL_REPORT" || code=1
   return $code
 }
@@ -443,7 +453,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, em scripts/ ou em $PLAN_SKILL_SCRIPTS/ (os testes da skill ficam em $PLAN_SKILL_SCRIPTS/test/), e rode \`scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou, em scripts/ ou na pasta scripts/ ou hooks/ de uma skill (os testes dela ficam na pasta test/ ao lado), e rode \`scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de

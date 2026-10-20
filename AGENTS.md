@@ -164,7 +164,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nos scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**

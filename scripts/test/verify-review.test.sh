@@ -30,8 +30,9 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/docker"
 chmod +x "$tmp/bin/docker"
 
 # O repositório: os scripts do verify.sh e as regras de docs/tickets do .gitignore, na main.
-mkdir -p "$repo/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
-cp -R "$ROOT/scripts/verify.sh" "$ROOT/scripts/verify" "$ROOT/scripts/harness-dir.sh" "$ROOT/scripts/harness-base.sh" "$ROOT/scripts/full-lock.sh" "$repo/scripts/"
+mkdir -p "$repo/scripts" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
+cp -R "$ROOT/scripts/verify.sh" "$ROOT/scripts/verify" "$ROOT/scripts/harness-base.sh" "$ROOT/scripts/full-lock.sh" "$repo/scripts/"
+cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$repo/.claude/skills/proteger-harness/scripts/"
 grep '^!\{0,1\}docs/tickets/' "$ROOT/.gitignore" >"$repo/.gitignore"
 # O desvio falso: com FAKE_DRIFT, há desvio, e ele faz como o grupo da API (acrescenta a visão ao
 # arquivo e avisa); sem ela, diz que o contrato está igual, sem gravar nada.

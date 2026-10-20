@@ -84,17 +84,17 @@ repo="$state/repo"
 git init -q "$repo"
 harness="$repo/.harness"
 mkdir -p "$harness"
-# A definição única da pasta de estado (scripts/harness-dir.sh): a pasta de estado do checkout, achada
+# A definição única da pasta de estado (.claude/skills/proteger-harness/scripts/harness-dir.sh): a pasta de estado do checkout, achada
 # pelo lugar do script ou pelo CLAUDE_PROJECT_DIR, e nunca pela pasta em que quem chama está.
 mkdir -p "$repo/sub"
 check "a pasta de estado é a do checkout do script, mesmo com a pasta atual fora de um repositório" \
-  env -u CLAUDE_PROJECT_DIR bash -c 'cd / && source "$1/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$1/.harness" ]]' _ "$ROOT"
+  env -u CLAUDE_PROJECT_DIR bash -c 'cd / && source "$1/.claude/skills/proteger-harness/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$1/.harness" ]]' _ "$ROOT"
 check "a pasta de estado não segue a pasta atual de outro repositório" \
-  env -u CLAUDE_PROJECT_DIR bash -c 'cd "$1/sub" && source "$2/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$2/.harness" ]]' _ "$repo" "$ROOT"
+  env -u CLAUDE_PROJECT_DIR bash -c 'cd "$1/sub" && source "$2/.claude/skills/proteger-harness/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$2/.harness" ]]' _ "$repo" "$ROOT"
 check "o CLAUDE_PROJECT_DIR, quando definido, é a raiz do checkout" \
-  env CLAUDE_PROJECT_DIR="$repo" bash -c 'cd / && source "$1/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$(cd "$2" && pwd -P)/.harness" ]]' _ "$ROOT" "$repo"
+  env CLAUDE_PROJECT_DIR="$repo" bash -c 'cd / && source "$1/.claude/skills/proteger-harness/scripts/harness-dir.sh" && [[ "$HARNESS_DIR" == "$(cd "$2" && pwd -P)/.harness" ]]' _ "$ROOT" "$repo"
 check "um CLAUDE_PROJECT_DIR que não é uma pasta deixa a pasta de estado vazia" \
-  env CLAUDE_PROJECT_DIR="$state/nao-existe" bash -c 'source "$1/scripts/harness-dir.sh" && [[ -z "$HARNESS_DIR" ]]' _ "$ROOT"
+  env CLAUDE_PROJECT_DIR="$state/nao-existe" bash -c 'source "$1/.claude/skills/proteger-harness/scripts/harness-dir.sh" && [[ -z "$HARNESS_DIR" ]]' _ "$ROOT"
 # verify <CI> <argumentos...>: o STATE_ROOT, quando definido, troca a raiz do checkout do estado.
 verify() {
   CI="$1" CLAUDE_PROJECT_DIR="${STATE_ROOT:-$repo}" GIT_DIR="$repo/.git" GIT_WORK_TREE="$repo" HARNESS_BASE_REF=nao-existe "$ROOT/scripts/verify.sh" "${@:2}"
