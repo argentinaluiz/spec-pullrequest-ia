@@ -146,7 +146,8 @@ fi
 
 # Os insumos não podem ir para um commit: o .gitignore deve ignorar tudo na pasta do ticket, salvo o aceite e o mapa de testes.
 # Confere antes de gravar, pelo padrão, para um abort não deixar arquivos prontos para um `git add`.
-for file in review.diff plano.txt contract-drift.txt criterios.md; do
+if [[ -n "$plan" ]]; then written=(review.diff plano.txt contract-drift.txt); else written=(review.diff criterios.md); fi
+for file in "${written[@]}"; do
   git check-ignore -q --no-index "$dir/$file" ||
     abort "o $dir/$file não seria ignorado pelo Git, e iria para um commit." \
       "confira as regras de $tickets no .gitignore: ele deve ignorar tudo na pasta do ticket, salvo o aceite.md e o mapa de testes."

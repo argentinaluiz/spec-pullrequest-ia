@@ -16,9 +16,11 @@ name="a cópia instalada do revisor é o modelo da skill mais a ferramenta do Li
 
 # O cabeçalho da cópia: as linhas entre os dois `---` do começo. O corpo é o que vem depois, sem a linha em branco que os separa.
 header="$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { exit } inside' "$INSTALLED")"
-body="$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { inside = 0; started = 1; next } started' "$INSTALLED" | sed '1{/^$/d}')"
 
-check "$name: o corpo da cópia é o modelo, palavra por palavra" test "$body" = "$(cat "$MODEL")"
+body_is_model() {
+  diff -q <(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { inside = 0; started = 1; skip = 1; next } started { if (skip && $0 == "") { skip = 0; next } skip = 0; print }' "$INSTALLED") "$MODEL" >/dev/null
+}
+check "$name: o corpo da cópia é o modelo, byte a byte" body_is_model
 check "$name: o cabeçalho da cópia dá o nome do agente" bash -c '[[ "$1" == *"name: revisor-conformidade"* ]]' _ "$header"
 check "$name: a única ferramenta do projeto no cabeçalho é a do Linear" \
   bash -c '[[ "$1" == *"tools: Read, Grep, Glob, mcp__linear-server__get_issue"* ]]' _ "$header"

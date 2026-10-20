@@ -213,6 +213,20 @@ refuses_unignored() { [[ $code -eq 2 && "$err" == *"iria para um commit"* && ! -
 check "recusa um insumo que o Git não ignoraria" refuses_unignored
 cp "$tmp/gitignore" "$repo/.gitignore"
 
+# Sem ticket, o script só grava o diff e lê os critérios: o .gitignore mínimo (só esses dois) basta.
+minimal_ignore_without_ticket() {
+  cp "$repo/.gitignore" "$tmp/gitignore-completo"
+  printf '%s\n' 'docs/tickets/sem-ticket/*/review.diff' 'docs/tickets/sem-ticket/*/criterios.md' >"$repo/.gitignore"
+  mkdir -p "$repo/docs/tickets/sem-ticket/skill-de-revisao"
+  printf '1. Um critério.\n' >"$repo/docs/tickets/sem-ticket/skill-de-revisao/criterios.md"
+  review sem-ticket skill-de-revisao
+  local ok=1
+  [[ $code -eq 0 && -s "$repo/docs/tickets/sem-ticket/skill-de-revisao/review.diff" ]] || ok=0
+  cp "$tmp/gitignore-completo" "$repo/.gitignore"
+  [[ $ok -eq 1 ]]
+}
+check "sem ticket, um .gitignore que ignora só o diff e os critérios basta" minimal_ignore_without_ticket
+
 # --- um repositório de fora: só a cópia da skill, sem contrato nenhum, com os padrões da base e do desvio
 
 outside="$tmp/fora"
