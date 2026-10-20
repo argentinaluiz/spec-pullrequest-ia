@@ -1,7 +1,7 @@
 # A definição única do que conta como "mexer na pasta de estado do harness" num comando de shell: os
 # padrões e a leitura das aspas e dos heredocs. Quem carrega este arquivo com `source` é o hook
-# do estado (hooks/state-guard.sh) e quem mais precisa ler um comando de shell, como o hook do projeto que usa o
-# `split_quotes`. O que a regra deixa passar de propósito está nos testes do hook do estado.
+# do estado (hooks/state-guard.sh), e o hook do projeto que lê as aspas de um comando pelo `split_quotes`. O
+# que a regra deixa passar de propósito está nos testes do hook do estado.
 
 # A pasta de estado como componente de caminho (`.harness`, `.harness/x`, `/.harness`, `./.harness`),
 # mas não `.harness-x`, `x.harness` nem `\.harness` (o ponto escapado de um padrão de busca).

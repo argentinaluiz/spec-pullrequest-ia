@@ -89,17 +89,18 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   regexes+=("$(pattern_regex "$path")")
 done <"$list"
 
-# O tipo do primeiro padrão que casa com o caminho, ou nada.
+# Põe em `class` o tipo do primeiro padrão que casa com o caminho, ou nada. Não imprime, para o laço dos
+# caminhos não criar um subshell por arquivo.
 # classify <caminho>
 classify() {
   local i
+  class=""
   for i in "${!regexes[@]}"; do
     if [[ "$1" =~ ${regexes[i]} ]]; then
-      printf '%s' "${types[i]}"
+      class="${types[i]}"
       return 0
     fi
   done
-  return 1
 }
 
 # Os comandos do manifesto de pacote são o que a verificação chama: trocar um deles por um comando que
@@ -123,7 +124,8 @@ total=0
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   total=$((total + 1))
-  case "$(classify "$file")" in
+  classify "$file"
+  case "$class" in
     bloqueado) blocked+=("$file") ;;
     aviso) warned+=("$file") ;;
     # Descongelar é legítimo quando um ticket muda um comportamento já entregue, e o humano que faz o

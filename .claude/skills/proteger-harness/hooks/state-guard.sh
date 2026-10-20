@@ -21,8 +21,6 @@ if [[ "${1:-}" == --ajuda ]]; then
   help_text="${2:-}"
 fi
 
-# shellcheck source=../scripts/harness-state-guard.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../scripts/harness-state-guard.sh"
 
 deny_state() {
   {
@@ -34,6 +32,13 @@ deny_state() {
 
 # O hook recebe um JSON pela entrada padrão, com o comando em `tool_input.command`.
 input="$(cat)"
+
+# Quase nenhum comando cita a pasta de estado, e o hook roda em todo comando de shell: sem a palavra
+# `harness` na entrada, nenhum dos padrões da pasta casa, e o hook sai sem ler as aspas.
+[[ "$input" == *harness* ]] || exit 0
+
+# shellcheck source=../scripts/harness-state-guard.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../scripts/harness-state-guard.sh"
 
 # Sem conseguir ler o comando, qualquer citação da pasta conta, para a falha do `jq` não liberá-lo.
 if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; then

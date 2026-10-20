@@ -75,8 +75,8 @@ source scripts/harness-base.sh
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
-# Os scripts da skill de plano: o parser do aceite, que o conferidor importa, e a página do plano. No
-# contêiner `api`, ficam no mesmo caminho, dentro do repositório montado em /repo.
+# Os scripts da skill de plano, de onde sai a página do plano. No contêiner `api`, ficam no mesmo caminho,
+# dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
