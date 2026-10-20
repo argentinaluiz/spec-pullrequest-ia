@@ -56,5 +56,9 @@ check "$name: o executor põe o token do nome do caso na tag do relatório" test
 # executor como uma suíte que não existe e reprovaria o grupo dos testes do harness.
 check "a verificação não passa glob da pasta de scripts da raiz, que não existe mais" \
   bash -c '! grep -qE "(^|[ \"])scripts/test/" "$1"' _ "$SKILL/scripts/verify.sh"
+# E a lista dos caminhos que ela lê não traz a pasta: o Git recusa um pathspec que não casa com nada, e o resumo do
+# estado da pasta, no começo do modo completo, falharia.
+check "a lista dos caminhos que a verificação lê não traz a pasta de scripts da raiz" \
+  bash -c '! grep -qE "^VERIFIED_PATHS=\(.*[ (]scripts[ )]" "$1"' _ "$SKILL/scripts/verify.sh"
 
 finish "da cobertura dos critérios que mudaram de lugar"

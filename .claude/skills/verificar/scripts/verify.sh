@@ -72,7 +72,7 @@ CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
 # confere), achadas por skill-tests.sh; o texto de uma skill não entra.
-VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/tickets)
+VERIFIED_PATHS=(apps compose.dev.yaml docs/tickets)
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
 done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs)

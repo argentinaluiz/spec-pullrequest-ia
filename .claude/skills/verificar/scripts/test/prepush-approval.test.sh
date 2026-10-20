@@ -61,7 +61,7 @@ prepush() {
 head_state() {
   (
     cd "$repo" || exit 1
-    local -a paths=(apps compose.dev.yaml scripts docs/tickets)
+    local -a paths=(apps compose.dev.yaml docs/tickets)
     local dir path
     while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs)
     for path in "${paths[@]}"; do
@@ -82,7 +82,7 @@ prepush
 check "$name: a branch que não altera nada do que a verificação lê não precisa de aprovação" code_is 0
 check "$name: ... e diz que não precisa" contains "$out" "Não precisa de aprovação"
 
-commit_file scripts/novo.sh 'echo novo'
+commit_file apps/novo.sh 'echo novo'
 prepush
 check "$name: sem aprovação, o commit que altera o que a verificação lê é recusado" code_is 1
 check "$name: ... e diz que o modo completo não aprovou o último commit" contains "$out" "não aprovou o conteúdo do último commit"
@@ -119,7 +119,7 @@ push_hook() {
 approve "$(head_state)" checked
 push_hook "git push origin trabalho"
 check "$hook_name: o push do conteúdo aprovado passa" code_is 0
-commit_file scripts/outro.sh 'echo outro'
+commit_file apps/outro.sh 'echo outro'
 push_hook "git push origin trabalho"
 check "$hook_name: o push do commit sem aprovação é negado" code_is 2
 check "$hook_name: ... e a mensagem diz que a verificação de antes do push não passou" contains "$err" "O push foi negado"
