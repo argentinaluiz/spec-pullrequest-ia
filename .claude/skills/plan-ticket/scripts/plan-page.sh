@@ -120,18 +120,22 @@ contract_files=()
 dir="$tickets/$pai/$ticket"
 msg="$dir/plano.msg"
 acceptance="$dir/aceite.md"
+test_map="$dir/mapa-de-testes.txt"
 
 # As regras do .gitignore para a pasta do ticket (formatos/aceite.md, "Onde"), numa chamada só, sem
 # olhar o que já está em commit: os caminhos ignorados, um por linha, entre quebras de linha.
-ignored=$'\n'"$(git -c core.quotePath=false check-ignore --no-index -- "$dir/plano.html" "$msg" "$acceptance")"$'\n'
+ignored=$'\n'"$(git -c core.quotePath=false check-ignore --no-index -- "$dir/plano.html" "$msg" "$acceptance" "$test_map")"$'\n'
 for file in "$dir/plano.html" "$msg"; do
   [[ "$ignored" == *$'\n'"$file"$'\n'* ]] ||
-    stop 2 "A pasta dos tickets, $tickets, não ignora o $file, e só o aceite.md de cada ticket é versionado." \
-      "acrescente ao .gitignore as linhas \`$tickets/*/*/*\` e \`!$tickets/*/*/aceite.md\`, e rode o script de novo."
+    stop 2 "A pasta dos tickets, $tickets, não ignora o $file, e só o aceite.md e o mapa-de-testes.txt de cada ticket são versionados." \
+      "acrescente ao .gitignore as linhas \`$tickets/*/*/*\`, \`!$tickets/*/*/aceite.md\` e \`!$tickets/*/*/mapa-de-testes.txt\`, e rode o script de novo."
 done
 [[ "$ignored" == *$'\n'"$acceptance"$'\n'* ]] &&
   stop 2 "A pasta dos tickets, $tickets, ignora o $acceptance, e o arquivo de aceite entra no commit de plano." \
-    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\` ou \`$tickets/*/*\`) pelas linhas \`$tickets/*/*/*\` e \`!$tickets/*/*/aceite.md\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
+    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\` ou \`$tickets/*/*\`) pelas linhas \`$tickets/*/*/*\`, \`!$tickets/*/*/aceite.md\` e \`!$tickets/*/*/mapa-de-testes.txt\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
+[[ "$ignored" == *$'\n'"$test_map"$'\n'* ]] &&
+  stop 2 "A pasta dos tickets, $tickets, ignora o $test_map, e o mapa de testes do ticket é versionado ao lado do aceite." \
+    "acrescente ao .gitignore a linha \`!$tickets/*/*/mapa-de-testes.txt\`, depois da \`!$tickets/*/*/aceite.md\`, e rode o script de novo."
 
 # Roda um comando do projeto, que pode ter argumentos próprios, com os argumentos dados.
 # project <comando> <argumentos...>

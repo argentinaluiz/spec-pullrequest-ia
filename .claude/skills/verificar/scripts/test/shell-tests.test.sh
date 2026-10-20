@@ -68,7 +68,7 @@ run() {
 # checker: o conferidor do aceite sobre o relatório de mentira, lido como `vitest`, com a saída em $out e
 # o código em $checker_code.
 checker() {
-  out="$(scripts/node-in-api.sh scripts/check-acceptance.cjs --optional - "$tickets" "vitest:$in_container/shell-tests.json" 2>&1 </dev/null)"
+  out="$(scripts/node-in-api.sh .claude/skills/plan-ticket/scripts/check-acceptance.cjs --optional - "$tickets" "vitest:$in_container/shell-tests.json" 2>&1 </dev/null)"
   checker_code=$?
 }
 

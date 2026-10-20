@@ -17,7 +17,7 @@ trap 'rm -rf "$project"' EXIT
 git -C "$project" init -q
 git -C "$project" config user.email t@t
 git -C "$project" config user.name t
-printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$project/.gitignore"
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$project/.gitignore"
 echo x >"$project/a.txt"
 git -C "$project" add -A
 git -C "$project" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m base || exit 2
@@ -61,7 +61,7 @@ plan --pai PROJ-1 --ticket PROJ-2
 check "recusa o .gitignore da profundidade antiga: a regra da pasta ignora o aceite" test $code -eq 2
 check "a mensagem diz que o aceite é ignorado" contains 'ignora o docs/tickets/PROJ-1/PROJ-2/aceite.md'
 check "a mensagem manda trocar a regra obsoleta da pasta" contains 'troque a regra que ignora a própria pasta'
-check "a mensagem traz as regras da profundidade nova" contains '`docs/tickets/*/*/*` e `!docs/tickets/*/*/aceite.md`'
+check "a mensagem traz as regras da profundidade nova" contains '`docs/tickets/*/*/*`, `!docs/tickets/*/*/aceite.md` e `!docs/tickets/*/*/mapa-de-testes.txt`'
 
 # Sem nenhuma regra, a página e a mensagem seriam versionadas: é a outra recusa.
 : >"$project/.gitignore"
@@ -71,8 +71,18 @@ check "a mensagem diz qual arquivo não é ignorado" contains 'não ignora o doc
 check "a mensagem pede as linhas novas" contains 'acrescente ao .gitignore as linhas'
 
 # As regras novas passam de novo.
-printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$project/.gitignore"
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$project/.gitignore"
 plan --pai PROJ-1 --ticket PROJ-2
 check "aceita as regras da profundidade nova" test $code -eq 0
+
+# O mapa de testes do ticket é versionado como o aceite: um .gitignore que só versiona o aceite é recusado.
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$project/.gitignore"
+plan --pai PROJ-1 --ticket PROJ-2
+check "o script exige que o mapa de testes do ticket não seja ignorado @LUI-196-CA5" test $code -eq 2
+check "a mensagem diz que o mapa de testes é ignorado" contains 'ignora o docs/tickets/PROJ-1/PROJ-2/mapa-de-testes.txt'
+check "a mensagem pede a linha que versiona o mapa" contains '`!docs/tickets/*/*/mapa-de-testes.txt`'
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$project/.gitignore"
+plan --pai PROJ-1 --ticket PROJ-2
+check "o script monta a página quando o aceite e o mapa de testes são versionados @LUI-196-CA5" test $code -eq 0
 
 finish "do script da página do plano"

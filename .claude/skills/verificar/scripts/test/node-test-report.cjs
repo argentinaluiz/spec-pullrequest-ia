@@ -1,5 +1,5 @@
 // Repórter do `node:test` que grava o relatório no formato do Vitest, só com os testes e os totais:
-// é o formato que o conferidor de aceite (scripts/check-acceptance.cjs) e o `check-report.cjs` leem,
+// é o formato que o conferidor de aceite (.claude/skills/plan-ticket/scripts/check-acceptance.cjs) e o `check-report.cjs` leem,
 // e assim eles continuam com dois formatos. O `node:test` não tem tag: o token `@<ticket>-CA<n>` que
 // o título de um teste do harness traz vira também a tag do relatório, e o título fica como está.
 //

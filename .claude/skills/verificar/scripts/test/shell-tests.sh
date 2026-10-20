@@ -2,7 +2,7 @@
 #
 # Executor das suítes em shell do harness: roda cada suíte e grava o relatório no formato do Vitest,
 # o mesmo que o relatório dos testes em Node, para o `check-report.cjs` e o conferidor do aceite (o
-# scripts/check-acceptance.cjs) o lerem. O token `@<ticket>-CA<n>` do nome de um caso vira também uma
+# .claude/skills/plan-ticket/scripts/check-acceptance.cjs) o lerem. O token `@<ticket>-CA<n>` do nome de um caso vira também uma
 # tag dele, como no repórter dos testes em Node (node-test-report.cjs). Como nomear um
 # caso de aceite está no cabeçalho do sh-helpers.sh.
 #

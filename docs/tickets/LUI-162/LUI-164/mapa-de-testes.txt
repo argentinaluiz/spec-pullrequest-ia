@@ -1,0 +1,4 @@
+# Ligações do LUI-164: o teste do conferidor do aceite mora na skill plan-ticket e não leva o ID na tag.
+# ID, arquivo do teste e nome do caso, separados por tabulação.
+LUI-164-CA1	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	confere o relatório da suíte de unidade da web: aceita o teste que passou e recusa o que falhou
+LUI-164-CA2	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	aceita a marca teste de integração e exige o teste com o ID que rodou e passou

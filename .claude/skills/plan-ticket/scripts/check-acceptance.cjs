@@ -16,14 +16,19 @@
 // trabalho sem ticket (`sem-ticket/<nome>/`), que não tem aceite, passa sem ser notada. O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o
 // commit de plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
-// O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`) e o nome do arquivo de
-// aceite são os da skill de plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de
+// O mapa de testes de um ticket (`mapa-de-testes.txt`, ao lado do aceite) liga um critério a um caso de teste
+// que não pode levar o ID dele na tag, como o teste de uma skill de uso geral: cada linha (ID, arquivo e nome do
+// caso) vale como a tag desse caso. Reprova a linha cujo ID não está em nenhum aceite, a mal formada e a que liga
+// um caso que não aparece nos relatórios. O formato é o de formatos/mapa-de-testes.md, da skill de plano.
+//
+// O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`), o nome do arquivo de
+// aceite e o parser do mapa são os da skill de plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de
 // revisão do plano também usa: os dois leem o aceite com as mesmas regras.
 
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME } = require('../.claude/skills/plan-ticket/scripts/plan.cjs');
+const { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME, TEST_MAP_NAME, parseTestMap } = require('./plan.cjs');
 
 const HEADING = /^#{1,6}\s*aceite\s*$/i;
 const TAG_ID = /^@?([A-Z][A-Z0-9]*-\d+-CA\d+)$/g;
@@ -148,6 +153,7 @@ function vitestTests(report) {
   return report.testResults.flatMap((file) =>
     file.assertionResults.map((test) => ({
       title: test.title,
+      file: file.name,
       tags: test.tags ?? [],
       status: test.status === 'passed' ? 'passed' : test.status === 'failed' ? 'failed' : 'skipped',
     })),
@@ -161,6 +167,7 @@ function playwrightTests(report) {
       const statuses = spec.tests.map((test) => test.status);
       return {
         title: spec.title,
+        file: spec.file,
         tags: [...(spec.tags ?? []), ...spec.tests.flatMap((test) => test.tags ?? [])],
         status: statuses.includes('unexpected')
           ? 'failed'
@@ -178,12 +185,52 @@ function playwrightTests(report) {
 
 /** Os IDs de critério que um teste cita nas tags (que o relatório do Playwright pode trazer sem o `@`). */
 function idsOf(test) {
-  return new Set(test.tags.flatMap((tag) => [...String(tag).matchAll(TAG_ID)].map((match) => match[1])));
+  const tagged = test.tags.flatMap((tag) => [...String(tag).matchAll(TAG_ID)].map((match) => match[1]));
+  return new Set([...tagged, ...(test.mapped ?? [])]);
+}
+
+/** Se o arquivo do teste no relatório é o da linha do mapa: o mesmo caminho, ou o do mapa como fim dele. */
+function sameFile(reported, mapped) {
+  if (!reported) return false;
+  const normalized = String(reported).replace(/\\/g, '/');
+  return normalized === mapped || normalized.endsWith(`/${mapped}`);
 }
 
 /** Os IDs que um teste ainda traz como token no título, para a mensagem mandar movê-los para uma tag. */
 function titleIdsOf(test) {
   return [...String(test.title).matchAll(TITLE_TOKEN)].map((match) => match[1]);
+}
+
+/**
+ * Aplica o mapa de testes de cada ticket: a linha liga o ID ao caso do relatório (pelo arquivo e pelo nome
+ * inteiro do caso), que passa a contar como teste com esse ID. Reprova a linha mal formada, a de um ID que
+ * nenhum aceite tem e a de um caso que não aparece nos relatórios.
+ */
+function applyTestMaps(maps, known, tests) {
+  for (const [mapFile, text] of maps) {
+    const { links, problems } = parseTestMap(text);
+    for (const { line, reason } of problems) {
+      error(`o mapa ${mapFile}, linha ${line}: ${reason}. Escreva a linha no formato de formatos/mapa-de-testes.md, da skill de plano.`);
+    }
+    for (const link of links) {
+      if (!known.has(link.id)) {
+        error(
+          `o mapa ${mapFile} liga ${link.id}, que não está em nenhum arquivo de aceite. ` +
+            'Confira o ID digitado ou acrescente o critério ao arquivo de aceite do ticket.',
+        );
+        continue;
+      }
+      const cases = tests.filter((test) => test.title === link.name && sameFile(test.file, link.file));
+      if (cases.length === 0) {
+        error(
+          `o mapa ${mapFile} liga ${link.id} ao caso "${link.name}" de ${link.file}, que não aparece no relatório. ` +
+            'Rode a suíte desse arquivo, ou corrija a linha do mapa (o arquivo e o nome do caso são os do relatório).',
+        );
+        continue;
+      }
+      for (const test of cases) test.mapped = [...(test.mapped ?? []), link.id];
+    }
+  }
 }
 
 /** A linha de comando: os dois modos do cabeçalho. */
@@ -210,6 +257,7 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
   // mensagens os mostram.
   const tickets = ticketsFolder(ticketsDir);
   const files = new Map();
+  const maps = new Map();
   if (fs.existsSync(tickets)) {
     const folders = (dir) => fs.readdirSync(dir, { withFileTypes: true }).filter((item) => item.isDirectory());
     // `sem-ticket` guarda o trabalho sem ticket, e não é uma issue pai.
@@ -217,6 +265,8 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
       for (const ticket of folders(path.posix.join(tickets, issue.name))) {
         const file = path.posix.join(tickets, issue.name, ticket.name, ACCEPTANCE_NAME);
         if (fs.existsSync(file)) files.set(file, fs.readFileSync(file, 'utf8'));
+        const map = path.posix.join(tickets, issue.name, ticket.name, TEST_MAP_NAME);
+        if (fs.existsSync(map)) maps.set(map, fs.readFileSync(map, 'utf8'));
       }
     }
   }
@@ -272,6 +322,8 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
   }
   // Sem um relatório legível, a cobertura não é conferida: o resto só repetiria a falta dele.
   if (unreadable) finish();
+
+  applyTestMaps(maps, known, tests);
 
   // Estado dos testes por ID.
   const byId = new Map();

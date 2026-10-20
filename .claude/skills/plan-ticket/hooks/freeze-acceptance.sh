@@ -2,27 +2,38 @@
 #
 # Hook de antes da edição do Claude Code (evento PreToolUse, ferramentas de edição de arquivo).
 # O arquivo de aceite de um ticket fica congelado depois do commit de plano: quando o agente vai
-# editar um docs/tickets/<issue>/<ticket>/aceite.md que já está em commit, nega a edição. Criar um arquivo
-# de aceite novo e editar qualquer outro arquivo, inclusive os outros da pasta do ticket, continuam
-# liberados.
+# editar um <pasta dos tickets>/<issue>/<ticket>/aceite.md que já está em commit, nega a edição. Criar um arquivo
+# de aceite novo e editar qualquer outro arquivo, inclusive os outros da pasta do ticket (o mapa de testes é
+# um deles), continuam liberados.
+#
+#   freeze-acceptance.sh [<pasta dos tickets>]
+#
+# A pasta dos tickets, relativa à raiz do projeto, é do projeto, e chega pela linha de comando do hook; sem ela, vale
+# `docs/tickets`, o padrão da skill de plano.
 #
 # Sai com 0 para deixar a edição rodar e com 2 para negá-la. No 2, o que foi escrito na saída de
 # erro volta para o agente.
 
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
+cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
+
+# A pasta dos tickets, sem `./` nem barra no fim, como texto literal nas expressões abaixo.
+tickets="${1:-docs/tickets}"
+tickets="${tickets#./}"
+tickets="${tickets%/}"
+literal="$(printf '%s' "$tickets" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
 
 # O hook recebe um JSON pela entrada padrão, com o arquivo em `tool_input.file_path` (ou em
 # `tool_input.notebook_path`, no NotebookEdit).
 input="$(cat)"
 
 # O arquivo de aceite de um ticket, a partir da raiz do projeto.
-ACCEPTANCE='^docs/tickets/[^/]+/[^/]+/aceite\.md$'
+ACCEPTANCE="^$literal/[^/]+/[^/]+/aceite\\.md\$"
 # O mesmo arquivo citado em qualquer ponto de um texto, para a entrada ilegível.
-MENTION='docs/tickets/[^/[:space:]"]+/[^/[:space:]"]+/aceite\.md'
+MENTION="$literal/[^/[:space:]\"]+/[^/[:space:]\"]+/aceite\\.md"
 # O de antes da pasta da issue pai, de um nível só: continua congelado, e a mensagem diz onde ele fica.
-OLD_ACCEPTANCE='^docs/tickets/[^/]+/aceite\.md$'
-OLD_MENTION='docs/tickets/[^/[:space:]"]+/aceite\.md'
+OLD_ACCEPTANCE="^$literal/[^/]+/aceite\\.md\$"
+OLD_MENTION="$literal/[^/[:space:]\"]+/aceite\\.md"
 
 deny() {
   {
@@ -49,7 +60,7 @@ relative="$(realpath -m --relative-to="$PWD" -- "$file" 2>/dev/null)" || {
 }
 if [[ "$relative" =~ $OLD_ACCEPTANCE ]]; then
   git cat-file -e "HEAD:$relative" 2>/dev/null &&
-    deny "$relative, no caminho antigo (mova-o para docs/tickets/<issue>/<ticket>/, com um commit do usuário)"
+    deny "$relative, no caminho antigo (mova-o para $tickets/<issue>/<ticket>/, com um commit do usuário)"
   exit 0
 fi
 [[ "$relative" =~ $ACCEPTANCE ]] || exit 0

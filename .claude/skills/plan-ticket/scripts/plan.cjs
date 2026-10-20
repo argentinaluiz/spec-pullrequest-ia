@@ -1,11 +1,14 @@
 // O parser do plano de um ticket: o arquivo de aceite (`parseAcceptanceFile`), as marcas de
-// conferência (`CHECKS`) e a mensagem do commit de plano (`parseMessage`), nos formatos da skill de
-// plano (formatos/aceite.md e formatos/mensagem.md). A página do plano (page.cjs) lê o plano por
+// conferência (`CHECKS`), a mensagem do commit de plano (`parseMessage`) e o mapa de testes
+// (`parseTestMap`), nos formatos da skill de plano (formatos/aceite.md, formatos/mensagem.md e
+// formatos/mapa-de-testes.md). A página do plano (page.cjs) lê o plano por
 // aqui, e o conferidor do aceite de um projeto pode importá-lo, para os dois lerem com as mesmas
 // regras. Só usa a biblioteca padrão do Node.
 
 // O nome do arquivo de aceite, na pasta de cada ticket (formatos/aceite.md, "Onde").
 const ACCEPTANCE_NAME = 'aceite.md';
+// O nome do mapa de testes, ao lado do arquivo de aceite (formatos/mapa-de-testes.md).
+const TEST_MAP_NAME = 'mapa-de-testes.txt';
 
 // As marcas de conferência, pela forma normalizada (em minúsculas): o nome como se escreve e se
 // exige teste. Só as quatro primeiras exigem.
@@ -81,6 +84,33 @@ function parseAcceptanceFile(name, text) {
 
 // Os blocos da mensagem do commit de plano: o rótulo com que o parágrafo começa e, nos da aba
 // "Arquivos e interfaces", a chave dele no resultado.
+const MAP_ID = /^[A-Z][A-Z0-9]*-\d+-CA\d+$/;
+
+/**
+ * O mapa de testes de um ticket (formatos/mapa-de-testes.md): uma linha por ligação, com o ID do critério, o
+ * arquivo do teste e o nome do caso, separados por uma tabulação. As linhas em branco e as que começam com `#`
+ * não contam. Devolve as ligações (`id`, `file`, `name` e o número da `line`) e os `problems` de linhas mal
+ * formadas, cada um com o número da linha e o motivo.
+ */
+function parseTestMap(text) {
+  const links = [];
+  const problems = [];
+  text.split(/\r?\n/).forEach((raw, index) => {
+    const line = index + 1;
+    if (raw.trim() === '' || raw.startsWith('#')) return;
+    const [id, file, ...rest] = raw.split('\t');
+    const name = rest.join('\t');
+    if (!file?.trim() || !name.trim()) {
+      problems.push({ line, reason: 'precisa do ID, do arquivo de teste e do nome do caso, separados por uma tabulação' });
+    } else if (!MAP_ID.test(id.trim())) {
+      problems.push({ line, reason: `o ID "${id.trim()}" não tem a forma <ticket>-CA<n>` });
+    } else {
+      links.push({ id: id.trim(), file: file.trim(), name, line });
+    }
+  });
+  return { links, problems };
+}
+
 const DECISION = 'Decision:';
 const FILE_BLOCKS = [
   { key: 'files', label: 'Files and interfaces the implementation will touch:' },
@@ -135,4 +165,4 @@ function parseMessage(message) {
   return parsed;
 }
 
-module.exports = { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME, parseMessage, DECISION, FILE_BLOCKS };
+module.exports = { parseAcceptanceFile, CHECKS, ACCEPTANCE_NAME, TEST_MAP_NAME, parseTestMap, parseMessage, DECISION, FILE_BLOCKS };

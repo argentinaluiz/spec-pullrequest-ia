@@ -17,7 +17,7 @@ The skill of this project that holds what depends on its stack in the verificati
 - `hooks/`: the hook of the end of the turn (`stop-verify.sh`), the one that records the touched files (`record-touched.sh`) and the one before the command (`push-verify.sh`: the approval of the push, the unlock, the CI variables, the `full` in a subagent and the abandon option of the fronts). They are configured in `.claude/settings.json`.
 - Each piece has its tests next to it, in `scripts/test/` and `hooks/test/`.
 
-What still has no new owner stays where it is, and the verification calls it from there: the base (`scripts/harness-base.sh`), the checker of the acceptance (`scripts/check-acceptance.cjs`), the Node in the container (`scripts/node-in-api.sh`) and the view of the contract (`scripts/contract-view.cjs`).
+What still has no new owner stays where it is, and the verification calls it from there: the base (`scripts/harness-base.sh`), the Node in the container (`scripts/node-in-api.sh`) and the view of the contract (`scripts/contract-view.cjs`). The checker of the acceptance belongs to `/plan-ticket` (`.claude/skills/plan-ticket/scripts/check-acceptance.cjs`), and the verification calls it from there with the reports of the suites.
 
 ## The list of protected files
 
