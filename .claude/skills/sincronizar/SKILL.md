@@ -11,7 +11,7 @@ How to bring the `main` into the branch of a front, and tell the agent what came
 
 **What it owns.** The steps below and the resolution rule of each type of convergence point. It does not own which files are of each type: that is `.claude/skills/ambiente/pontos-de-convergencia.txt`, which it reads and never copies. It does not own the full semaphore or the check of the migration order either: it calls `.claude/skills/verificar/scripts/verify.sh`, which owns them.
 
-**The base.** The base ref is `HARNESS_BASE_REF`, read by `scripts/harness-base.sh`, which `.claude/skills/verificar/scripts/verify.sh` and `scripts/frentes.sh` also load: the remote is what comes before the slash, and the main branch what comes after. Below, `<base>` is that ref.
+**The base.** The base ref is `HARNESS_BASE_REF`, read by `.claude/skills/worktree/scripts/harness-base.sh`, which `.claude/skills/verificar/scripts/verify.sh` and the core of the fronts (`.claude/skills/worktree/scripts/frentes.sh`) also load: the remote is what comes before the slash, and the main branch what comes after. Below, `<base>` is that ref.
 
 **What it never does.** Rebase. Force a push. Merge a pull request. Change an acceptance file (the plan is frozen after the plan commit). If something in these four seems necessary, stop and ask.
 

@@ -1,80 +1,83 @@
 #!/usr/bin/env bash
 #
-# Frentes paralelas: cada ticket pode correr num checkout próprio, com a própria sessão do agente, o
-# próprio ambiente e o próprio PR.
+# Frentes paralelas, o núcleo: cada ticket pode correr num checkout próprio (um worktree do Git), com a própria
+# branch, a própria sessão do agente e o próprio PR. Este script só precisa do Git (e do `gh` para o estado do PR):
+# o que é de um projeto, como um ambiente por frente, entra por opção, e o que não for dado é pulado.
 #
-#   scripts/frentes.sh novo <ticket> [tipo]        cria a frente do ticket (PREFIXO-N) e sobe o ambiente dela
-#   scripts/frentes.sh listar                      as frentes abertas, com slot, branch, portas, PR e conflitos
-#   scripts/frentes.sh remover <ticket> [--forcar] desmonta a frente do ticket
+#   frentes.sh [opções] novo <ticket> [tipo]         cria a frente do ticket (PREFIXO-N)
+#   frentes.sh [opções] listar                        as frentes abertas, com slot, branch, portas, PR e conflitos
+#   frentes.sh [opções] remover <ticket> [--forcar]   desmonta a frente do ticket
 #
-# Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>
-# (o nome do projeto no Compose sai dela), na branch <tipo>/<ticket em minúsculas>, com o tipo feature
-# (o padrão), bugfix, hotfix ou docs. O checkout principal também é uma frente quando está numa branch
-# que não é a main (um HEAD solto conta). Uma frente do ticket é qualquer worktree cuja branch termina no
-# ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a HARNESS_BASE_REF, lida
-# pelo scripts/harness-base.sh, o mesmo do .claude/skills/verificar/scripts/verify.sh: o remoto é o que vem antes da barra, e a main, o que
-# vem depois. O script roda em qualquer checkout do repositório e não fala com o Linear.
+# As opções vêm antes do subcomando, e quem chama o núcleo (o atalho de um projeto) as passa:
 #
-# O slot, de 0 a 3, dá à frente um bloco de portas na máquina. O principal é o slot 0, e o `novo` dá o
-# menor livre de 1 a 3, pelo SLOT do `.env` de cada pasta de `git worktree list`: o slot mora na própria
-# frente, e apagar a pasta o libera, sem registro central. O `.env` que o `novo` grava é o contrato do
-# docs/lld.md, seção 6, "Ambiente local por slot", com a máscara do `.git` por arquivo, porque a frente é
-# um worktree. Depois dele, o script sobe o ambiente com `docker compose up -d --build --wait` na pasta e
-# imprime o comando para abrir a sessão nela. Duas criações ao mesmo tempo nunca pegam o mesmo slot: uma
-# trava em frentes.lock, na pasta das travas da máquina (full_semaphore_dir), vale da conferência do
-# limite até a gravação do `.env`.
+#   --limite <n>          o máximo de frentes ao todo, contando o principal quando ele é uma (padrão 3)
+#   --ambiente <comando>  o comando de ambiente da frente (padrão: nenhum, e o núcleo trabalha só com o Git). O núcleo
+#                         o chama como `<comando> verificar <slot>` (recusa o slot que não está livre, antes de criar
+#                         qualquer coisa), `<comando> criar <pasta> <slot>` (prepara e sobe o ambiente da pasta),
+#                         `<comando> derrubar <pasta>` (derruba o ambiente) e `<comando> portas <slot>` (imprime as
+#                         portas do slot, que o `listar` mostra). Sai com 0 se deu certo e com outro código, dizendo
+#                         por quê, se não.
+#   --pontos <arquivo>    a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é código). O
+#                         formato é o de um arquivo de linhas `tipo<TAB>padrão`, com `#` nos comentários.
 #
-# O `novo` recusa, sem criar nada: a frente além do limite (3 ao todo; FRENTES_LIMITE ajusta), mostrando a
-# mesma lista do `listar`; um ticket que já tem frente; e o slot com alguma das quatro portas ocupada na
-# máquina, dizendo a porta e o processo (uma foto do momento, pelo `ss`).
+# Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>, na
+# branch <tipo>/<ticket em minúsculas>, com o tipo feature (o padrão), bugfix, hotfix ou docs. O checkout principal
+# também é uma frente quando está numa branch que não é a principal (um HEAD solto conta). Uma frente do ticket é
+# qualquer worktree cuja branch termina no ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a
+# HARNESS_BASE_REF, lida pelo harness-base.sh desta skill: o remoto é o que vem antes da barra, e a branch principal, o
+# que vem depois. O script roda em qualquer checkout do repositório e não fala com o gerenciador de issues.
 #
-# O `remover` acha a frente pelo ticket e recusa o checkout principal e o ticket que casa com mais de uma
-# branch. Sem o `--forcar`, recusa o PR que não está mergeado (o estado vem do `gh`, no repositório do
-# remoto da base) e a pasta com mudança sem commit ou arquivo novo fora do .gitignore, dizendo o que
-# encontrou. Então derruba o ambiente com os volumes (`docker compose down -v`), remove o worktree e apaga
-# a branch local. O `--forcar` pula as duas conferências e remove com força, para abandonar um ticket sem
-# merge: é só do usuário, e o hook de antes do comando (.claude/skills/verificar/hooks/push-verify.sh) o nega ao agente.
+# O slot, de 1 até o limite, é o número da frente (o principal é o 0). Ele mora na própria frente, num arquivo do
+# diretório privado do Git do worktree (o que `git rev-parse --git-dir` imprime nele), e não em pasta do projeto: não
+# há registro central, nada aparece na pasta da frente, e apagar a pasta libera o número, porque o Git passa a tratar o
+# worktree como podável e ele deixa de contar. O `novo` dá o menor livre. Duas criações ao mesmo tempo nunca pegam o
+# mesmo slot: uma trava em frentes.lock, na pasta das travas da máquina (a pasta `harness` do diretório comum do Git),
+# vale da conferência do limite até a gravação do slot.
 #
-# O `listar` mostra também com quem cada frente conflita, na última coluna ("conflita com") e numa seção
-# "CONFLITOS" abaixo da tabela, que traz os arquivos de cada par de frentes e de cada frente contra a main do
-# remoto da base. É um merge de três vias só de leitura (`git merge-tree`) entre as pontas das branches: conta o
-# que está em commit, como o merge de verdade, e não muda pasta, índice nem ref de nenhuma frente. Antes de
-# calcular, busca a main do remoto (sem falhar se a rede faltar). Os arquivos em conflito saem em dois grupos:
-# os pontos de convergência com regra mecânica, cada um com o tipo, e os que pedem atenção, que são o código
-# e os pontos que se juntam à mão (documentos e manual), estes com o tipo ao lado do nome.
-# A classificação, os tipos e os arquivos de cada um, é de .claude/skills/ambiente/pontos-de-convergencia.txt, o dono
-# único dela: este script e a skill /sincronizar a leem, e um ponto novo é uma linha lá.
+# O `novo` recusa, sem criar nada: a frente além do limite, mostrando a mesma lista do `listar`; um ticket que já tem
+# frente; e, com o comando de ambiente, o slot que ele recusa. Com a frente criada e o slot gravado, chama o `criar` e
+# imprime o comando para abrir a sessão nela.
 #
-# Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`, que a
-# coluna de conflitos do `listar` vai usar. Os testes (scripts/test/frentes.test.sh) rodam com
-# HARNESS_TEST=1, que deixa trocar o docker, o gh, a sonda de portas e a versão do Git (FRENTES_DOCKER,
-# FRENTES_GH, FRENTES_PORT_OWNER e FRENTES_GIT_VERSION); sem ele essas variáveis são ignoradas.
+# O `remover` acha a frente pelo ticket e recusa o checkout principal e o ticket que casa com mais de uma branch. Sem o
+# `--forcar`, recusa o PR que não está mergeado (o estado vem do `gh`, no repositório do remoto da base) e a pasta com
+# mudança sem commit ou arquivo novo fora do .gitignore, dizendo o que encontrou. Então chama o `derrubar` do comando
+# de ambiente, remove o worktree e apaga a branch local. O `--forcar` pula as duas conferências e remove com força, para
+# abandonar um ticket sem merge: é só do usuário, e o hook desta skill (hooks/frentes-guard.sh) o nega ao agente.
+#
+# O `listar` mostra também com quem cada frente conflita, na última coluna ("conflita com") e numa seção "CONFLITOS"
+# abaixo da tabela, que traz os arquivos de cada par de frentes e de cada frente contra a base. É um merge de três vias
+# só de leitura (`git merge-tree`) entre as pontas das branches: conta o que está em commit, como o merge de verdade, e
+# não muda pasta, índice nem ref de nenhuma frente. Antes de calcular, busca a branch principal do remoto (sem falhar se
+# a rede faltar). Os arquivos em conflito saem em dois grupos: os pontos de convergência com regra mecânica, cada um com
+# o tipo, e os que pedem atenção, que são o código e os pontos que se juntam à mão (documentos e manual), estes com o
+# tipo ao lado do nome. Sem o arquivo dos pontos, todo arquivo em conflito pede atenção.
+#
+# Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`. Os testes
+# (test/frentes.test.sh) rodam com HARNESS_TEST=1, que deixa trocar o gh e a versão do Git (FRENTES_GH e
+# FRENTES_GIT_VERSION); sem ele essas variáveis são ignoradas.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do scripts/harness-base.sh, o mesmo que o .claude/skills/verificar/scripts/verify.sh carrega.
+# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do harness-base.sh, a definição única dela.
 # shellcheck source=harness-base.sh
 source "$SCRIPT_DIR/harness-base.sh"
-COMPOSE_FILE=compose.dev.yaml
 GIT_MIN=2.38
-# O máximo de frentes ao todo, contando o principal quando ele é uma.
-FRENTES_LIMITE="${FRENTES_LIMITE:-3}"
+# O arquivo do diretório privado do Git do worktree em que a frente guarda o slot.
+SLOT_FILE=frente-slot
+
+# Os valores que o chamador dá por opção, com os padrões.
+LIMITE=3
+AMBIENTE=""
+PONTOS=""
 
 # Os substitutos do modo de teste do harness: só com HARNESS_TEST=1, e nada mais pode trocá-los.
-DOCKER=docker
 GH=gh
-PORT_OWNER=""
 GIT_VERSION_OVERRIDE=""
 if [[ "${HARNESS_TEST:-}" == 1 ]]; then
   GIT_VERSION_OVERRIDE="${FRENTES_GIT_VERSION:-}"
-  DOCKER="${FRENTES_DOCKER:-docker}"
   GH="${FRENTES_GH:-gh}"
-  PORT_OWNER="${FRENTES_PORT_OWNER:-}"
 fi
-
-# shellcheck source=../.claude/skills/verificar/scripts/full-semaphore.sh
-source "$SCRIPT_DIR/../.claude/skills/verificar/scripts/full-semaphore.sh"
 
 die() {
   printf '%s\n' "$@" >&2
@@ -115,26 +118,37 @@ main_checkout() {
   worktrees | head -n 1 | cut -f 1
 }
 
-# O slot de uma pasta: o SLOT do `.env` dela, e 0 sem `.env` (são as portas de hoje).
+# O slot de uma pasta: o do arquivo do diretório privado do Git dela, e 0 sem o arquivo (o checkout principal, e o
+# worktree feito à mão).
 slot_of() {
-  local slot
-  slot="$(sed -n 's/^SLOT=//p' "$1/.env" 2>/dev/null | head -n 1)"
+  local slot gitdir
+  gitdir="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)" || { echo 0; return; }
+  slot="$(head -n 1 "$gitdir/$SLOT_FILE" 2>/dev/null)"
   echo "${slot:-0}"
 }
 
-# O menor slot livre de 1 a 3, pelo `.env` de cada pasta da lista de worktrees. O principal fica no 0.
+# Grava o slot na frente, no diretório privado do Git do worktree dela.
+# store_slot <pasta> <slot>
+store_slot() {
+  local gitdir
+  gitdir="$(git -C "$1" rev-parse --absolute-git-dir)" || return 1
+  printf '%s\n' "$2" >"$gitdir/$SLOT_FILE"
+}
+
+# O menor slot livre de 1 até o limite, pelo arquivo de cada pasta da lista de worktrees. O principal fica no 0.
 free_slot() {
   local dir used=" " slot
+  # O principal é o 0 e não precisa ser consultado.
   while IFS=$'\t' read -r dir _; do
     used+="$(slot_of "$dir") "
-  done < <(worktrees)
-  for slot in 1 2 3; do
+  done < <(worktrees | tail -n +2)
+  for ((slot = 1; slot <= LIMITE; slot++)); do
     [[ "$used" == *" $slot "* ]] || { echo "$slot"; return 0; }
   done
   return 1
 }
 
-# As frentes: os worktrees além do principal, e o principal quando a branch dele não é a main. Uma por
+# As frentes: os worktrees além do principal, e o principal quando a branch dele não é a principal. Uma por
 # linha, "pasta<TAB>branch".
 fronts() {
   local main dir branch
@@ -153,31 +167,15 @@ ticket_worktrees() {
   done < <(worktrees)
 }
 
-# As portas da máquina de um slot, na ordem web, API, storage e e-mails: as de hoje mais slot x 10.
+# As portas do slot, como o comando de ambiente as informa, ou "-" sem ele (ou se ele não sabe).
+# ports_of_slot <slot>
 ports_of_slot() {
-  echo "$((3000 + $1 * 10))/$((3001 + $1 * 10))/$((4443 + $1 * 10))/$((8025 + $1 * 10))"
+  local ports=""
+  [[ -z "$AMBIENTE" ]] || ports="$("$AMBIENTE" portas "$1" 2>/dev/null)"
+  echo "${ports:--}"
 }
 
-# O `.env` do slot, pelo contrato da LLD (seção 6, "Ambiente local por slot").
-# write_env <pasta> <slot>
-write_env() {
-  local web api storage mailpit
-  IFS=/ read -r web api storage mailpit <<<"$(ports_of_slot "$2")"
-  cat >"$1/.env" <<ENV
-SLOT=$2
-WEB_PORT=$web
-API_PORT=$api
-STORAGE_PORT=$storage
-MAILPIT_PORT=$mailpit
-WEB_ORIGIN=http://localhost:$web
-STORAGE_PUBLIC_URL=http://localhost:$storage
-STORAGE_EMULATOR_HOST=http://storage:$storage
-GIT_MASK_TYPE=bind
-GIT_MASK_SOURCE=/dev/null
-ENV
-}
-
-# O repositório do remoto da base, no formato dono/nome, para o `gh` (o repositório tem dois remotos).
+# O repositório do remoto da base, no formato dono/nome, para o `gh` (o repositório pode ter mais de um remoto).
 remote_repo() {
   git remote get-url "$BASE_REMOTE" 2>/dev/null | sed -nE 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)(.+/[^/]+)$#\2#p' | sed 's/\.git$//'
 }
@@ -208,44 +206,20 @@ pr_label() {
   esac
 }
 
-# Quem escuta numa porta da máquina: o processo e o PID, nada se está livre. Uma foto do momento.
-# port_owner <porta>
-port_owner() {
-  if [[ -n "$PORT_OWNER" ]]; then
-    "$PORT_OWNER" "$1"
-    return
-  fi
-  ss -ltnpH "( sport = :$1 )" | head -n 1 | sed -nE 's/.*users:\(\("([^"]+)",pid=([0-9]+).*/\1 (PID \2)/p; t; s/.+/um processo que não se enxerga daqui/p'
-}
-
-# Recusa o slot se alguma das quatro portas dele já está ocupada, dizendo a porta e o processo. Sem o `ss`
-# (do pacote iproute2), a conferência não existe, e o script recusa em vez de aprovar no escuro.
-# require_free_ports <slot>
-require_free_ports() {
-  local port owner busy=()
-  [[ -n "$PORT_OWNER" ]] || command -v ss >/dev/null ||
-    die "Falta o \`ss\` na máquina (o pacote iproute2), e o script confere com ele se as portas do slot estão livres."
-  for port in $(ports_of_slot "$1" | tr '/' ' '); do
-    owner="$(port_owner "$port")"
-    [[ -z "$owner" ]] || busy+=("a porta $port, ocupada por $owner")
-  done
-  [[ ${#busy[@]} -eq 0 ]] ||
-    die "O slot $1 não está livre na máquina:" "${busy[@]/#/- }" "Pare o que ocupa as portas e rode de novo."
-}
-
 # O marcador de um par cujo merge não deu para calcular, no lugar do arquivo.
 COMPUTE_ERROR="@@erro"
 
-# O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação de
-# .claude/skills/ambiente/pontos-de-convergencia.txt; nada, se o arquivo é código.
+# O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação do
+# arquivo dos pontos; nada, se o arquivo é código ou se não há arquivo dos pontos.
 # convergence_type <arquivo>
 convergence_type() {
   local type pattern
+  [[ -n "$PONTOS" ]] || return 0
   while IFS=$'\t' read -r type pattern; do
     [[ -z "$type" || "$type" == \#* ]] && continue
     # shellcheck disable=SC2053
     [[ "$1" == $pattern ]] && { echo "$type"; return 0; }
-  done <"$SCRIPT_DIR/../.claude/skills/ambiente/pontos-de-convergencia.txt"
+  done <"$PONTOS"
   return 0
 }
 
@@ -267,8 +241,8 @@ conflict_files() {
   return $code
 }
 
-# Os conflitos entre as pontas das frentes, uma linha por arquivo: "a<TAB>b<TAB>arquivo", com o b sendo a main
-# do remoto da base, escrita como `main`. Só o que está em commit entra, como no merge de verdade.
+# Os conflitos entre as pontas das frentes, uma linha por arquivo: "a<TAB>b<TAB>arquivo", com o b sendo a branch
+# principal do remoto da base, escrita sem o remoto. Só o que está em commit entra, como no merge de verdade.
 # front_conflicts <branch...>
 front_conflicts() {
   local i j a b file code
@@ -285,8 +259,8 @@ front_conflicts() {
 }
 
 cmd_listar() {
-  local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention failed
-  # A main do remoto, sem perguntar nada e sem esperar mais de 20 s: sem rede, vale a do último fetch.
+  local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention
+  # A branch principal do remoto, sem perguntar nada e sem esperar mais de 20 s: sem rede, vale a do último fetch.
   GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" 2>/dev/null
   while IFS=$'\t' read -r dir branch; do
     dirs+=("$dir")
@@ -332,11 +306,17 @@ flush_conflict() {
   [[ -z "$3" ]] || printf '  pede atenção:\n%s' "$3"
 }
 
+# A pasta das travas da máquina: a `harness` do diretório comum do Git, a mesma onde a verificação completa põe a dela.
+lock_dir() {
+  echo "$(git rev-parse --path-format=absolute --git-common-dir)/harness"
+}
+
 # A trava dos slots: duas criações ao mesmo tempo nunca pegam o mesmo slot. Espera quem chegou depois, e sai
 # com o processo.
 lock_slots() {
   local dir
-  dir="$(full_semaphore_dir)" && mkdir -p "$dir" || die "Não deu para abrir a pasta das travas da máquina."
+  dir="$(lock_dir)" && mkdir -p "$dir" || die "Não deu para abrir a pasta das travas da máquina."
+  command -v flock >/dev/null || die "Falta o \`flock\` na máquina (o pacote util-linux), e o script trava os slots com ele."
   exec {SLOTS_LOCK_FD}>>"$dir/frentes.lock" && flock "$SLOTS_LOCK_FD" || die "Não deu para pegar a trava dos slots."
 }
 
@@ -346,7 +326,7 @@ unlock_slots() {
 
 cmd_novo() {
   local type="${2:-feature}" main folder branch slot
-  parse_ticket "${1:-}" "scripts/frentes.sh novo <ticket> [tipo]"
+  parse_ticket "${1:-}" "frentes.sh novo <ticket> [tipo]"
   case "$type" in
     feature | bugfix | hotfix | docs) ;;
     *) die "O tipo \`$type\` não vale: a branch é feature, bugfix, hotfix ou docs (o padrão é feature)." ;;
@@ -355,24 +335,25 @@ cmd_novo() {
   folder="$(dirname "$main")/$(basename "$main")-$TICKET_KEY"
   branch="$type/$TICKET_KEY"
 
-  # A rede antes da trava, para a espera de uma criação não esperar a rede da outra.
-  git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a main do remoto \`$BASE_REMOTE\`."
+  # O fetch fica dentro da trava: duas criações ao mesmo tempo se serializam ali, em vez de disputar a mesma ref.
   lock_slots
+  GIT_TERMINAL_PROMPT=0 timeout 60 git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a branch $BASE_BRANCH do remoto \`$BASE_REMOTE\`."
   if [[ -n "$(ticket_worktrees "$TICKET_KEY")" ]]; then
     die "O ticket $1 já tem frente: $(ticket_worktrees "$TICKET_KEY" | cut -f 1 | paste -sd ' ')"
   fi
-  if [[ "$(fronts | wc -l)" -ge "$FRENTES_LIMITE" ]]; then
-    die "Já há $FRENTES_LIMITE frentes abertas, o limite de $FRENTES_LIMITE frentes ao todo (FRENTES_LIMITE), e o principal conta quando não está na $BASE_BRANCH." \
+  if [[ "$(fronts | wc -l)" -ge "$LIMITE" ]]; then
+    die "Já há $LIMITE frentes abertas, o limite de $LIMITE frentes ao todo (--limite), e o principal conta quando não está na $BASE_BRANCH." \
       "As abertas:" "$(cmd_listar)"
   fi
-  slot="$(free_slot)" || die "Não há slot livre (1 a 3)."
-  require_free_ports "$slot"
+  slot="$(free_slot)" || die "Não há slot livre (1 a $LIMITE)."
+  [[ -z "$AMBIENTE" ]] || "$AMBIENTE" verificar "$slot" ||
+    die "O comando de ambiente da frente recusou o slot $slot, e nada foi criado."
   git worktree add -q --no-track -b "$branch" "$folder" "$BASE_REF" || die "Não deu para criar a pasta $folder e a branch $branch."
-  write_env "$folder" "$slot" || die "Não deu para gravar o .env em $folder. A pasta ficou, sem o slot; remova-a com o git worktree remove."
+  store_slot "$folder" "$slot" || die "Não deu para gravar o slot da frente. A pasta $folder ficou, sem o slot; remova-a com o git worktree remove."
   unlock_slots
-  (cd "$folder" && "$DOCKER" compose -f "$COMPOSE_FILE" up -d --build --wait) ||
-    die "O ambiente da frente não subiu. A pasta $folder ficou, com o slot $slot; veja o erro acima, e suba de novo com:" \
-      "  cd $folder && docker compose -f $COMPOSE_FILE up -d --build --wait"
+  [[ -z "$AMBIENTE" ]] || "$AMBIENTE" criar "$folder" "$slot" ||
+    die "O ambiente da frente não ficou pronto. A pasta $folder ficou, com o slot $slot; veja o erro acima, corrija e rode de novo:" \
+      "  $AMBIENTE criar $folder $slot"
   echo "Frente pronta: $folder (slot $slot, branch $branch)."
   echo "Abra a sessão nela com: cd $folder && claude"
 }
@@ -386,7 +367,7 @@ cmd_remover() {
       *) [[ -z "$ticket" ]] || die "O remover recebe um ticket só, e vieram $ticket e $arg." ; ticket="$arg" ;;
     esac
   done
-  parse_ticket "$ticket" "scripts/frentes.sh remover <ticket> [--forcar]"
+  parse_ticket "$ticket" "frentes.sh remover <ticket> [--forcar]"
   matches="$(ticket_worktrees "$TICKET_KEY")"
   [[ -n "$matches" ]] || die "Nenhuma frente do ticket $ticket: nenhuma branch é $TICKET_KEY, com ou sem sufixo."
   [[ "$(wc -l <<<"$matches")" -eq 1 ]] ||
@@ -405,7 +386,7 @@ cmd_remover() {
     [[ -z "$dirty" ]] || die "A pasta $dir tem mudanças que não estão em commit:" "$dirty" "Faça o commit ou descarte, e rode de novo."
   fi
 
-  (cd "$dir" && "$DOCKER" compose -f "$COMPOSE_FILE" down -v) || die "Não deu para derrubar o ambiente de $dir, e nada foi removido."
+  [[ -z "$AMBIENTE" ]] || "$AMBIENTE" derrubar "$dir" || die "Não deu para derrubar o ambiente de $dir, e nada foi removido."
   # Sai da pasta antes de removê-la: chamado de dentro da frente, o `git branch -D` rodaria numa pasta que não existe mais.
   main="$(main_checkout)"
   cd "$main" || die "Não deu para entrar no checkout principal $main."
@@ -414,10 +395,34 @@ cmd_remover() {
   echo "Frente do $ticket removida: $dir e a branch $branch."
 }
 
+# As opções do chamador, antes do subcomando.
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --limite)
+      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "A opção --limite pede um número inteiro maior que zero, e veio \`$2\`."
+      LIMITE="$2"
+      shift 2
+      ;;
+    --ambiente)
+      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
+      AMBIENTE="$2"
+      shift 2
+      ;;
+    --pontos)
+      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
+      PONTOS="$2"
+      shift 2
+      ;;
+    -*) die "A opção \`$1\` não existe: as opções são --limite, --ambiente e --pontos, antes do subcomando." ;;
+    *) break ;;
+  esac
+done
+
 require_git_version
 case "${1:-}" in
   novo) shift; cmd_novo "$@" ;;
   listar) cmd_listar ;;
   remover) shift; cmd_remover "$@" ;;
-  *) die "Uso: scripts/frentes.sh novo <ticket> [tipo] | listar | remover <ticket> [--forcar]" ;;
+  *) die "Uso: frentes.sh [--limite <n>] [--ambiente <comando>] [--pontos <arquivo>] novo <ticket> [tipo] | listar | remover <ticket> [--forcar]" ;;
 esac

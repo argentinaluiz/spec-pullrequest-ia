@@ -48,7 +48,7 @@ SK=.claude/skills
 mkdir -p "$repo/scripts" "$repo/$SK/verificar/scripts" "$repo/$SK/proteger-harness/scripts" "$repo/$SK/contrato/scripts" "$repo/$SK/plan-ticket/scripts" "$repo/docs/tickets"
 cp -R "$ROOT/$SK/verificar/scripts/verify.sh" "$ROOT/$SK/verificar/scripts/verify" "$ROOT/$SK/verificar/scripts/full-lock.sh" \
   "$ROOT/$SK/verificar/scripts/full-semaphore.sh" "$ROOT/$SK/verificar/scripts/git-mount.sh" "$repo/$SK/verificar/scripts/"
-cp "$ROOT/scripts/harness-base.sh" "$repo/scripts/"
+mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
 cp "$ROOT/$SK/proteger-harness/scripts/harness-dir.sh" "$repo/$SK/proteger-harness/scripts/"
 cp "$ROOT/$SK/contrato/scripts/contract-lib.sh" "$repo/$SK/contrato/scripts/"
 cat >"$repo/$SK/plan-ticket/scripts/plan-page.sh" <<'FAKE'

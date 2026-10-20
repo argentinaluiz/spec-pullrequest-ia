@@ -14,7 +14,8 @@
 # espera consulta a trava a cada `FULL_SEMAPHORE_POLL` segundos (1 por padrão) em vez de ficar bloqueada
 # num `flock`, para um `full` interrompido na espera não deixar processo para trás.
 
-# A pasta das travas da máquina, que o script de frentes reaproveita.
+# A pasta das travas da máquina: a `harness` do diretório comum do Git. O núcleo das frentes (skill worktree) trava os
+# slots na mesma pasta, e define o caminho por conta própria, porque uma skill genérica não carrega arquivo do projeto.
 full_semaphore_dir() {
   echo "$(git rev-parse --path-format=absolute --git-common-dir)/harness"
 }

@@ -25,6 +25,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/skills/proteger-harness/hooks/state-guard.sh --ajuda 'Se o modo completo travou: pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock` no prompt. Só ele destrava: não destrave nem contorne a trava.'",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/skills/worktree/hooks/frentes-guard.sh",
+            "timeout": 10
           }
         ]
       },

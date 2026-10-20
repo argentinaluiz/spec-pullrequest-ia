@@ -54,6 +54,8 @@ expect 2 "nega o unlock pelo caminho relativo, com aspas, por outro shell ou dep
   "$(command_input 'cd /repo && bash "./.claude/skills/verificar/scripts/verify.sh"   unlock')"
 expect 2 "nega o unlock numa segunda linha" \
   "$(command_input $'echo oi\n.claude/skills/verificar/scripts/verify.sh unlock 2>&1')"
+expect 0 "libera o script de frentes com o abandono e com as variáveis do modo de teste, que são do hook da skill worktree @LUI-199-CA5" \
+  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso .claude/skills/ambiente/scripts/frentes.sh remover LUI-186 --forcar')"
 expect 0 "libera os outros modos do verify.sh" \
   "$(command_input '.claude/skills/verificar/scripts/verify.sh full && .claude/skills/verificar/scripts/verify.sh fast web')"
 expect 0 "libera um comando que só cita a palavra unlock" \
@@ -97,22 +99,6 @@ expect 2 "nega a entrada ilegível que cita o verify.sh e o CI=" \
   "isto não é json CI=true .claude/skills/verificar/scripts/verify.sh full" "desligariam a trava"
 
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
-
-# O `remover` com a opção de abandono, no script de frentes, é só do usuário.
-expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualquer posição @LUI-186-CA7" \
-  "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
-expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
-  "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar LUI-186'")" "só o usuário abandona uma frente"
-expect 0 "libera o remover sem a opção, o novo e o listar @LUI-186-CA7" \
-  "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
-
-# O `frentes.sh` com as variáveis do modo de teste trocaria o `gh` e contornaria o merge do `remover`.
-expect 2 "nega o frentes.sh com o gh trocado pelo modo de teste @LUI-186-CA7" \
-  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso scripts/frentes.sh remover LUI-186')" "modo de teste do harness"
-expect 2 "nega a variável do modo de teste depois do script e embrulhada no bash -c" \
-  "$(command_input "bash -c 'scripts/frentes.sh listar; export FRENTES_DOCKER=./x'")" "modo de teste do harness"
-expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" \
-  "$(command_input 'HARNESS_TEST=1 bash scripts/test/frentes.test.sh')"
 
 # A frase de destravar do hook do estado, que o settings.json passa na linha de comando dele, é a mesma das
 # mensagens do verify.sh (FULL_LOCK_ASK): a mensagem não pode ficar com duas versões.
