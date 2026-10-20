@@ -1,6 +1,6 @@
 ---
 name: worktree
-description: "The single entry for the parallel fronts of a project, a front being a Git worktree with its own branch, session and pull request: create one (novo), list them with the pull request and the conflicts (listar), take one down after its merge (remover), open the fronts of the tickets of a spec that are ready (abrir), and bring the base into the branch of a front (sincronizar). Use to start work on a ticket in its own checkout, to see the open fronts, to start several tickets of a spec at once, and at the end of the build of a ticket or when its pull request is out of date with the base."
+description: "The single entry for the parallel fronts of a project (a Git worktree with its own branch, session and pull request): novo, listar, remover, abrir (the fronts of the ready tickets of a spec) and sincronizar (bring the base into the branch of a front). Use to work on a ticket in its own checkout, to see the open fronts, to start several tickets of a spec at once, at the end of the build of a ticket, and when a pull request is out of date with the base."
 ---
 
 The one place for everything about the parallel fronts. A front is a Git worktree in a folder beside the main checkout, on the branch of a ticket, with its own agent session, its own environment (when the project has one) and its own pull request. The project's agent instructions file owns the rules of a front (how many, when the main checkout counts as one, what the person does and what the agent never does); this skill reads them and never copies them. The core script of this skill owns how a front is created, listed and removed, and its refusals.
@@ -11,22 +11,22 @@ Read, in the project's agent instructions file, the list "Valores das skills do 
 
 | Value | Default | Used in |
 | --- | --- | --- |
-| Base | the main branch of the origin remote, `origin/<branch>`; the variable `HARNESS_BASE_REF` adjusts it | all modes: where a front leaves from and what the sync brings |
-| Fronts command | the core script of this skill, `scripts/frentes.sh`, with its own defaults | `novo`, `listar`, `remover`, and the steps of `abrir` that list and create |
-| Limit of fronts | 3 | `abrir`: how many fit |
+| Base | the main branch of the origin remote, `origin/<branch>`; the variable `HARNESS_BASE_REF` adjusts it | `abrir` and `sincronizar`: what a front leaves from and what the sync brings (the core reads it by itself in the other modes) |
+| Fronts command | the core script of this skill, `scripts/frentes.sh`, with its own defaults | `novo`, `listar`, `remover`, and `abrir` (steps 2, 3, 6 and 7) |
+| Limit of fronts | 3 | `abrir`: step 3, how many fit |
 | Convergence points file | `nenhum`, and every conflicting file is code | `sincronizar`: step 4 |
-| Statuses | "In Progress", "In Review" and "Done" | `abrir`: which tickets are taken or finished |
-| Kind of branch | `bugfix` for the label `Bug`, `feature` for the rest | `abrir`: the kind to pass to `novo` |
-| Tickets folder | `docs/tickets` | `abrir` and `sincronizar`: where the acceptance file of a ticket lives |
+| Statuses | "In Progress", "In Review" and "Done" | `abrir`: steps 2 and 3, which tickets are taken or finished |
+| Kind of branch | `bugfix` for the label `Bug`, `feature` for the rest | `abrir`: step 5, the kind to pass to `novo` |
+| Tickets folder | `docs/tickets` | `abrir` (step 7) and `sincronizar` (step 2): where the acceptance file of a ticket lives |
 | Update the environment | `nenhum` | `sincronizar`: step 5 |
 | Recreate the database | `nenhum` | `sincronizar`: step 5 |
 | Generate a migration | `nenhum` | `sincronizar`: step 5 |
 | Start the applications | `nenhum` | `sincronizar`: step 5 |
-| Regenerate each generated file | `nenhum`: a pair of the file and the command that regenerates it | `sincronizar`: steps 4 and 5 |
+| Regenerate each generated file | `nenhum`: a pair of the file and the command that regenerates it; a generated file in conflict with no command makes the agent ask | `sincronizar`: steps 4 and 5 |
 | Full verification | none: ask | `sincronizar`, when it runs on its own: step 8 |
 
-Say in the chat, in one line, which values came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the entry for the list in the agent instructions file. The values mean:
-- **Fronts command:** called as `<command> novo <ticket> [kind]`, `<command> listar` and `<command> remover <ticket>`. The core script takes its own options before the subcommand (`--limite`, `--ambiente` and `--pontos`) and works with Git alone when none is given. A project with an environment per front, a limit of its own or convergence points declares a shortcut that passes them, and that shortcut is the value.
+When the mode reads values other than the fronts command, say in the chat, in one line, which of them came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the entry for the list in the agent instructions file. The values mean:
+- **Fronts command:** called as `<command> novo <ticket> [kind]`, `<command> listar` and `<command> remover <ticket>`. The core script takes its own options before the subcommand (`--limite`, `--ambiente` and `--pontos`) and works with Git alone when none is given. A project with an environment per front, a limit of its own or convergence points declares a shortcut that passes them, and that shortcut is the value; the limit and the convergence points file of the list are the ones the shortcut passes, so keep them equal.
 - **Convergence points file:** one line per pattern, `type<TAB>path`, where the path accepts `*`; the first pattern that matches wins, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`. The file only classifies; the rule of each type is in `modos/sincronizar.md`.
 - **Update the environment, recreate the database, generate a migration, start the applications, regenerate each generated file:** the commands of the environment step of the sync. Each runs in the folder of the front.
 - **Full verification:** the command that runs the complete verification of the project. If it receives the body of the pull request, save the body first and pass it as the command says.
@@ -41,7 +41,7 @@ Say in the chat, in one line, which values came from the default. A value that i
 | `abrir <spec>` | The person wants to start several tickets of one spec in parallel. | Reads `modos/abrir.md` and follows it: picks the tickets that are ready, confirms the list with the person and creates one front per ticket. |
 | `sincronizar` | At the end of the build of a ticket (called by `/implement`), and when the pull request of a front is out of date with the base. | Reads `modos/sincronizar.md` and follows it: brings the base into the branch of the front, resolves the conflicts by the rule of each type of convergence point and reports what came in. |
 
-The model may call the skill, because `/implement` calls `sincronizar`. The step by step of `abrir` and `sincronizar` is in their own files, read only when the mode runs.
+The model may call the skill, because `/implement` calls `sincronizar`; `abrir` still waits for the person's confirmation before it creates any front. The step by step of `abrir` and `sincronizar` is in their own files, read only when the mode runs.
 
 ## What holds for every mode
 
