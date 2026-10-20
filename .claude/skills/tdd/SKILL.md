@@ -29,7 +29,7 @@ When the shape of that interface is itself in question (how deep the module is, 
 
 ## A test of a skill that proves a criterion
 
-A test of a general-purpose skill cannot carry the ID of a criterion of the project in its tag. When you write one that proves a criterion of the ticket, write the link in the test map of the ticket (`mapa-de-testes.txt` in its folder; the format is in the plan skill, `formatos/mapa-de-testes.md`): one line with the criterion ID, the path of the test file and the whole name of the case. A test of the project keeps the ID in its tag.
+A test of a general-purpose skill cannot carry the ID of a criterion of the project in its tag. When you write one that proves a criterion of the ticket, write the link in the test map of the ticket (`mapa-de-testes.txt` in its folder; the format is in the plan skill, `formatos/mapa-de-testes.md`). A test of the project keeps the ID in its tag.
 
 ## Anti-patterns
 

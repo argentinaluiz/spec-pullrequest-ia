@@ -628,9 +628,9 @@ test('uma linha do mapa vale como a tag do caso ligado, e o critério fica cober
   assert.match(skipped.out, /PROJ-1-CA1: um teste com o ID dele foi pulado/);
 });
 
-test('uma linha do mapa vale também para o caso do relatório do Playwright', () => {
+test('uma linha do mapa vale também para o caso do relatório do Playwright, que traz o caminho do arquivo mais curto que o do repositório', () => {
   const files = { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste no Playwright']]) };
-  const extra = { [MAP]: mapLine('PROJ-1-CA1', 'e2e/x.spec.ts', 'o Usuário copia') };
+  const extra = { [MAP]: mapLine('PROJ-1-CA1', 'apps/web/e2e/x.spec.ts', 'o Usuário copia') };
   const { code, out } = check({ files, extra, playwright: [['o Usuário copia', 'passed']] });
   assert.equal(code, 0, out);
   assert.match(out, /PROJ-1-CA1: coberto por 1 teste/);
@@ -653,7 +653,8 @@ test('um caso do mapa que não aparece no relatório reprova, dizendo o ID, o ar
     vitest: [['devolve 201', 'passed']],
   });
   assert.equal(otherFile.code, 1, otherFile.out);
-  assert.match(otherFile.out, /y\.e2e-spec\.ts.*não aparece no relatório|não aparece no relatório/);
+  assert.match(otherFile.out, /não aparece no relatório/);
+  assert.ok(otherFile.out.includes('y.e2e-spec.ts'), otherFile.out);
 });
 
 test('um ID do mapa que não está em nenhum arquivo de aceite reprova', () => {

@@ -2,7 +2,7 @@
 #
 # Monta a página de revisão do plano de um ticket e a grava em <tickets>/<pai>/<ticket>/plano.html. Faz
 # parte da skill de plano (SKILL.md, passos 5 e 6), e os valores de cada argumento são do projeto,
-# que os declara no AGENTS.md, na lista da skill de plano. O <pai> é a issue pai do ticket no
+# que os declara no AGENTS.md, na lista "Valores das skills do ticket". O <pai> é a issue pai do ticket no
 # gerenciador de issues, e vem da tarefa, como o ticket.
 #
 #   plan-page.sh --pai <issue pai> --ticket <ticket> --tickets <pasta dos tickets>
@@ -93,7 +93,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   if [[ "${missing[*]}" == pai || "${missing[*]}" == ticket || "${missing[*]}" == "pai ticket" ]]; then
     printf 'Como corrigir: passe a issue pai e o ticket do plano com --pai e --ticket. A issue pai é a do ticket no gerenciador de issues, a mesma da spec que o passo 1 da skill lê.\n' >&2
   else
-    printf 'Como corrigir: o projeto declara cada valor no AGENTS.md, na lista da skill de plano ("Plano do ticket"); passe-o com o argumento de mesmo nome. Se o AGENTS.md não o declara, pergunte ao usuário e ajude a defini-lo, como o SKILL.md da skill manda.\n' >&2
+    printf 'Como corrigir: o projeto declara cada valor no AGENTS.md, na lista "Valores das skills do ticket" ("Plano do ticket"); passe-o com o argumento de mesmo nome. Se o AGENTS.md não o declara, pergunte ao usuário e ajude a defini-lo, como o SKILL.md da skill manda.\n' >&2
   fi
   exit 2
 fi
@@ -121,6 +121,8 @@ dir="$tickets/$pai/$ticket"
 msg="$dir/plano.msg"
 acceptance="$dir/aceite.md"
 test_map="$dir/mapa-de-testes.txt"
+# As linhas do .gitignore que versionam só o aceite e o mapa de testes, como a mensagem as pede.
+gitignore_rules="\`$tickets/*/*/*\`, \`!$tickets/*/*/aceite.md\` e \`!$tickets/*/*/mapa-de-testes.txt\`"
 
 # As regras do .gitignore para a pasta do ticket (formatos/aceite.md, "Onde"), numa chamada só, sem
 # olhar o que já está em commit: os caminhos ignorados, um por linha, entre quebras de linha.
@@ -128,11 +130,11 @@ ignored=$'\n'"$(git -c core.quotePath=false check-ignore --no-index -- "$dir/pla
 for file in "$dir/plano.html" "$msg"; do
   [[ "$ignored" == *$'\n'"$file"$'\n'* ]] ||
     stop 2 "A pasta dos tickets, $tickets, não ignora o $file, e só o aceite.md e o mapa-de-testes.txt de cada ticket são versionados." \
-      "acrescente ao .gitignore as linhas \`$tickets/*/*/*\`, \`!$tickets/*/*/aceite.md\` e \`!$tickets/*/*/mapa-de-testes.txt\`, e rode o script de novo."
+      "acrescente ao .gitignore as linhas $gitignore_rules, e rode o script de novo."
 done
 [[ "$ignored" == *$'\n'"$acceptance"$'\n'* ]] &&
   stop 2 "A pasta dos tickets, $tickets, ignora o $acceptance, e o arquivo de aceite entra no commit de plano." \
-    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\` ou \`$tickets/*/*\`) pelas linhas \`$tickets/*/*/*\`, \`!$tickets/*/*/aceite.md\` e \`!$tickets/*/*/mapa-de-testes.txt\`, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
+    "no .gitignore, troque a regra que ignora a própria pasta (como \`$tickets/\` ou \`$tickets/*/*\`) pelas linhas $gitignore_rules, e rode o script de novo: o Git não reinclui um arquivo dentro de uma pasta ignorada."
 [[ "$ignored" == *$'\n'"$test_map"$'\n'* ]] &&
   stop 2 "A pasta dos tickets, $tickets, ignora o $test_map, e o mapa de testes do ticket é versionado ao lado do aceite." \
     "acrescente ao .gitignore a linha \`!$tickets/*/*/mapa-de-testes.txt\`, depois da \`!$tickets/*/*/aceite.md\`, e rode o script de novo."
@@ -253,7 +255,7 @@ capture accepted git show "$to:$acceptance" 2>/dev/null && sources+=(acceptance 
 if [[ "$contrato" != nenhum ]]; then
   capture contract project "$contrato" "$from" "$to" ||
     stop 1 "O comando do contrato (\`$contrato $from $to\`) falhou: o erro dele está acima." \
-      "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no AGENTS.md, na lista da skill de plano."
+      "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no AGENTS.md, na lista "Valores das skills do ticket"."
   sources+=(contract "$contract")
 fi
 
@@ -270,6 +272,6 @@ sources+=(docsDiff "$docs" message "$message")
 
 printf '%s\0' "${sources[@]}" | project "$node" "$skill/page.cjs" - >"$draft" ||
   stop 1 "A página do plano não pôde ser montada pelo comando do Node (\`$node\`): o erro está acima." \
-    "corrija a fonte que ele aponta e rode o script da página de novo. Se o erro é do próprio comando, acerte o valor no AGENTS.md, na lista da skill de plano."
+    "corrija a fonte que ele aponta e rode o script da página de novo. Se o erro é do próprio comando, acerte o valor no AGENTS.md, na lista "Valores das skills do ticket"."
 mv "$draft" "$dir/plano.html" || stop 2 "Não deu para gravar a página em $dir/plano.html." "confira as permissões da pasta $dir."
 printf 'Página do plano do %s gravada em %s.\n%s\n' "$ticket" "$dir/plano.html" "$origin"

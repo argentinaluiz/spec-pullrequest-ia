@@ -21,7 +21,9 @@ const CHECKS = new Map([
   ['documento', { name: 'documento', test: false }],
 ]);
 
-const CRITERION_HEADING = /^#{1,6}\s*([A-Z][A-Z0-9]*-\d+-CA\d+)\b/;
+// A forma do ID de um critério, `<ticket>-CA<n>`, como se escreve nos títulos do aceite e nas linhas do mapa.
+const ID = '[A-Z][A-Z0-9]*-\\d+-CA\\d+';
+const CRITERION_HEADING = new RegExp(`^#{1,6}\\s*(${ID})\\b`);
 // As linhas de um critério. O texto de cada uma vai até a próxima linha rotulada ou o próximo
 // título, e pode ter mais de um parágrafo.
 const FIELD = /^\s*[-*]?\s*\*\*(marca|cenário|teste previsto):\*\*\s*(.*)$/i;
@@ -82,9 +84,7 @@ function parseAcceptanceFile(name, text) {
   return { intro: intro.join('\n').trim(), criteria };
 }
 
-// Os blocos da mensagem do commit de plano: o rótulo com que o parágrafo começa e, nos da aba
-// "Arquivos e interfaces", a chave dele no resultado.
-const MAP_ID = /^[A-Z][A-Z0-9]*-\d+-CA\d+$/;
+const MAP_ID = new RegExp(`^${ID}$`);
 
 /**
  * O mapa de testes de um ticket (formatos/mapa-de-testes.md): uma linha por ligação, com o ID do critério, o
@@ -105,12 +105,14 @@ function parseTestMap(text) {
     } else if (!MAP_ID.test(id.trim())) {
       problems.push({ line, reason: `o ID "${id.trim()}" não tem a forma <ticket>-CA<n>` });
     } else {
-      links.push({ id: id.trim(), file: file.trim(), name, line });
+      links.push({ id: id.trim(), file: file.trim(), name: name.trim(), line });
     }
   });
   return { links, problems };
 }
 
+// Os blocos da mensagem do commit de plano: o rótulo com que o parágrafo começa e, nos da aba
+// "Arquivos e interfaces", a chave dele no resultado.
 const DECISION = 'Decision:';
 const FILE_BLOCKS = [
   { key: 'files', label: 'Files and interfaces the implementation will touch:' },

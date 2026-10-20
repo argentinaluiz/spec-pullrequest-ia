@@ -31,7 +31,7 @@ maps=("$TICKETS"/*/*/mapa-de-testes.txt)
 links="$work/ligacoes.tsv"
 : >"$links"
 for map in "${maps[@]}"; do
-  grep -vE '^[[:space:]]*(#|$)' "$map" >>"$links"
+  grep -vE '^(#|[[:space:]]*$)' "$map" >>"$links"
 done
 
 # Cada linha: o ID está num arquivo de aceite, o arquivo de teste existe e traz o nome do caso.

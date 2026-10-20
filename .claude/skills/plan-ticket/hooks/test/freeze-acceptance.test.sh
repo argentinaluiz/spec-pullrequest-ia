@@ -88,15 +88,32 @@ hook_code() {
   echo $?
 }
 
+# want <código esperado> <pasta dos tickets no argumento> <arquivo>: confere o código do hook, e diz qual conferência falhou.
+want() {
+  local got
+  got="$(hook_code "$2" "$3")"
+  [[ "$got" == "$1" ]] || { echo "  $3 com a pasta $2: saiu $got, esperava $1" >&2; return 1; }
+}
+
 freeze_case() {
-  [[ "$(hook_code docs/tickets "$t/aceite.md")" == 2 ]] || return 1
-  [[ "$(hook_code docs/tickets "$t/mapa-de-testes.txt")" == 0 ]] || return 1
-  [[ "$(hook_code docs/tickets docs/tickets/PROJ-100/PROJ-9/aceite.md)" == 0 ]] || return 1
-  [[ "$(hook_code planos "$other/aceite.md")" == 2 ]] || return 1
-  [[ "$(hook_code planos "$other/mapa-de-testes.txt")" == 0 ]] || return 1
-  [[ "$(hook_code planos "$t/aceite.md")" == 0 ]] || return 1
-  [[ "$(hook_code docs/tickets "$other/aceite.md")" == 0 ]]
+  want 2 docs/tickets "$t/aceite.md" &&
+    want 0 docs/tickets "$t/mapa-de-testes.txt" &&
+    want 0 docs/tickets docs/tickets/PROJ-100/PROJ-9/aceite.md &&
+    want 2 planos "$other/aceite.md" &&
+    want 0 planos "$other/mapa-de-testes.txt" &&
+    want 0 planos "$t/aceite.md" &&
+    want 0 docs/tickets "$other/aceite.md"
 }
 check "nega editar o aceite em commit, libera o mapa de testes e respeita a pasta dos tickets do argumento" freeze_case
+
+# A pasta dos tickets pode chegar escrita de outros jeitos, e o aceite segue congelado: com `./`, barra no fim,
+# barras repetidas ou o caminho absoluto dentro do projeto.
+forms_case() {
+  local folder
+  for folder in ./docs/tickets docs/tickets/ docs//tickets "docs/./tickets" "$project/docs/tickets"; do
+    want 2 "$folder" "$t/aceite.md" || return 1
+  done
+}
+check "congela o aceite com a pasta dos tickets escrita com ./, barra no fim, barras repetidas ou caminho absoluto" forms_case
 
 finish "do hook"

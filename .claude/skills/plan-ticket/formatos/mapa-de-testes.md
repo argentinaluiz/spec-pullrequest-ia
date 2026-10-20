@@ -18,11 +18,14 @@ Uma linha por ligação, com três campos separados por uma tabulação:
 
 - **ID:** o do critério, como `PROJ-123-CA3`. Tem de estar em algum arquivo de aceite.
 - **Arquivo:** o caminho do arquivo de teste, relativo à raiz do repositório.
-- **Nome do caso:** o nome inteiro do caso, como o relatório da suíte o traz.
+- **Nome do caso:** o nome do caso, como o relatório da suíte o traz (o título dele, ou o nome completo, com os `describe`).
 - As linhas em branco e as que começam com `#` não contam. Um critério pode ter mais de uma linha, e um caso pode estar em mais de um critério.
 
 ## Como o conferidor lê
 
-- A linha vale como a tag do caso: o conferidor acha, nos relatórios das suítes, o caso de nome igual, num arquivo cujo caminho termina no da linha, e o critério fica coberto quando esse caso rodou e passou.
-- **Reprova,** dizendo qual: a linha cujo caso não aparece nos relatórios (com o ID, o arquivo e o nome do caso), a linha cujo ID não está em nenhum arquivo de aceite e a linha mal formada (com o número dela).
+- A linha vale como a tag do caso: o conferidor acha, nos relatórios das suítes, o caso de nome igual, num arquivo que casa com o da linha, e o critério fica coberto quando esse caso rodou e passou. Os dois caminhos casam quando são iguais ou quando um é o fim do outro, numa fronteira de pasta: os relatórios trazem o caminho de jeitos diferentes (absoluto no contêiner, relativo à pasta de testes), e a linha pode trazer o que o relatório mostra.
+- **Reprova,** dizendo qual:
+  - a linha cujo caso não aparece nos relatórios (com o ID, o arquivo e o nome do caso);
+  - a linha cujo ID não está em nenhum arquivo de aceite;
+  - a linha mal formada (com o número dela).
 - Um teste com o ID na tag continua cobrindo o critério, com ou sem mapa.

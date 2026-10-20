@@ -2,9 +2,10 @@
 # `FALHOU:` de cada um. É uma cópia pequena e própria porque uma skill genérica não carrega arquivo do
 # projeto. Cada teste a carrega com `source`.
 #
-# Para o caso provar um critério de aceite, ponha o token `@<ticket>-CA<n>` no nome dele. O executor
-# dos testes em shell do projeto, que define o SH_TEST_LOG e o SH_TEST_SUITE, junta os casos no
-# relatório; sem as variáveis, o teste só imprime.
+# Um caso de uma skill de uso geral não leva o ID de um critério do projeto: a ligação dele com o critério vai
+# no mapa de testes do ticket (formatos/mapa-de-testes.md, da skill de plano). Se o projeto roda os testes por um
+# executor que define o SH_TEST_LOG e o SH_TEST_SUITE, os casos entram no relatório dele; sem as variáveis, o
+# teste só imprime.
 
 failed=0
 

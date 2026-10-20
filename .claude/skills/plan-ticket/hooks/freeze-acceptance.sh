@@ -17,23 +17,33 @@
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
 
-# A pasta dos tickets, sem `./` nem barra no fim, como texto literal nas expressões abaixo.
+# A pasta dos tickets na forma do caminho que o `realpath` devolve abaixo: relativa à raiz do projeto, sem `./`,
+# sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. Sem forks: o hook
+# roda a cada edição.
 tickets="${1:-docs/tickets}"
+tickets="${tickets#"$PWD"/}"
+tickets="${tickets//\/.\//\/}"
 tickets="${tickets#./}"
+while [[ "$tickets" == *//* ]]; do tickets="${tickets//\/\//\/}"; done
 tickets="${tickets%/}"
-literal="$(printf '%s' "$tickets" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
 
 # O hook recebe um JSON pela entrada padrão, com o arquivo em `tool_input.file_path` (ou em
 # `tool_input.notebook_path`, no NotebookEdit).
 input="$(cat)"
 
-# O arquivo de aceite de um ticket, a partir da raiz do projeto.
-ACCEPTANCE="^$literal/[^/]+/[^/]+/aceite\\.md\$"
-# O mesmo arquivo citado em qualquer ponto de um texto, para a entrada ilegível.
-MENTION="$literal/[^/[:space:]\"]+/[^/[:space:]\"]+/aceite\\.md"
-# O de antes da pasta da issue pai, de um nível só: continua congelado, e a mensagem diz onde ele fica.
-OLD_ACCEPTANCE="^$literal/[^/]+/aceite\\.md\$"
-OLD_MENTION="$literal/[^/[:space:]\"]+/aceite\\.md"
+# O que vem depois da pasta dos tickets num caminho relativo à raiz do projeto: um arquivo de aceite de um ticket é
+# `<issue>/<ticket>/aceite.md`, e o de antes da pasta da issue pai, de um nível só, é `<ticket>/aceite.md`.
+ACCEPTANCE='^[^/]+/[^/]+/aceite\.md$'
+OLD_ACCEPTANCE='^[^/]+/aceite\.md$'
+
+# Se um texto cita um arquivo de aceite, de qualquer um dos dois desenhos, em qualquer ponto: é para a entrada que
+# o hook não consegue ler. O `sed` escapa a pasta dos tickets como texto literal da expressão, e só roda aqui, no
+# caso raro.
+mentions_acceptance() {
+  local literal
+  literal="$(printf '%s' "$tickets" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
+  [[ "$1" =~ $literal/[^/[:space:]\"]+/[^/[:space:]\"]+/aceite\.md || "$1" =~ $literal/[^/[:space:]\"]+/aceite\.md ]]
+}
 
 deny() {
   {
@@ -48,22 +58,25 @@ file="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"
 # Sem conseguir ler o arquivo, qualquer menção a um arquivo de aceite conta como edição de aceite
 # versionado, para a falha do `jq` não liberar a edição.
 if [[ -z "$file" ]]; then
-  [[ "$input" =~ $MENTION || "$input" =~ $OLD_MENTION ]] && deny "o arquivo de aceite citado na entrada"
+  mentions_acceptance "$input" && deny "o arquivo de aceite citado na entrada"
   exit 0
 fi
 
 # O caminho a partir da raiz do projeto, sem `..` nem caminho absoluto.
 # Se o caminho não pode ser normalizado, vale a mesma regra da entrada ilegível.
 relative="$(realpath -m --relative-to="$PWD" -- "$file" 2>/dev/null)" || {
-  [[ "$file" =~ $MENTION || "$file" =~ $OLD_MENTION ]] && deny "o arquivo de aceite citado na entrada"
+  mentions_acceptance "$file" && deny "o arquivo de aceite citado na entrada"
   exit 0
 }
-if [[ "$relative" =~ $OLD_ACCEPTANCE ]]; then
+# Fora da pasta dos tickets, o hook não tem o que congelar.
+inside="${relative#"$tickets"/}"
+[[ "$inside" != "$relative" ]] || exit 0
+if [[ "$inside" =~ $OLD_ACCEPTANCE ]]; then
   git cat-file -e "HEAD:$relative" 2>/dev/null &&
     deny "$relative, no caminho antigo (mova-o para $tickets/<issue>/<ticket>/, com um commit do usuário)"
   exit 0
 fi
-[[ "$relative" =~ $ACCEPTANCE ]] || exit 0
+[[ "$inside" =~ $ACCEPTANCE ]] || exit 0
 
 # Só o que já está em commit está congelado: o arquivo novo do plano em andamento é liberado.
 git cat-file -e "HEAD:$relative" 2>/dev/null && deny "$relative"

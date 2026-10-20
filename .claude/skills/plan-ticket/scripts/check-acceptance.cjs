@@ -1,29 +1,31 @@
 // Confere o aceite dos tickets contra os relatórios das suítes: todo critério que exige teste (os
-// arquivos de aceite) tem de ter um teste com o ID dele numa tag (`@<ticket>-CA<n>`), e esse teste
-// tem de ter rodado e passado. O ID vem só das tags: o relatório do Vitest as traz em `tags` de cada
-// teste, e o do Playwright, em `tags` de cada spec. O teste que traz no título um token que não está nas
-// tags reprova, dizendo para mover o ID para uma tag. Confere também a seção `## Aceite` do corpo do pull request. O formato do arquivo de
-// aceite está na skill de plano (formatos/aceite.md).
+// arquivos de aceite) tem de ter um teste com o ID dele, e esse teste tem de ter rodado e passado. O ID de um
+// teste vem das tags dele (`@<ticket>-CA<n>`: o relatório do Vitest as traz em `tags` de cada teste, e o do
+// Playwright, em `tags` de cada spec) ou de uma linha do mapa de testes do ticket. O teste que traz no título um
+// token que não está nas tags reprova, dizendo para mover o ID para uma tag. Confere também a seção `## Aceite`
+// do corpo do pull request. O formato do arquivo de aceite está na skill de plano (formatos/aceite.md).
 //
-// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no .claude/skills/verificar/scripts/verify.sh):
+// O mapa de testes de um ticket (`mapa-de-testes.txt`, ao lado do aceite) liga um critério a um caso que não pode
+// levar o ID dele na tag, como o teste de uma skill de uso geral: cada linha (ID, arquivo e nome do caso) vale
+// como a tag desse caso. Reprova a linha cujo ID não está em nenhum aceite, a mal formada e a que liga um caso
+// que não aparece nos relatórios. O formato é o de formatos/mapa-de-testes.md, da skill de plano.
+//
+// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no verify.sh da skill verificar):
 //   node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <vitest|playwright>:<relatório>...
 //   node check-acceptance.cjs --cited - <pasta dos tickets>
-// O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A
-// pasta dos tickets vai relativa à raiz do repositório, onde o Node roda, porque é o caminho que o
-// corpo do PR cita e o que as mensagens mostram. O arquivo de aceite de cada ticket fica na pasta
-// dele, dentro da pasta da issue pai (`<pasta dos tickets>/<issue>/<ticket>/`), com o nome que a
-// skill de plano define (`ACCEPTANCE_NAME`); o resto da pasta dos tickets não é lido, e a pasta de
-// trabalho sem ticket (`sem-ticket/<nome>/`), que não tem aceite, passa sem ser notada. O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o
-// commit de plano e a pasta do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
+// O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A pasta dos tickets
+// vai relativa à raiz do repositório, onde o Node roda, porque é o caminho que o corpo do PR cita e o que as
+// mensagens mostram. O arquivo de aceite de cada ticket fica na pasta dele, dentro da pasta da issue pai
+// (`<pasta dos tickets>/<issue>/<ticket>/`), com o nome que a skill de plano define (`ACCEPTANCE_NAME`); o resto da
+// pasta dos tickets não é lido, e a pasta de trabalho sem ticket (`sem-ticket/<nome>/`), que não tem aceite, passa
+// sem ser notada.
 //
-// O mapa de testes de um ticket (`mapa-de-testes.txt`, ao lado do aceite) liga um critério a um caso de teste
-// que não pode levar o ID dele na tag, como o teste de uma skill de uso geral: cada linha (ID, arquivo e nome do
-// caso) vale como a tag desse caso. Reprova a linha cujo ID não está em nenhum aceite, a mal formada e a que liga
-// um caso que não aparece nos relatórios. O formato é o de formatos/mapa-de-testes.md, da skill de plano.
+// O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de plano e a pasta
+// do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
-// O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`), o nome do arquivo de
-// aceite e o parser do mapa são os da skill de plano (.claude/skills/plan-ticket/scripts/plan.cjs), que a página de
-// revisão do plano também usa: os dois leem o aceite com as mesmas regras.
+// O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`), o nome do arquivo de aceite e o
+// parser do mapa são os da skill de plano (plan.cjs, ao lado deste arquivo), que a página de revisão do plano
+// também usa: os dois leem o aceite com as mesmas regras.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -153,6 +155,7 @@ function vitestTests(report) {
   return report.testResults.flatMap((file) =>
     file.assertionResults.map((test) => ({
       title: test.title,
+      fullName: test.fullName,
       file: file.name,
       tags: test.tags ?? [],
       status: test.status === 'passed' ? 'passed' : test.status === 'failed' ? 'failed' : 'skipped',
@@ -189,11 +192,16 @@ function idsOf(test) {
   return new Set([...tagged, ...(test.mapped ?? [])]);
 }
 
-/** Se o arquivo do teste no relatório é o da linha do mapa: o mesmo caminho, ou o do mapa como fim dele. */
+/**
+ * Se o arquivo do teste no relatório é o da linha do mapa: o mesmo caminho, ou um como fim do outro, numa
+ * fronteira de pasta. Os relatórios trazem o caminho de jeitos diferentes (absoluto no contêiner, relativo à pasta
+ * de testes do Playwright, o que foi dado ao executor das suítes em shell), e o mapa traz o caminho do repositório.
+ */
 function sameFile(reported, mapped) {
   if (!reported) return false;
-  const normalized = String(reported).replace(/\\/g, '/');
-  return normalized === mapped || normalized.endsWith(`/${mapped}`);
+  const a = String(reported).replace(/\\/g, '/');
+  const b = mapped.replace(/\\/g, '/');
+  return a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
 }
 
 /** Os IDs que um teste ainda traz como token no título, para a mensagem mandar movê-los para uma tag. */
@@ -207,6 +215,13 @@ function titleIdsOf(test) {
  * nenhum aceite tem e a de um caso que não aparece nos relatórios.
  */
 function applyTestMaps(maps, known, tests) {
+  // Os casos por nome (o título e o nome completo), uma vez só.
+  const byName = new Map();
+  for (const test of tests) {
+    for (const name of new Set([test.title, test.fullName])) {
+      if (name) byName.set(name, [...(byName.get(name) ?? []), test]);
+    }
+  }
   for (const [mapFile, text] of maps) {
     const { links, problems } = parseTestMap(text);
     for (const { line, reason } of problems) {
@@ -220,7 +235,7 @@ function applyTestMaps(maps, known, tests) {
         );
         continue;
       }
-      const cases = tests.filter((test) => test.title === link.name && sameFile(test.file, link.file));
+      const cases = (byName.get(link.name) ?? []).filter((test) => sameFile(test.file, link.file));
       if (cases.length === 0) {
         error(
           `o mapa ${mapFile} liga ${link.id} ao caso "${link.name}" de ${link.file}, que não aparece no relatório. ` +
@@ -263,9 +278,10 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
     // `sem-ticket` guarda o trabalho sem ticket, e não é uma issue pai.
     for (const issue of folders(tickets).filter((item) => item.name !== 'sem-ticket')) {
       for (const ticket of folders(path.posix.join(tickets, issue.name))) {
-        const file = path.posix.join(tickets, issue.name, ticket.name, ACCEPTANCE_NAME);
+        const folder = path.posix.join(tickets, issue.name, ticket.name);
+        const file = path.posix.join(folder, ACCEPTANCE_NAME);
         if (fs.existsSync(file)) files.set(file, fs.readFileSync(file, 'utf8'));
-        const map = path.posix.join(tickets, issue.name, ticket.name, TEST_MAP_NAME);
+        const map = path.posix.join(folder, TEST_MAP_NAME);
         if (fs.existsSync(map)) maps.set(map, fs.readFileSync(map, 'utf8'));
       }
     }

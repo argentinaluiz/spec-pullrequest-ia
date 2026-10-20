@@ -1,6 +1,6 @@
 # Formato do critério e do arquivo de aceite
 
-A skill de plano é a dona deste formato. A página do plano lê o arquivo de aceite com o parser da skill (`scripts/plan.cjs`), e o conferidor do aceite de um projeto pode importar o mesmo parser. O projeto declara a pasta dos tickets no `AGENTS.md`, na lista da skill de plano.
+A skill de plano é a dona deste formato. A página do plano lê o arquivo de aceite com o parser da skill (`scripts/plan.cjs`), e o conferidor do aceite de um projeto pode importar o mesmo parser. O projeto declara a pasta dos tickets no `AGENTS.md`, na lista "Valores das skills do ticket".
 
 ## Critério do ticket
 
@@ -10,7 +10,7 @@ A skill de plano é a dona deste formato. A página do plano lê o arquivo de ac
 
 ## Arquivo de aceite
 
-- **Onde:** `<pasta dos tickets>/<pai>/<ticket>/aceite.md`, um por ticket, permanente. A pasta do ticket fica dentro da pasta da issue pai dele no gerenciador de issues (`<pai>`, com a forma do identificador do ticket, como `PROJ-1`), que é a mesma da spec que o passo 1 da skill lê e que vai no argumento `--pai` do script da página. É o único arquivo versionado da pasta do ticket: o projeto ignora o resto dela (a página do plano, a mensagem proposta e o que mais ele puser ali), e o script da página confere isso, na profundidade `<pasta dos tickets>/<pai>/<ticket>/`. O texto do critério fica só no ticket.
+- **Onde:** `<pasta dos tickets>/<pai>/<ticket>/aceite.md`, um por ticket, permanente. A pasta do ticket fica dentro da pasta da issue pai dele no gerenciador de issues (`<pai>`, com a forma do identificador do ticket, como `PROJ-1`), que é a mesma da spec que o passo 1 da skill lê e que vai no argumento `--pai` do script da página. É o único arquivo versionado da pasta do ticket, junto com o mapa de testes, se houver (`formatos/mapa-de-testes.md`): o projeto ignora o resto dela (a página do plano, a mensagem proposta e o que mais ele puser ali), e o script da página confere isso, na profundidade `<pasta dos tickets>/<pai>/<ticket>/`. O texto do critério fica só no ticket.
 - **Introdução:** o texto antes do primeiro critério, sem os títulos: o que prova cada marca neste ticket e o porquê das decisões que os cenários supõem. A página mostra a introdução antes dos critérios.
 - **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das seis), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome do teste). O texto de cada linha rotulada vai até a próxima linha rotulada ou o próximo título, e pode ter mais de um parágrafo. Um subtítulo dentro do critério não o encerra: só o título do próximo critério encerra.
 - **Sem o texto do critério:** o cenário diz como o critério é provado, e não repete o texto dele.
