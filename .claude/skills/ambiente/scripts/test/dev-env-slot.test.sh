@@ -7,7 +7,7 @@
 # slot". Rodam na máquina, porque usam o `docker compose`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 # shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
@@ -67,7 +67,7 @@ ca1() {
     # Os endereços entre contêineres que não são do storage seguem como hoje.
     has slot1 '.services.web.environment.API_URL == "http://api:3000" and .services.playwright.environment.WEB_URL == "http://web:3000" and .services.playwright.environment.MAILPIT_URL == "http://mailpit:8025" and .services.playwright.environment.API_URL == "http://api:3000" and .services.playwright.environment.DATABASE_URL == "postgresql://app:app@postgres:5432/app"'
 }
-check "o .env do slot 1 move as portas e os endereços do ambiente @LUI-184-CA1" ca1
+check "o .env do slot 1 move as portas e os endereços do ambiente @LUI-184-CA1 @LUI-197-CA4" ca1
 
 # --- CA2: sem `.env`, o ambiente é o de hoje ---
 ca2() {
@@ -76,7 +76,7 @@ ca2() {
     has slot0 '[.services.api.environment.WEB_ORIGIN, .services.api.environment.STORAGE_PUBLIC_URL, .services.api.environment.STORAGE_EMULATOR_HOST, .services.playwright.environment.STORAGE_PUBLIC_URL] | all(. == null)' &&
     has slot0 '[.services.api.volumes[] | select(.target == "/repo/.git") | [.type, .read_only]] == [["tmpfs", true]]'
 }
-check "sem .env, a configuração do ambiente é a de hoje @LUI-184-CA2" ca2
+check "sem .env, a configuração do ambiente é a de hoje @LUI-184-CA2 @LUI-197-CA4" ca2
 
 # --- CA3: a máscara do `.git` serve para o `.git` que é pasta e para o que é arquivo ---
 
@@ -112,6 +112,6 @@ ca3() {
     # Controle: a máscara padrão não sobe sobre um `.git` que é arquivo, o defeito que o ticket corrige.
     ! in_container "$worktree" slot0
 }
-check "a máscara do .git serve para o .git que é pasta e para o que é arquivo @LUI-184-CA3" ca3
+check "a máscara do .git serve para o .git que é pasta e para o que é arquivo @LUI-184-CA3 @LUI-197-CA4" ca3
 
 finish "do ambiente de desenvolvimento por slot"

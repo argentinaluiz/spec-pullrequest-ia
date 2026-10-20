@@ -17,11 +17,6 @@
 #   verify.sh prepush                              a varredura de segredos, e a conferência de que o
 #                                                  modo completo aprovou o que está no último commit
 #   verify.sh apps                                 as apps registradas, uma por linha
-#   verify.sh contract [<de> [<para>]]             a visão legível do contrato e do schema entre dois
-#                                                  pontos do Git (commits, ou a árvore do índice), em
-#                                                  Markdown; sem <para>, até a pasta de trabalho, e
-#                                                  sem nenhum, do HEAD até ela. É o comando do
-#                                                  contrato da skill de plano
 #   verify.sh plan <pai> <ticket> [<commit>]
 #                                                  atalho para o plan-page.sh da skill de plano, com
 #                                                  os valores deste projeto; <pai> é a issue pai do
@@ -58,7 +53,7 @@ cd "$(dirname "$0")/../../../.."
 
 # As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
 # uma fica em .claude/skills/verificar/scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports, e, se a
-# app tem contrato planejado, <app>_contract_drift.
+# app tem contrato, a parte dele que a verificação confere.
 APPS=(api web)
 
 COMPOSE=(docker compose -f compose.dev.yaml)
@@ -217,9 +212,9 @@ wait_for() {
     attempt();" >/dev/null 2>&1
 }
 
-# O Node no contêiner `api`: o scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
+# O Node no contêiner `api`: o .claude/skills/ambiente/scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
 node_in_api() {
-  scripts/node-in-api.sh "$@"
+  .claude/skills/ambiente/scripts/node-in-api.sh "$@"
 }
 
 # O relatório dos testes do harness, relativo à pasta da API: o Node o grava em /app, a que aceita
@@ -270,14 +265,6 @@ cited_acceptance() {
   require_body && node_in_api .claude/skills/plan-ticket/scripts/check-acceptance.cjs --cited - "$TICKETS_DIR" <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
 }
 
-# O `git diff` que a visão do contrato lê: sem cor nem diff externo, com os prefixos `a/` e `b/` fixos
-# e os caminhos com acento sem aspas, seja qual for a configuração do Git de quem roda
-# (`diff.noprefix`, `diff.mnemonicPrefix`, `core.quotePath`), como o da página do plano.
-# plain_diff <argumentos do git diff...>
-plain_diff() {
-  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
-}
-
 # O commit mais recente de <commits> (um intervalo ou um ponto, como no `git log`) que criou o
 # <arquivo>. O `--follow` segue o arquivo pelas renomeações: o commit que só o moveu (como o que levou
 # os arquivos de aceite de docs/aceite/ para a pasta de cada ticket) não conta como o que o criou. Não
@@ -297,11 +284,14 @@ plan_commit() {
   added_by "$BASE_REF..${HEAD_REF:-HEAD}" "$1"
 }
 
-# O desvio do plano, comparado pelo grupo de cada app que declara <app>_contract_drift. Cada uma
-# acrescenta a própria visão ao contract-drift.txt da pasta do ticket, que o `run_full` apaga no
-# começo. Só avisa: nunca falha.
+# O comando do desvio do contrato, da skill contrato: o único dono da comparação com o commit de plano. Acrescenta a visão do
+# desvio ao arquivo que recebe e avisa no PR, sem bloquear.
+CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
+
+# O desvio do plano, pelo comando do /contrato, que acrescenta a visão ao contract-drift.txt da pasta do ticket, que o `run_full`
+# apaga no começo. Só avisa: nunca falha.
 contract_drift() {
-  local file plan app drift
+  local file plan drift
   if [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
     echo "HARNESS_HEAD_REF aponta \`$HEAD_REF\`, que não é um commit deste clone, e o desvio não foi conferido. Aponte o commit da branch, ou deixe a variável vazia para comparar com a pasta de trabalho."
   elif ! file="$(cited_acceptance)"; then
@@ -315,11 +305,7 @@ contract_drift() {
   else
     # A pasta do ticket (docs/tickets/<issue>/<ticket>/) é a do arquivo de aceite citado.
     drift="$(dirname "$file")/contract-drift.txt"
-    for app in "${APPS[@]}"; do
-      if declare -F "${app}_contract_drift" >/dev/null; then
-        "${app}_contract_drift" "$plan" "$HEAD_REF" "$drift"
-      fi
-    done
+    "$CONTRACT_DRIFT" "$plan" "$HEAD_REF" "$drift" || echo "O comando do desvio do contrato falhou, e o desvio não foi conferido."
   fi
   return 0
 }
@@ -473,16 +459,6 @@ run_full() {
     secret_scan
 }
 
-# Valida um ponto da visão do contrato: um commit, ou o id de uma árvore da raiz, como o da árvore do
-# índice que o `git write-tree` imprime. Uma subárvore (`<commit>:<caminho>`) não vale: os caminhos
-# do snapshot e do schema são lidos a partir da raiz.
-require_point() {
-  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1 && return 0
-  [[ "$1" =~ ^[0-9a-f]{4,64}$ && "$(git cat-file -t "$1" 2>/dev/null)" == tree ]] ||
-    abort "\`$1\` não é um commit nem o id da árvore da raiz deste repositório." \
-      "passe um commit, uma branch ou uma tag existente, como \`HEAD\` ou \`origin/main\`, ou o id que o \`git write-tree\` imprime."
-}
-
 # O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
 # valores é o AGENTS.md da raiz ("Plano do ticket", "Valores das skills do ticket"); o atalho só os passa.
 # A lógica e as mensagens são do script.
@@ -490,7 +466,7 @@ require_point() {
 run_plan() {
   local args=(
     --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node scripts/node-in-api.sh --contrato ".claude/skills/verificar/scripts/verify.sh contract"
+    --node .claude/skills/ambiente/scripts/node-in-api.sh --contrato .claude/skills/contrato/scripts/contract-view.sh
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
   [[ -n "${3:-}" ]] && args+=(--commit "$3")
@@ -517,29 +493,19 @@ review_diff() {
   return $code
 }
 
-# O desvio do contrato desde o commit de plano, pelo grupo de cada app que declara
-# <app>_contract_drift, o mesmo do aviso do modo completo. O grupo só grava o arquivo quando há
-# desvio; o revisor recebe o arquivo sempre, então, sem desvio, ele leva o que o grupo disse. O grupo
-# que falha deixa no arquivo que o desvio dele não foi conferido, para o revisor não ler um vazio.
+# O desvio do contrato desde o commit de plano, pelo mesmo comando do aviso do modo completo. O comando só grava o arquivo
+# quando há desvio; o revisor recebe o arquivo sempre, então, sem desvio, ele leva o que o comando disse. Se o comando falha,
+# o arquivo diz que o desvio não foi conferido, para o revisor não ler um vazio.
 # review_drift <commit de plano> <arquivo>
 review_drift() {
-  local plan="$1" drift="$2" app out said=() failed=()
+  local plan="$1" drift="$2" out
   rm -f "$drift"
-  for app in "${APPS[@]}"; do
-    declare -F "${app}_contract_drift" >/dev/null || continue
-    if out="$("${app}_contract_drift" "$plan" "" "$drift" 2>&1)"; then
-      [[ -n "$out" ]] && said+=("$out")
-    else
-      failed+=("O desvio do contrato da app $app não pôde ser conferido. O que o grupo dela disse:"$'\n\n'"$out")
-    fi
-  done
-  if [[ ${#failed[@]} -gt 0 ]]; then
-    printf '%s\n\n' "${failed[@]}" >>"$drift"
-  elif [[ ! -s "$drift" && ${#said[@]} -gt 0 ]]; then
-    printf '%s\n' "${said[@]}" >"$drift"
-  elif [[ ! -s "$drift" ]]; then
-    echo "Nenhuma app declara contrato planejado: não há desvio a conferir." >"$drift"
+  if out="$("$CONTRACT_DRIFT" "$plan" "" "$drift" 2>&1)"; then
+    [[ -s "$drift" || -z "$out" ]] || printf '%s\n' "$out" >"$drift"
+  else
+    printf 'O desvio do contrato não pôde ser conferido. O que o comando disse:\n\n%s\n' "$out" >>"$drift"
   fi
+  [[ -s "$drift" ]] || echo "Não há desvio a conferir." >"$drift"
 }
 
 # O modo `review`: os insumos do revisor de conformidade, na pasta do ticket, e os caminhos que a
@@ -665,20 +631,6 @@ case "$mode" in
     [[ $# -eq 0 ]] || usage
     printf '%s\n' "${APPS[@]}"
     exit 0
-    ;;
-  contract)
-    # A visão não é verificação: não aprova nada. Ela é a do contrato da API, que é o contrato que
-    # o plano escreve, e por isso chama o grupo da API direto, e não percorre o registro.
-    [[ $# -le 2 ]] || usage
-    from="${1:-HEAD}"
-    to="${2:-}"
-    require_point "$from"
-    [[ -z "$to" ]] || require_point "$to"
-    require_container api
-    api_contract_view "$from" "$to" ||
-      fail "A visão do contrato não pôde ser montada: o erro está acima." \
-        "corrija o que ele aponta (num snapshot ilegível, o JSON de $API_SNAPSHOT, no ponto que o oasdiff mostra) e rode \`.claude/skills/verificar/scripts/verify.sh contract\` de novo."
-    exit $?
     ;;
   plan)
     # A página não é verificação: não aprova nada.

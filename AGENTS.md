@@ -70,25 +70,9 @@ docker compose -f compose.dev.yaml down
 
 As dependências instaladas, o `.env` e os dados do banco continuam e são reaproveitados na próxima subida.
 
-**Recomeçar do zero**
+**Procedimentos raros**
 
-```bash
-docker compose -f compose.dev.yaml down -v
-```
-
-O `-v` apaga o volume do banco. Na subida seguinte, o banco é recriado e as migrações são aplicadas de novo. Para gerar também um `.env` e chaves novas, apague o `apps/api/.env` antes de subir.
-
-### Quando a API não sobe
-
-Se o `up --wait` terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api`.
-
-Quando a preparação da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` encerra e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pela preparação:
-
-```bash
-docker compose -f compose.dev.yaml run --rm api <comando>
-```
-
-Depois do conserto, suba o ambiente de novo.
+Recomeçar do zero (apagar o volume do banco e recriá-lo) e consertar a API que não sobe estão na skill `/ambiente` (`.claude/skills/ambiente/SKILL.md`). Se o `up --wait` terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api` e siga a skill.
 
 ### Banco e e-mails
 
@@ -245,9 +229,13 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 
 - **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
 - **Pasta dos documentos:** `docs`.
-- **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
-- **Comando do contrato:** `.claude/skills/verificar/scripts/verify.sh contract`, a visão legível do contrato e do schema.
+- **Comando do Node:** `.claude/skills/ambiente/scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
+- **Comando do contrato:** `.claude/skills/contrato/scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
+
+O valor da `/revisao-conformidade`:
+
+- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa. É também o que o aviso do modo completo da verificação chama.
 
 Os valores da `/proteger-harness`:
 
@@ -267,7 +255,7 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
 
 - **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
-- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, e as que nascem nos próximos tickets da LUI-193.
+- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, `/ambiente` (o Docker Compose, o Node no contêiner e os pontos de convergência) e `/contrato` (a visão e o desvio do contrato), e as que nascem nos próximos tickets da LUI-193.
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 

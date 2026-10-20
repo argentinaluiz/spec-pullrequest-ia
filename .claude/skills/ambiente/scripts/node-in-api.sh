@@ -5,7 +5,7 @@
 # AGENTS.md da raiz o declara em "Plano do ticket") e o do `node_in_api` do .claude/skills/verificar/scripts/verify.sh, que o
 # usa para o conferidor, o renderizador e os testes do harness.
 #
-#   scripts/node-in-api.sh <argumentos do node>...
+#   .claude/skills/ambiente/scripts/node-in-api.sh <argumentos do node>...
 #
 # É chamado da raiz do repositório, e o Node roda na raiz dele no contêiner, /repo: os argumentos
 # vão como estão, e os caminhos relativos à raiz valem lá como aqui. Um caminho absoluto da máquina,
@@ -18,11 +18,11 @@
 set -uo pipefail
 
 if [[ $# -eq 0 ]]; then
-  echo 'Uso: scripts/node-in-api.sh <argumentos do node>...' >&2
+  echo 'Uso: .claude/skills/ambiente/scripts/node-in-api.sh <argumentos do node>...' >&2
   exit 2
 fi
 
-COMPOSE=(docker compose -f "$(dirname "$0")/../compose.dev.yaml")
+COMPOSE=(docker compose -f "$(dirname "$0")/../../../../compose.dev.yaml")
 "${COMPOSE[@]}" exec -T -w /repo api node "$@"
 code=$?
 [[ $code -eq 0 ]] && exit 0
