@@ -103,11 +103,11 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 ## Frentes paralelas
 
-Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando está numa branch que não é a `main`, e o limite é de 3 frentes ao todo.
+Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando não está na branch principal (a `main`), e isso inclui o HEAD solto, que não é estado de repouso; o limite é de 3 frentes ao todo. Em repouso, o principal fica na branch principal, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
 - **Criar:** `scripts/frentes.sh novo <ticket> [tipo]` cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
 - **Listar:** `scripts/frentes.sh listar` mostra o slot, a branch, as portas e o estado do PR de cada frente.
-- **Remover:** `scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega.
+- **Remover:** `scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
 
 **Abrir as frentes de uma spec:** use a `/abrir-frentes` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
 
@@ -146,7 +146,7 @@ scripts/verify.sh full
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `scripts/verify.sh fast`. O `scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
-- **O `full` roda uma vez, no fim da tarefa,** antes do commit que a fecha, e quem o roda é quem faz esse commit. No fluxo de ticket, é a sessão principal, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade").
+- **O `full` roda uma vez, no fim da tarefa,** depois do commit do trabalho e da `/sincronizar`, e quem o roda é quem fecha a tarefa. No fluxo de ticket, é a sessão do ticket, na frente, e nunca um subagente, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade"). Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
 - **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `scripts/verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
@@ -186,9 +186,9 @@ O aceite é conferido na máquina antes do push, como descrito em "Antes do push
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/` passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/`, e todo ticket com aceite que altera o harness (`scripts/`, `.claude/hooks/`, `.github/`), passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-No fluxo do ticket, ela vem depois da `/code-review` e antes do `full`, para as correções entrarem na única verificação completa: implementação, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e commit. A revisão não bloqueia: todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
+No fluxo do ticket, ela vem depois da `/sincronizar`, da `/simplify` e da `/code-review`, e antes do `full`, para as revisões verem o resultado do merge e as correções entrarem na única verificação completa: implementação, commit, `/sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
@@ -207,7 +207,7 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 1. **Planejamento:** as decisões são fechadas com o usuário e registradas no documento dono delas: as de produto em `docs/` (LLD e, se houver termo novo, `GLOSSARY.md`), e as de prática de código no `AGENTS.md` do projeto.
 2. **Spec:** uma issue por funcionalidade, com o problema, a solução, as histórias de usuário, as decisões de implementação e de teste e o que fica fora de escopo.
-3. **Tickets:** sub-issues da spec. Cada ticket é uma fatia vertical, que atravessa banco, API, interface e testes e pode ser verificada sozinha. Tickets de preparação (ambiente, base de componentes) são a exceção e vêm primeiro.
+3. **Tickets:** sub-issues da spec. Cada ticket é uma fatia vertical, que atravessa banco, API, interface e testes e pode ser verificada sozinha. Tickets de preparação (ambiente, base de componentes) são a exceção e vêm primeiro. Um ticket de acabamento de uma spec já concluída também nasce como sub-issue dela: não há ticket sem pai.
 4. **Bloqueios:** as dependências entre tickets são a relação nativa do Linear ("blocked by"), e não texto na descrição.
 
 **Regras de escrita**
@@ -223,10 +223,10 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
 - Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
 - Use o identificador da issue no nome da branch.
-- Mova a issue para "In Progress" ao começar. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
-- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". O PR só abre com o `full` aprovado, então abrir já é esperar a revisão do usuário; um PR em rascunho deixa a issue em "In Progress". O vínculo depende de o app do Linear ter acesso ao repositório do PR; um PR sem arquivo alterado não entra, porque a Guarda do harness o reprova. Os tickets sem PR, como os de design, ficam com o "Done" manual.
+- Mova a issue para "In Progress" ao começar o planejamento: a `/plan-ticket` faz isso, e a `/implement` confere. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
+- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". O PR só abre com o `full` aprovado, então abrir já é esperar a revisão do usuário; um PR em rascunho só existe se o usuário o abrir à mão (o hook de push exige o `full` aprovado antes de qualquer push), e então a issue fica em "In Progress". O vínculo depende de o app do Linear ter acesso ao repositório do PR; um PR sem arquivo alterado não entra, porque a Guarda do harness o reprova. Os tickets sem PR, como os de design, ficam com o "Done" manual.
 - Não feche nem edite a spec pai ao concluir um ticket.
-- Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
+- Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa. O ID e a marca de um critério nunca mudam; o texto dele só é corrigido, se ficou factualmente desatualizado, com a aprovação do usuário no plano.
 - **Pare e pergunte** diante de uma decisão que não está no ticket nem no plano e que outro ticket em andamento também tomaria, ou diante de mudar algo que outro ticket em andamento usa. Decidir sozinho é como dois tickets paralelos passam nos próprios testes e quebram na integração. As decisões que o ticket consome de outros, e o dono de cada uma, estão na seção "Decisões de outros tickets" dele.
 
 ### Plano do ticket
@@ -262,7 +262,7 @@ O atalho `scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o s
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que a `/sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
-- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR.
+- **Arquivos do harness:** `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/` e os scripts da skill de plano (`.claude/skills/plan-ticket/scripts/`) só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. As skills (`.claude/skills/`) não são arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas
 
