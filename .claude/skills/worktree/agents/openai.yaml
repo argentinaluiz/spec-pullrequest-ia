@@ -1,0 +1,5 @@
+interface:
+  display_name: "Worktree"
+  short_description: "Create, list, remove, open and sync the parallel fronts of a project"
+policy:
+  allow_implicit_invocation: true
