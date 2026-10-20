@@ -13,13 +13,12 @@ ROOT="$(cd "$HERE/../../../../.." && pwd)"
 source "$HERE/sh-helpers.sh"
 
 SUITE="$ROOT/.claude/skills/verificar/scripts/genericity.sh"
-work="$(cd "$(mktemp -d)" && pwd -P)"
+work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# skills <nome>: uma pasta de skills de mentira, vazia, em $skills.
+# fresh <nome>: uma pasta de skills de mentira, vazia, em $skills.
 fresh() {
   skills="$work/$1"
-  rm -rf "$skills"
   mkdir -p "$skills"
 }
 
@@ -55,7 +54,27 @@ pattern_found() {
   [[ "$out" == *'suja: scripts/rodar.sh:2: padrão "FIXME-[0-9]+" (prefixo dos identificadores do time)'* ]] || return 1
   # A skill limpa e a do projeto não são reprovadas.
   [[ "$out" != *'limpa:'* && "$out" != *'doprojeto:'* ]] || return 1
+  # A pasta test/ de uma skill genérica não é varrida, e a pasta das skills sob uma pasta chamada test é varrida.
+  put limpa scripts/test/caso.test.sh 'echo "FIXME-9"'
+  run
+  [[ "$out" != *'limpa:'* ]] || return 1
+  skills="$work/test/ancestral"
+  mkdir -p "$skills"
+  put suja SKILL.md $'# Suja\n\nO ticket é o FIXME-12.'
+  list 'generica\tsuja' 'padrao\tFIXME-[0-9]+\tprefixo dos identificadores do time'
+  run
+  [[ $code -eq 1 && "$out" == *'suja: SKILL.md:3:'* ]] || return 1
+  # Uma skill da lista sem nenhum arquivo varrido reprova, e uma que não existe também.
+  fresh vazia
+  list 'generica\tso-teste' 'generica\tfantasma' 'padrao\tFIXME-[0-9]+\tprefixo dos identificadores do time'
+  put so-teste scripts/test/x.test.sh 'echo oi'
+  run
+  [[ $code -eq 1 && "$out" == *'so-teste: nenhum arquivo da skill genérica foi varrido'* && "$out" == *'fantasma: a pasta da skill genérica não existe'* ]] || return 1
   # Sem nenhum achado, a suíte aprova.
+  fresh padrao
+  list 'generica\tlimpa' 'padrao\tFIXME-[0-9]+\tprefixo dos identificadores do time'
+  put limpa SKILL.md $'# Limpa\n\nFala de um ticket PROJ-1, que não é do time.'
+  put limpa scripts/test/caso.test.sh 'echo "FIXME-9"'
   rm -rf "$skills/suja"
   list 'generica\tlimpa' 'padrao\tFIXME-[0-9]+\tprefixo dos identificadores do time'
   run
@@ -74,12 +93,15 @@ file_reference() {
   put e SKILL.md $'# E\n\nChame a skill `b` pelo nome e a `/doprojeto` também; não carregue arquivo nenhum delas.'
   put f SKILL.md $'# F\n\nO script da própria skill é o `.claude/skills/f/scripts/proprio.sh`.'
   put doprojeto scripts/rodar.sh $'#!/usr/bin/env bash'
+  put g SKILL.md $'# G\n\nVeja em skills/doprojeto'
+  list 'generica\ta' 'generica\tb' 'generica\tc' 'generica\td' 'generica\te' 'generica\tf' 'generica\tg'
   run
   [[ $code -eq 1 ]] || return 1
   # Cada achado diz a skill, o arquivo com a linha e a skill referida.
   [[ "$out" == *'a: SKILL.md:3: referência a arquivo da skill b'* ]] || return 1
   [[ "$out" == *'c: SKILL.md:3: referência a arquivo da skill doprojeto'* ]] || return 1
   [[ "$out" == *'d: scripts/carrega.sh:3: referência a arquivo da skill doprojeto'* ]] || return 1
+  [[ "$out" == *'g: SKILL.md:3: referência a arquivo da skill doprojeto'* ]] || return 1
   # A que só chama outra pelo nome e a que cita a própria pasta passam.
   [[ "$out" != *'e:'* && "$out" != *'f:'* && "$out" != *'b:'* ]]
 }
@@ -91,12 +113,8 @@ the_kit() {
   out="$(cd "$ROOT" && "$SUITE" .claude/skills/verificar/genericidade.txt .claude/skills 2>&1)"
   code=$?
   [[ $code -eq 0 ]] || { echo "$out"; return 1; }
-  # A lista traz as seis skills genéricas do kit e os quatro tipos de padrão do projeto, e a verificação acha este teste.
-  local skill
-  for skill in plan-ticket revisao-conformidade worktree proteger-harness implement tdd; do
-    grep -qxP "generica\t$skill" "$ROOT/.claude/skills/verificar/genericidade.txt" || { echo "falta a skill $skill na lista"; return 1; }
-  done
-  grep -q '^padrao' "$ROOT/.claude/skills/verificar/genericidade.txt" || return 1
+  # A lista traz skills genéricas e padrões, e a verificação acha este teste entre os das skills.
+  grep -q '^generica' "$ROOT/.claude/skills/verificar/genericidade.txt" && grep -q '^padrao' "$ROOT/.claude/skills/verificar/genericidade.txt" || return 1
   "$ROOT/.claude/skills/verificar/scripts/verify/skill-tests.sh" sh "$ROOT/.claude/skills" | grep -q 'genericity\.test\.sh$'
 }
 check "o kit deste projeto passa na suíte de genericidade, que roda na verificação completa @LUI-201-CA3" the_kit

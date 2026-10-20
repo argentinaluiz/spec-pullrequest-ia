@@ -286,7 +286,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
 
-**Genericidade.** A suíte `.claude/skills/verificar/scripts/genericity.sh` varre as skills genéricas, o texto e os scripts, com a lista do projeto (`.claude/skills/verificar/genericidade.txt`: as skills genéricas e os padrões deste projeto que elas não podem trazer). Ela reprova um padrão da lista e uma referência de arquivo a outra skill, e roda na verificação completa, pelo teste dela.
+**Genericidade.** A suíte `.claude/skills/verificar/scripts/genericity.sh` reprova uma skill genérica que traga um padrão deste projeto ou carregue arquivo de outra skill. A lista dela, `.claude/skills/verificar/genericidade.txt` (as skills genéricas e os padrões), é protegida, e a suíte roda na verificação completa pelo teste dela.
 
 **Proteção.** O texto de uma skill (o `SKILL.md`, os formatos, o modelo do revisor) é livre: este arquivo vale mais que qualquer skill, e as regras e os comandos de entrada ficam aqui. O mecanismo de uma skill, ou seja, os scripts e os hooks dela, é protegido, e a lista de arquivos protegidos é a da skill `/verificar` (`.claude/skills/verificar/arquivos-protegidos.txt`), que a Guarda do harness lê.
 

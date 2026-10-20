@@ -1,7 +1,9 @@
 // Auxiliares dos testes do renderizador do contrato: o snapshot de exemplo da OpenAPI e a leitura de um
-// painel da página de revisão. Não termina em `.test.cjs`, então o `node --test` não o roda como teste.
+// painel da página de revisão (esta, da skill de plano). Não termina em `.test.cjs`, então o `node --test` não o roda como teste.
 
-const assert = require('node:assert/strict');
+// A leitura de um painel da página é a da skill de plano, que o renderizador do contrato usa (uma skill do projeto
+// pode carregar uma genérica).
+const { panel } = require('../../../plan-ticket/scripts/test/helpers.cjs');
 
 /** Um snapshot da OpenAPI com as rotas dadas, o esquema `bearer`, o problema e o `MeDto`. */
 function snapshot(paths, schemas = {}) {
@@ -24,24 +26,4 @@ function snapshot(paths, schemas = {}) {
   };
 }
 
-/** O conteúdo de uma aba da página do plano: o painel com o id dela, até o fim dele. */
-function panel(html, id) {
-  const start = html.indexOf(`<section class="painel" id="aba-${id}"`);
-  assert.notEqual(start, -1, `a página não tem a aba ${id}`);
-  return html.slice(start, html.indexOf('</section>', start));
-}
-
-/** O texto visível de um trecho de HTML, sem as marcas e com as entidades desfeitas. */
-function text(html) {
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&amp;', '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-module.exports = { snapshot, panel, text };
+module.exports = { snapshot, panel };
