@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 #
-# Testes do hook .claude/hooks/record-touched.sh, que anota por sessão os arquivos de apps/ que o
+# Testes do hook record-touched.sh, que anota por sessão os arquivos de apps/ que o
 # agente editou, pela entrada que o Claude Code entrega a ele (um JSON pela entrada padrão). O hook
 # nunca bloqueia, então todo caso confere a saída 0. Rodam na máquina, como o hook, porque ele usa o
-# `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o scripts/verify.sh.
+# `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$ROOT/.claude/hooks/record-touched.sh"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
+HOOK="$ROOT/.claude/skills/verificar/hooks/record-touched.sh"
+# shellcheck source=../../scripts/test/sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o hook e o teste dele precisam dele."; exit 2; }

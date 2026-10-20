@@ -5,7 +5,7 @@
 # Um caso de shell também pode provar um critério de aceite, como um teste em Node. Para isso, ponha o
 # token do ID no nome do caso, como `@<ticket>-CA<n>` (por exemplo, `@LUI-183-CA1`), e o critério tem de
 # ser de teste no arquivo de aceite. O nome fica como foi escrito, e o executor
-# (scripts/test/shell-tests.sh) repete o token em `tags` no relatório, que o conferidor do aceite lê.
+# (shell-tests.sh) repete o token em `tags` no relatório, que o conferidor do aceite lê.
 #
 # O relatório fica em apps/api/reports/harness/shell-tests.json, no mesmo formato do Vitest que o
 # relatório dos testes em Node (node-tests.json, ao lado). O executor o apaga e o grava de novo a cada

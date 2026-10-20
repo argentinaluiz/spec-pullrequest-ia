@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Testes do modo `review` do scripts/verify.sh: os argumentos, o diff da branch com os arquivos novos
+# Testes do modo `review` do verify.sh: os argumentos, o diff da branch com os arquivos novos
 # sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a
 # mensagem dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios.
 # O verify.sh roda copiado num repositório temporário, com o desvio do contrato trocado por um falso
 # (a comparação real tem os próprios testes) e um `docker` falso, para o contêiner `api` contar como no
-# ar. Rodam na máquina, como o verify.sh. Quem chama é o scripts/verify.sh.
+# ar. Rodam na máquina, como o verify.sh. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 # shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -30,13 +30,15 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/docker"
 chmod +x "$tmp/bin/docker"
 
 # O repositório: os scripts do verify.sh e as regras de docs/tickets do .gitignore, na main.
-mkdir -p "$repo/scripts" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
-cp -R "$ROOT/scripts/verify.sh" "$ROOT/scripts/verify" "$ROOT/scripts/harness-base.sh" "$ROOT/scripts/full-lock.sh" "$repo/scripts/"
+SK=.claude/skills/verificar
+mkdir -p "$repo/scripts" "$repo/$SK/scripts" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
+cp -R "$ROOT/$SK/scripts/verify.sh" "$ROOT/$SK/scripts/verify" "$ROOT/$SK/scripts/full-lock.sh" "$repo/$SK/scripts/"
+cp "$ROOT/scripts/harness-base.sh" "$repo/scripts/"
 cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$repo/.claude/skills/proteger-harness/scripts/"
 grep '^!\{0,1\}docs/tickets/' "$ROOT/.gitignore" >"$repo/.gitignore"
 # O desvio falso: com FAKE_DRIFT, há desvio, e ele faz como o grupo da API (acrescenta a visão ao
 # arquivo e avisa); sem ela, diz que o contrato está igual, sem gravar nada.
-cat >>"$repo/scripts/verify/api.sh" <<'EOF'
+cat >>"$repo/.claude/skills/verificar/scripts/verify/api.sh" <<'EOF'
 
 api_contract_drift() {
   if [[ -n "${FAKE_DRIFT_FAIL:-}" ]]; then
@@ -85,7 +87,7 @@ rm "$repo/apps/api/apagado.ts"
 review() {
   local errfile="$tmp/err"
   out="$(cd "$repo" && env -u CLAUDE_PROJECT_DIR -u HARNESS_HEAD_REF PATH="$tmp/bin:$PATH" HARNESS_BASE_REF=main \
-    scripts/verify.sh review "$@" 2>"$errfile")"
+    .claude/skills/verificar/scripts/verify.sh review "$@" 2>"$errfile")"
   code=$?
   err="$(cat "$errfile")"
 }

@@ -15,8 +15,8 @@
 set -uo pipefail
 # Sem a pasta de estado do harness (a raiz do projeto não se alcança), não há onde anotar: sai com 0, e
 # o hook de fim de turno, que não acha a pasta também, avisa que nada foi verificado.
-# shellcheck source=../skills/proteger-harness/scripts/harness-dir.sh
-source "${0%/*}/../skills/proteger-harness/scripts/harness-dir.sh"
+# shellcheck source=../../proteger-harness/scripts/harness-dir.sh
+source "${0%/*}/../../proteger-harness/scripts/harness-dir.sh"
 [[ -n "$HARNESS_DIR" ]] || exit 0
 root="${HARNESS_DIR%/.harness}"
 cd "$root" 2>/dev/null || exit 0

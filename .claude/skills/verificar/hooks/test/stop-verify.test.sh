@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# Testes do hook .claude/hooks/stop-verify.sh, pela entrada que o Claude Code entrega a ele (um JSON
+# Testes do hook stop-verify.sh, pela entrada que o Claude Code entrega a ele (um JSON
 # pela entrada padrão) e pela decisão que ele devolve (0 deixa encerrar, 2 bloqueia). O hook roda
-# num repositório temporário, com o `scripts/verify.sh` trocado por um falso (variável
+# num repositório temporário, com o `verify.sh` trocado por um falso (variável
 # HARNESS_VERIFY), que registra o que rodou e imprime a saída combinada pelo teste: nenhum contêiner
 # nem o estado deste clone entra no caso. Rodam na máquina, como o hook, porque ele usa o `git` e o
-# `jq`, que o contêiner `api` não tem. Quem chama é o scripts/verify.sh.
+# `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-HOOK="$ROOT/.claude/hooks/stop-verify.sh"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
+HOOK="$ROOT/.claude/skills/verificar/hooks/stop-verify.sh"
+# shellcheck source=../../scripts/test/sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o hook e o teste dele precisam dele."; exit 2; }
@@ -98,7 +98,7 @@ expect_stop "a sessão sem arquivo registrado sai na hora, sem rodar a verifica�
 # --- A sessão B registrou outro arquivo da mesma app ---
 touch_file B apps/api/src/b.ts
 stop B
-expect_stop "o erro só em arquivo de outra sessão não bloqueia e avisa" 0 "roda" "systemMessage"
+expect_stop "o erro só em arquivo de outra sessão não bloqueia e avisa @LUI-195-CA1" 0 "roda" "systemMessage"
 check "o aviso diz que o modo completo confere os arquivos que a sessão não tocou" \
   grep -q "não tocou" <<<"$out"
 check "o aviso não grava a aprovação" test ! -e "$state_dir/fast-ok-B-api"
@@ -291,7 +291,7 @@ code=0
 env -u HARNESS_TEST "$HOOK" <<<'{"session_id":"I"}' >"$work/stdout" 2>"$work/stderr" || code=$?
 out="$(cat "$work/stdout")"
 err="$(cat "$work/stderr")"
-expect_stop "sem HARNESS_TEST, o HARNESS_VERIFY é ignorado e o hook usa o scripts/verify.sh" 2 "não roda" "lista de apps"
+expect_stop "sem HARNESS_TEST, o HARNESS_VERIFY é ignorado e o hook usa o .claude/skills/verificar/scripts/verify.sh" 2 "não roda" "lista de apps"
 
 finish "do hook de fim de turno"
 echo "Todos os testes do hook de fim de turno passaram."

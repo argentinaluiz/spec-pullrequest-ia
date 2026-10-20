@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Hook de fim de turno do Claude Code (evento Stop). Quando o agente tenta encerrar o turno, roda
-# o modo rápido do scripts/verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
+# o modo rápido do verify.sh nas apps em que a sessão dele editou arquivos. Quem anota esses
 # arquivos, por sessão, é o record-touched.sh. Cada sessão só responde pelos arquivos dela: o erro
 # que outra sessão deixou no mesmo clone não bloqueia este turno, só avisa. Se falhar num arquivo da
 # sessão, devolve a saída ao agente, que continua o trabalho. A edição por shell não é anotada,
@@ -10,7 +10,7 @@
 # Sai com 0 para deixar o turno encerrar e com 2 para bloquear. No 2, o que foi escrito na
 # saída de erro volta para o agente.
 #
-# A variável HARNESS_VERIFY troca o scripts/verify.sh, e só os testes do hook a usam: ela só vale
+# A variável HARNESS_VERIFY troca o verify.sh, e só os testes do hook a usam: ela só vale
 # com a HARNESS_TEST=1, que os testes também definem.
 
 set -uo pipefail
@@ -24,15 +24,15 @@ state_unavailable() {
   exit 0
 }
 
-# shellcheck source=../skills/proteger-harness/scripts/harness-dir.sh
-source "${0%/*}/../skills/proteger-harness/scripts/harness-dir.sh"
+# shellcheck source=../../proteger-harness/scripts/harness-dir.sh
+source "${0%/*}/../../proteger-harness/scripts/harness-dir.sh"
 [[ -n "$HARNESS_DIR" ]] || state_unavailable
 cd "${HARNESS_DIR%/.harness}" || state_unavailable
 
 # Depois de tantos bloqueios seguidos, o hook deixa o turno encerrar e avisa o usuário,
 # para um erro que o agente não consegue corrigir não virar um laço sem fim.
 MAX_BLOCKS=3
-VERIFY="scripts/verify.sh"
+VERIFY=".claude/skills/verificar/scripts/verify.sh"
 [[ "${HARNESS_TEST:-}" == 1 && -n "${HARNESS_VERIFY:-}" ]] && VERIFY="$HARNESS_VERIFY"
 
 # Sem a sessão, ou sem o `jq` para lê-la, nada foi anotado nem pode ser conferido. Não bloqueia, mas
@@ -110,8 +110,8 @@ fingerprint() {
 
 # Sem a lista, nenhuma app seria verificada e o turno passaria calado. Por isso a falha bloqueia.
 apps="$("$VERIFY" apps)" ||
-  block "não deu para ler a lista de apps do scripts/verify.sh" \
-    "Rode \`scripts/verify.sh apps\` e corrija o erro." \
+  block "não deu para ler a lista de apps do .claude/skills/verificar/scripts/verify.sh" \
+    "Rode \`.claude/skills/verificar/scripts/verify.sh apps\` e corrija o erro." \
     ""
 
 projects=()
@@ -207,7 +207,7 @@ blocking_reason() {
 if reason="$(blocking_reason)"; then
   # O fim da saída traz o resumo do que falhou e como corrigir.
   block "a verificação rápida de ${projects[*]} não passou" \
-    "Rode \`scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
+    "Rode \`.claude/skills/verificar/scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
     "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
 Motivo do bloqueio: $reason.
 

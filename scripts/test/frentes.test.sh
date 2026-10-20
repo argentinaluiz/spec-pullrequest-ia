@@ -5,12 +5,12 @@
 # `git worktree` e a trava são de verdade. Só o `docker`, o `gh` e a sonda de portas são trocados, pelo
 # modo de teste do harness (HARNESS_TEST=1): programas deste teste, que registram o que receberam ou
 # respondem o que o caso combinou. Rodam na máquina, porque usam o `git`, o `jq` e o `flock`. Quem chama
-# é o scripts/verify.sh.
+# é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 for tool in git jq flock; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o teste do script de frentes precisa dele."; exit 2; }

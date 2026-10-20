@@ -10,8 +10,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
 LIST="$ROOT/.claude/skills/verificar/arquivos-protegidos.txt"
-# shellcheck source=../../../../../scripts/test/sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+# shellcheck source=sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }
 
@@ -48,11 +48,11 @@ for path in \
   .claude/skills/qualquer-skill-nova/hooks/test/y.test.sh \
   .claude/skills/verificar/arquivos-protegidos.txt \
   .claude/agents/revisor-conformidade.md \
-  .claude/hooks/push-verify.sh \
+  .claude/skills/verificar/hooks/push-verify.sh \
   .claude/settings.json \
   .github/workflows/ci.yml \
-  scripts/verify.sh \
-  scripts/test/sh-helpers.sh; do
+  .claude/skills/verificar/scripts/verify.sh \
+  .claude/skills/verificar/scripts/test/sh-helpers.sh; do
   check "$name: bloqueia $path" blocked "$path"
 done
 

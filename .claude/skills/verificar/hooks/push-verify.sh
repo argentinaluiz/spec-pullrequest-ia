@@ -3,10 +3,10 @@
 # Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente cinco
 # comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário, ou
 # com as variáveis do modo de teste, que trocam o `gh` e contornariam a conferência do merge;
-# o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
-# o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
-# `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; e o `git push`
-# que o `scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
+# o `verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
+# o `verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
+# `verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; e o `git push`
+# que o `verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
 # não aprovou o último commit. As guardas são para um agente que coopera, e não uma barreira de
 # segurança.
 #
@@ -14,12 +14,12 @@
 # erro volta para o agente.
 
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
+cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
 # A instrução de destravar, a mesma das mensagens do verify.sh (FULL_LOCK_ASK).
-# shellcheck source=../../scripts/full-lock.sh
-source scripts/full-lock.sh 2>/dev/null
+# shellcheck source=../scripts/full-lock.sh
+source .claude/skills/verificar/scripts/full-lock.sh 2>/dev/null
 # A leitura das aspas de um comando de shell, que é da skill proteger-harness.
-# shellcheck source=../skills/proteger-harness/scripts/harness-state-guard.sh
+# shellcheck source=../../proteger-harness/scripts/harness-state-guard.sh
 source .claude/skills/proteger-harness/scripts/harness-state-guard.sh
 
 # Nega o comando com as linhas dadas.
@@ -39,16 +39,16 @@ deny_forcar() {
 
 deny_frentes_test() {
   deny "O comando foi negado: o \`frentes.sh\` não roda com as variáveis do modo de teste do harness." \
-    "\`HARNESS_TEST\`, \`FRENTES_GH\`, \`FRENTES_DOCKER\`, \`FRENTES_PORT_OWNER\` e \`FRENTES_GIT_VERSION\` trocam o \`gh\`, o \`docker\` e as conferências do script, e com elas o \`remover\` removeria uma frente sem o merge. São dos testes do script, que o scripts/verify.sh roda. Rode o \`frentes.sh\` sem elas."
+    "\`HARNESS_TEST\`, \`FRENTES_GH\`, \`FRENTES_DOCKER\`, \`FRENTES_PORT_OWNER\` e \`FRENTES_GIT_VERSION\` trocam o \`gh\`, o \`docker\` e as conferências do script, e com elas o \`remover\` removeria uma frente sem o merge. São dos testes do script, que o .claude/skills/verificar/scripts/verify.sh roda. Rode o \`frentes.sh\` sem elas."
 }
 
 deny_ci() {
-  deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do scripts/verify.sh." \
-    "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`scripts/verify.sh\` sem elas."
+  deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do .claude/skills/verificar/scripts/verify.sh." \
+    "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`.claude/skills/verificar/scripts/verify.sh\` sem elas."
 }
 
 deny_subagent_full() {
-  deny "O comando foi negado: subagente não roda o \`scripts/verify.sh full\`, nem o de algumas apps; o \`full\` é de quem o chamou." \
+  deny "O comando foi negado: subagente não roda o \`.claude/skills/verificar/scripts/verify.sh full\`, nem o de algumas apps; o \`full\` é de quem o chamou." \
     "Termine com os testes ligados aos arquivos que mudou, com os comandos do AGENTS.md do projeto, e devolva o resultado dizendo o que rodou (AGENTS.md da raiz, \"Definição de pronto\")."
 }
 
@@ -128,7 +128,7 @@ if [[ "$command" != *[$';&|\n']* && "$command" =~ [[:space:]]--delete([[:space:]
   exit 0
 fi
 
-output="$(scripts/verify.sh prepush 2>&1)" && exit 0
+output="$(.claude/skills/verificar/scripts/verify.sh prepush 2>&1)" && exit 0
 
 deny "O push foi negado: a verificação de antes do push não passou." \
   "Não contorne o bloqueio. Se o push sem verificação for mesmo necessário, quem o faz é o usuário, no terminal." \

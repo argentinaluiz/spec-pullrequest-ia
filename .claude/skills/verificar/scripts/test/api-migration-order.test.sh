@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Teste do passo da ordem das migrações do grupo da API (scripts/verify/api.sh): as migrações novas da
+# Teste do passo da ordem das migrações do grupo da API (api.sh): as migrações novas da
 # branch têm de vir depois da mais recente da base, porque o Prisma as aplica na ordem do nome. Roda a
 # função `api_migration_order` num repositório temporário, onde a base é um commit e a branch é a pasta
-# de trabalho. Rodam na máquina, porque usam o `git`. Quem chama é o scripts/verify.sh.
+# de trabalho. Rodam na máquina, porque usam o `git`. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 # shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 # shellcheck source=../verify/api.sh
-source "$ROOT/scripts/verify/api.sh"
+source "$ROOT/.claude/skills/verificar/scripts/verify/api.sh"
 
 # O que o verify.sh define e a função usa: a base já foi conferida (require_base) e o comando do contêiner.
 require_base() { :; }
