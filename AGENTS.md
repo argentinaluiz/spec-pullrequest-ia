@@ -233,9 +233,13 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 - **Comando do contrato:** `.claude/skills/contrato/scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
-O valor da `/revisao-conformidade`:
+Os valores da `/revisao-conformidade`:
 
-- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa. É também o que o aviso do modo completo da verificação chama.
+- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
+- **Base:** o que a `HARNESS_BASE_REF` diz, lido por `scripts/harness-base.sh` (padrão `origin/main`); o script dos insumos recebe o valor em `--base`.
+- **Código que pede revisão:** o código em `apps/` e o harness (`scripts/`, `.claude/hooks/`, `.github/`, os scripts e os hooks das skills). Um ticket só de documento não pede revisão.
+- **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
+- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
 Os valores da `/proteger-harness`:
 

@@ -1,0 +1,7 @@
+# Ligações do LUI-198: os testes do script dos insumos moram na skill revisao-conformidade e não levam o ID na tag.
+# ID, arquivo do teste e nome do caso, separados por tabulação.
+LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	grava o diff desde a base com os arquivos novos, a mensagem do commit de plano e o desvio
+LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	recusa um ticket sem commit de plano
+LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	recusa uma mudança sem ticket sem critérios
+LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	recusa um insumo que o Git não ignoraria
+LUI-198-CA2	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	roda num repositório de fora, com os padrões da base e do desvio

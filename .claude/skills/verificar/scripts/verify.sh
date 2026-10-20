@@ -21,12 +21,6 @@
 #                                                  atalho para o plan-page.sh da skill de plano, com
 #                                                  os valores deste projeto; <pai> é a issue pai do
 #                                                  ticket, a pasta dele em docs/tickets
-#   verify.sh review <pai> <ticket>
-#   verify.sh review sem-ticket <nome>
-#                                                  os insumos do revisor de conformidade na pasta do
-#                                                  ticket: o diff da branch, com os arquivos novos, e,
-#                                                  com ticket, a mensagem do commit de plano e o desvio
-#                                                  do contrato. É da skill revisao-conformidade
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
@@ -476,105 +470,6 @@ run_plan() {
   "$PLAN_SKILL_SCRIPTS/plan-page.sh" "${args[@]}"
 }
 
-# O diff que o revisor lê: tudo o que a branch mudou desde que saiu da base, até a pasta de trabalho,
-# com os arquivos novos que o Git não ignora. Compara com o ponto em que a branch saiu da base, e não
-# com a ponta dela, para uma base que andou não trazer as mudanças alheias como se fossem da branch.
-# Usa um índice temporário, como o `worktree_state`, para contar os arquivos novos sem mexer no índice
-# de quem trabalha. Grava também a lista dos arquivos que o diff acrescenta, em commit ou não.
-# review_diff <arquivo do diff> <arquivo da lista dos acrescentados>
-review_diff() {
-  local base dir code=0
-  base="$(git merge-base "$BASE_REF" HEAD)" || return 1
-  dir="$(mktemp -d)" || return 1
-  (
-    export GIT_INDEX_FILE="$dir/index"
-    git read-tree HEAD && git add -A &&
-      plain_diff --cached "$base" >"$1" &&
-      git -c core.quotePath=false diff --cached --name-only --diff-filter=A "$base" >"$2"
-  ) || code=1
-  rm -rf "$dir"
-  return $code
-}
-
-# O desvio do contrato desde o commit de plano, pelo mesmo comando do aviso do modo completo. O comando só grava o arquivo
-# quando há desvio; o revisor recebe o arquivo sempre, então, sem desvio, ele leva o que o comando disse. Se o comando falha,
-# o arquivo diz que o desvio não foi conferido, para o revisor não ler um vazio.
-# review_drift <commit de plano> <arquivo>
-review_drift() {
-  local plan="$1" drift="$2" out
-  rm -f "$drift"
-  if out="$("$CONTRACT_DRIFT" "$plan" "" "$drift" 2>&1)"; then
-    [[ -s "$drift" ]] || printf '%s\n' "$out" >"$drift"
-  else
-    printf 'O desvio do contrato não pôde ser conferido. O que o comando disse:\n\n%s\n' "$out" >>"$drift"
-  fi
-}
-
-# O modo `review`: os insumos do revisor de conformidade, na pasta do ticket, e os caminhos que a
-# skill revisao-conformidade passa a ele. Com ticket, exige o commit de plano: um ticket sem ele não
-# foi planejado, e não chega à revisão. Sem ticket, exige os critérios escritos antes, em
-# criterios.md, para a revisão ter contra o que conferir.
-# run_review <pai> <ticket>, ou run_review sem-ticket <nome>
-run_review() {
-  local dir="$TICKETS_DIR/$1/$2" acceptance plan="" file added
-  require_base
-  if [[ "$1" == sem-ticket ]]; then
-    [[ -f "$dir/criterios.md" ]] ||
-      abort "não há critérios para a revisão: $dir/criterios.md não existe." \
-        "escreva nele os critérios de aceite da mudança, antes de revisar, e rode \`.claude/skills/verificar/scripts/verify.sh review sem-ticket $2\` de novo."
-  else
-    acceptance="$dir/aceite.md"
-    [[ -f "$acceptance" ]] ||
-      abort "o arquivo de aceite $acceptance não existe." \
-        "confira a issue pai e o ticket; se o ticket não foi planejado, rode a /plan-ticket antes."
-    plan="$(plan_commit "$acceptance")" ||
-      abort "não deu para ler o histórico da branch ($BASE_REF..HEAD) com o \`git log\`." \
-        "confira se a base existe (\`git fetch origin\`, ou outra base em HARNESS_BASE_REF) e se o clone tem o histórico inteiro."
-    [[ -n "$plan" ]] ||
-      abort "nenhum commit desta branch criou o $acceptance: o ticket não tem commit de plano." \
-        "planeje o ticket com a /plan-ticket e faça o commit de plano antes da revisão."
-    require_container api
-  fi
-
-  # Os insumos não podem ir para um commit: o .gitignore ignora tudo na pasta do ticket, salvo o aceite.
-  # Confere antes de gravar, pelo padrão, para um abort não deixar arquivos prontos para um `git add`.
-  for file in review.diff plano.txt contract-drift.txt criterios.md; do
-    git check-ignore -q --no-index "$dir/$file" ||
-      abort "o $dir/$file não seria ignorado pelo Git, e iria para um commit." \
-        "confira as regras de $TICKETS_DIR no .gitignore: ele ignora tudo na pasta do ticket, salvo o aceite.md."
-  done
-
-  added="$(mktemp)" || abort "não deu para criar um arquivo temporário." "confira o espaço e as permissões da pasta temporária."
-  review_diff "$dir/review.diff" "$added" || {
-    rm -f "$added"
-    abort "não deu para montar o diff da branch contra $BASE_REF." \
-      "confira se o repositório do Git está íntegro, com \`git status\`, e se a base existe."
-  }
-  if [[ -n "$plan" ]]; then
-    git show -s --format=%B "$plan" >"$dir/plano.txt" || {
-      rm -f "$added"
-      abort "não deu para ler a mensagem do commit de plano $plan." "confira o repositório do Git com \`git status\` e rode de novo."
-    }
-    review_drift "$plan" "$dir/contract-drift.txt"
-  fi
-
-  printf 'Insumos do revisor de conformidade em %s:\n' "$dir"
-  printf -- '- diff: %s\n' "$dir/review.diff"
-  if [[ -n "$plan" ]]; then
-    printf -- '- ticket: %s\n' "$2"
-    printf -- '- mensagem do commit de plano %s: %s\n' "$(git rev-parse --short "$plan")" "$dir/plano.txt"
-    printf -- '- desvio do contrato: %s\n' "$dir/contract-drift.txt"
-  else
-    printf -- '- critérios: %s\n' "$dir/criterios.md"
-    printf -- '- sem commit de plano: não há mensagem do plano nem desvio do contrato\n'
-  fi
-  if [[ -s "$added" ]]; then
-    printf '\nArquivos que o diff acrescenta:\n'
-    sed 's/^/- /' "$added"
-  fi
-  rm -f "$added"
-}
-
 mode="${1:-}"
 [[ $# -gt 0 ]] && shift
 
@@ -646,24 +541,6 @@ case "$mode" in
       abort "os argumentos de \`plan\` não são <pai> e <ticket>: o comando agora é \`plan <pai> <ticket> [<commit>]\`, com a issue pai antes do ticket." \
         "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$plan_example\`."
     run_plan "$@"
-    exit $?
-    ;;
-  review)
-    # Os insumos não são verificação: não aprovam nada.
-    review_example='.claude/skills/verificar/scripts/verify.sh review PROJ-1 PROJ-123` ou `.claude/skills/verificar/scripts/verify.sh review sem-ticket <nome>'
-    [[ $# -eq 2 ]] ||
-      abort "o \`review\` recebe dois argumentos: \`review <pai> <ticket>\`, ou \`review sem-ticket <nome>\`." \
-        "passe a issue pai e o ticket, ou \`sem-ticket\` e um nome curto, como em \`$review_example\`."
-    if [[ "$1" == sem-ticket ]]; then
-      [[ "$2" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
-        abort "o nome \`$2\` não vale para uma mudança sem ticket." \
-          "use só letras minúsculas, algarismos e hífens, começando por letra ou algarismo, como em \`.claude/skills/verificar/scripts/verify.sh review sem-ticket skill-de-revisao\`."
-    else
-      [[ "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ && "$2" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
-        abort "os argumentos de \`review\` não são <pai> e <ticket>." \
-          "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$review_example\`."
-    fi
-    run_review "$@"
     exit $?
     ;;
   *) usage ;;

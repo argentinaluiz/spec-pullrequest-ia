@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Testes do modo `review` do verify.sh: os argumentos, o diff da branch com os arquivos novos
-# sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a
-# mensagem dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios.
-# O verify.sh roda copiado num repositório temporário, com o desvio do contrato trocado por um falso
-# (a comparação real tem os próprios testes) e um `docker` falso, para o contêiner `api` contar como no
-# ar. Rodam na máquina, como o verify.sh. Quem chama é o verify.sh.
+# Testes do script dos insumos da revisão de conformidade (scripts/review-inputs.sh): os argumentos, o diff da branch com os
+# arquivos novos sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a mensagem
+# dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios. O script roda copiado num
+# repositório temporário, que só tem a skill: a base e o comando do desvio chegam por opção, e o comando do desvio é um
+# falso (a comparação real tem os próprios testes). Não carrega arquivo de projeto: o auxiliar é o da própria skill. Roda na
+# máquina. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo nome.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=helpers.sh
+source "$HERE/helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -24,24 +24,15 @@ contains() {
   [[ "$1" == *"$2"* ]]
 }
 
-# O `docker` falso: toda chamada passa, como a do `require_container`.
-mkdir -p "$tmp/bin"
-printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/docker"
-chmod +x "$tmp/bin/docker"
-
-# O repositório: os scripts do verify.sh e as regras de docs/tickets do .gitignore, na main.
-SK=.claude/skills/verificar
-mkdir -p "$repo/scripts" "$repo/$SK/scripts" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
-cp -R "$ROOT/$SK/scripts/verify.sh" "$ROOT/$SK/scripts/verify" "$ROOT/$SK/scripts/full-lock.sh" "$repo/$SK/scripts/"
-cp "$ROOT/scripts/harness-base.sh" "$repo/scripts/"
-cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$repo/.claude/skills/proteger-harness/scripts/"
-grep '^!\{0,1\}docs/tickets/' "$ROOT/.gitignore" >"$repo/.gitignore"
-# O comando do desvio do /contrato, falso: com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e
-# avisa); sem ela, diz que o contrato está igual, sem gravar nada; com FAKE_DRIFT_FAIL, não consegue conferir. A biblioteca do
-# contrato é a de verdade, porque o grupo da API a carrega.
-mkdir -p "$repo/.claude/skills/contrato/scripts"
-cp "$ROOT/.claude/skills/contrato/scripts/contract-lib.sh" "$repo/.claude/skills/contrato/scripts/"
-cat >"$repo/.claude/skills/contrato/scripts/contract-drift.sh" <<'EOF'
+# O repositório: só a cópia do script da skill e as regras de .gitignore da pasta dos tickets, na main.
+SK=.claude/skills/revisao-conformidade
+mkdir -p "$repo/$SK/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
+cp "$HERE/../review-inputs.sh" "$repo/$SK/scripts/"
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$repo/.gitignore"
+# O comando do desvio do contrato, falso, chamado como o do /contrato: <commit de plano> <para, ou vazio> <arquivo do desvio>.
+# Com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e avisa); sem ela, diz que o contrato está
+# igual, sem gravar nada; com FAKE_DRIFT_FAIL, não consegue conferir.
+cat >"$tmp/desvio" <<'EOF'
 #!/usr/bin/env bash
 if [[ -n "${FAKE_DRIFT_FAIL:-}" ]]; then
   echo "o oasdiff não rodou"
@@ -53,7 +44,7 @@ else
   echo "O contrato e o schema estão iguais ao planejado no commit de plano $(git rev-parse --short "$1")."
 fi
 EOF
-chmod +x "$repo/.claude/skills/contrato/scripts/contract-drift.sh"
+chmod +x "$tmp/desvio"
 git -C "$repo" init -q -b main
 git -C "$repo" config user.email teste@exemplo.com
 git -C "$repo" config user.name Teste
@@ -84,12 +75,11 @@ printf 'export const novo = true;\n' >"$repo/apps/api/novo.ts"
 printf 'export const espaco = true;\n' >"$repo/apps/api/com espaço.ts"
 rm "$repo/apps/api/apagado.ts"
 
-# review <argumentos...>: roda `verify.sh review` no repositório temporário, contra a main dele, e
-# deixa a saída em $out, a saída de erro em $err e o código em $code.
+# review <argumentos...>: roda o script no repositório temporário, contra a main dele, com o comando do desvio falso, e deixa a
+# saída em $out, a saída de erro em $err e o código em $code.
 review() {
-  local errfile="$tmp/err"
-  out="$(cd "$repo" && env -u CLAUDE_PROJECT_DIR -u HARNESS_HEAD_REF PATH="$tmp/bin:$PATH" HARNESS_BASE_REF=main \
-    .claude/skills/verificar/scripts/verify.sh review "$@" 2>"$errfile")"
+  local errfile="$tmp/err" opts=(--base main --desvio "$tmp/desvio")
+  out="$(cd "$repo" && $SK/scripts/review-inputs.sh "${opts[@]}" "$@" 2>"$errfile")"
   code=$?
   err="$(cat "$errfile")"
 }
@@ -98,18 +88,18 @@ review() {
 
 review PROJ-1
 check "recusa um argumento só, com código 2" test $code -eq 2
-check "a mensagem mostra as duas formas do comando" contains "$err" "review sem-ticket <nome>"
+check "a mensagem mostra as duas formas do comando" contains "$err" "sem-ticket <nome>"
 
 review pai PROJ-2
 check "recusa um <pai> que não tem a forma PREFIXO-N" test $code -eq 2
 
 review PROJ-1 ticket
 check "recusa um <ticket> que não tem a forma PREFIXO-N" test $code -eq 2
-check "a mensagem do <ticket> inválido mostra as duas formas do comando" contains "$err" "review sem-ticket <nome>"
+check "a mensagem do <ticket> inválido mostra as duas formas do comando" contains "$err" "sem-ticket <nome>"
 
 review PROJ-1 PROJ-2 extra
 check "recusa três argumentos" test $code -eq 2
-check "a mensagem de três argumentos mostra as duas formas do comando" contains "$err" "review sem-ticket <nome>"
+check "a mensagem de três argumentos mostra as duas formas do comando" contains "$err" "sem-ticket <nome>"
 
 review sem-ticket 'Nome Ruim'
 check "recusa um nome sem ticket com maiúscula e espaço" test $code -eq 2
@@ -192,4 +182,83 @@ check "sem ticket, não grava mensagem de plano" test ! -e "$repo/docs/tickets/s
 check "sem ticket, a saída traz o caminho dos critérios" contains "$out" "sem-ticket/skill-de-revisao/criterios.md"
 check "sem ticket, a saída avisa que não há plano nem desvio" contains "$out" "sem commit de plano"
 
-finish "do modo review do verify.sh"
+# --- os casos que o aceite liga aos critérios, pelo nome: cada um confere o resultado inteiro de uma rodada
+
+review PROJ-1 PROJ-2
+dir="$repo/docs/tickets/PROJ-1/PROJ-2"
+summary_ok() {
+  [[ $code -eq 0 ]] &&
+    [[ "$(cat "$dir/review.diff")" == *"b/apps/api/novo.ts"* && "$(cat "$dir/review.diff")" == *"b/apps/api/com espaço.ts"* ]] &&
+    [[ "$(cat "$dir/review.diff")" == *"b/apps/api/commitado.ts"* && "$(cat "$dir/review.diff")" != *alheio* ]] &&
+    [[ "$(cat "$dir/plano.txt")" == "$(git -C "$repo" log -1 --format=%B "$plan")" ]] &&
+    [[ "$(cat "$dir/contract-drift.txt")" == *"iguais ao planejado"* ]] &&
+    [[ "$out" == *"- apps/api/novo.ts"* && "$out" == *"plano.txt"* ]]
+}
+check "grava o diff desde a base com os arquivos novos, a mensagem do commit de plano e o desvio" summary_ok
+
+review PROJ-1 PROJ-3
+refuses_without_plan() { [[ $code -eq 2 && "$err" == *"não tem commit de plano"* ]]; }
+check "recusa um ticket sem commit de plano" refuses_without_plan
+
+rm -f "$repo/docs/tickets/sem-ticket/skill-de-revisao/criterios.md"
+review sem-ticket skill-de-revisao
+refuses_without_criteria() { [[ $code -eq 2 && "$err" == *"criterios.md"* ]]; }
+check "recusa uma mudança sem ticket sem critérios" refuses_without_criteria
+
+cp "$repo/.gitignore" "$tmp/gitignore"
+: >"$repo/.gitignore"
+rm -f "$dir/review.diff"
+review PROJ-1 PROJ-2
+refuses_unignored() { [[ $code -eq 2 && "$err" == *"iria para um commit"* && ! -e "$dir/review.diff" ]]; }
+check "recusa um insumo que o Git não ignoraria" refuses_unignored
+cp "$tmp/gitignore" "$repo/.gitignore"
+
+# --- um repositório de fora: só a cópia da skill, sem contrato nenhum, com os padrões da base e do desvio
+
+outside="$tmp/fora"
+mkdir -p "$outside/$SK/scripts" "$outside/docs/tickets/EX-1/EX-2"
+cp "$HERE/../review-inputs.sh" "$outside/$SK/scripts/"
+printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$outside/.gitignore"
+git -C "$outside" init -q -b main
+git -C "$outside" config user.email teste@exemplo.com
+git -C "$outside" config user.name Teste
+echo base >"$outside/README.md"
+git -C "$outside" add -A && git -C "$outside" commit -q -m base
+# O remoto de origem: um clone sem nada novo, com o ramo principal main.
+git clone -q --bare "$outside" "$tmp/origem.git"
+git -C "$outside" remote add origin "$tmp/origem.git"
+git -C "$outside" fetch -q origin
+git -C "$outside" switch -q -c trabalho
+printf '# Aceite do EX-2\n' >"$outside/docs/tickets/EX-1/EX-2/aceite.md"
+git -C "$outside" add -A && git -C "$outside" commit -q -m 'plano do EX-2'
+echo mudanca >"$outside/novo.txt"
+
+outside_run() {
+  out="$(cd "$outside" && $SK/scripts/review-inputs.sh "$@" 2>"$tmp/err")"
+  code=$?
+  err="$(cat "$tmp/err")"
+}
+outside_defaults() {
+  outside_run EX-1 EX-2 &&
+    [[ $code -eq 0 ]] &&
+    [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/review.diff")" == *"b/novo.txt"* ]] &&
+    [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == *"Nenhum comando do desvio do contrato"* ]]
+}
+check "roda num repositório de fora, com os padrões da base e do desvio" outside_defaults
+
+outside_given() {
+  printf '#!/usr/bin/env bash\necho "desvio de fora: $1 $3"\n' >"$tmp/desvio-fora"
+  chmod +x "$tmp/desvio-fora"
+  outside_run --base origin/main --desvio "$tmp/desvio-fora" EX-1 EX-2 &&
+    [[ $code -eq 0 ]] &&
+    [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == *"desvio de fora: "* ]]
+}
+check "a base e o comando do desvio dados por opção são os que o script usa" outside_given
+
+outside_bad_base() {
+  outside_run --base naoexiste EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *"naoexiste"* ]]
+}
+check "uma base que não existe é recusada, dizendo qual" outside_bad_base
+
+finish "do script dos insumos da revisão"
