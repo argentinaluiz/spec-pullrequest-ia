@@ -1,0 +1,5 @@
+interface:
+  display_name: "Abrir frentes"
+  short_description: "Open the fronts of the ready tickets of a spec"
+policy:
+  allow_implicit_invocation: false

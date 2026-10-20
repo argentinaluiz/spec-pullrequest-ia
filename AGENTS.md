@@ -109,6 +109,8 @@ Cada ticket pode correr numa **frente**: um checkout próprio, na branch do tick
 - **Listar:** `scripts/frentes.sh listar` mostra o slot, a branch, as portas e o estado do PR de cada frente.
 - **Remover:** `scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega.
 
+**Abrir as frentes de uma spec:** use a `/abrir-frentes` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
+
 **Trazer a `main` para a frente:** use a `/sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
 
 As regras de cada comando (a fórmula do slot, o `.env`, as recusas e a remoção) estão no cabeçalho do `scripts/frentes.sh`, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
