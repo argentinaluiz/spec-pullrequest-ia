@@ -98,7 +98,7 @@ expect_stop "a sessão sem arquivo registrado sai na hora, sem rodar a verifica�
 # --- A sessão B registrou outro arquivo da mesma app ---
 touch_file B apps/api/src/b.ts
 stop B
-expect_stop "o erro só em arquivo de outra sessão não bloqueia e avisa" 0 "roda" "systemMessage"
+expect_stop "o erro só em arquivo de outra sessão não bloqueia e avisa @LUI-195-CA1" 0 "roda" "systemMessage"
 check "o aviso diz que o modo completo confere os arquivos que a sessão não tocou" \
   grep -q "não tocou" <<<"$out"
 check "o aviso não grava a aprovação" test ! -e "$state_dir/fast-ok-B-api"

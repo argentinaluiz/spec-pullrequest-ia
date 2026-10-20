@@ -93,7 +93,7 @@ ca1() {
   : >"$second_release"
   return $status
 }
-check "o full espera o de outro checkout, diz de qual é, e começa quando ele termina @LUI-185-CA1" ca1
+check "o full espera o de outro checkout, diz de qual é, e começa quando ele termina @LUI-185-CA1 @LUI-195-CA2" ca1
 
 # --- CA2: a espera, mesmo interrompida, não conta como reprovação nem apaga a aprovação ---
 

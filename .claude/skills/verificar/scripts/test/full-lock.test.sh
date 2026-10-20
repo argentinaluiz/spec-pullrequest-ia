@@ -50,7 +50,7 @@ fail "$file" "Web: suíte no navegador" >/dev/null
 check "duas reprovações iguais seguidas não travam" not locked "$file"
 count="$(fail "$file" "Web: suíte no navegador")"
 check "a terceira reprovação igual seguida conta três" test "$count" = 3
-check "a terceira reprovação igual seguida trava" locked "$file"
+check "a terceira reprovação igual seguida trava @LUI-195-CA2" locked "$file"
 
 # O conjunto de passos é a falha, em qualquer ordem, seja qual for o teste que falhou dentro deles.
 file="$state/ordem"
@@ -107,7 +107,7 @@ for _ in 1 2 3; do
 done
 out="$(verify "" full 2>&1)"
 code=$?
-check "travado, o full sai com 2" test "$code" = 2
+check "travado, o full sai com 2 @LUI-195-CA2" test "$code" = 2
 check "travado, o full manda parar e pedir ao usuário o \`! .claude/skills/verificar/scripts/verify.sh unlock\`" \
   bash -c '[[ "$1" == *"! .claude/skills/verificar/scripts/verify.sh unlock"* && "$1" != *"referência"* ]]' _ "$out"
 
@@ -120,7 +120,7 @@ check "na CI, a trava gravada não recusa o full" \
 out="$(verify "" unlock 2>&1)"
 code=$?
 check "o unlock sai com 0" test "$code" = 0
-check "o unlock apaga a trava e a contagem" test ! -e "$harness/full-lock"
+check "o unlock apaga a trava e a contagem @LUI-195-CA2" test ! -e "$harness/full-lock"
 
 # Não deu para verificar (a base não existe): sai com 2 e não conta como reprovação.
 fail "$harness/full-lock" "Web: lint" >/dev/null
