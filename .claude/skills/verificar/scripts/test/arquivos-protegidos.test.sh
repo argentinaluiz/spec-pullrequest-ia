@@ -60,7 +60,7 @@ done
 for path in \
   .claude/skills/plan-ticket/SKILL.md \
   .claude/skills/plan-ticket/formatos/aceite.md \
-  .claude/skills/revisao-conformidade/agents/revisor-conformidade.md \
+  .claude/skills/revisao-conformidade/revisor.md \
   .claude/skills/qualquer-skill-nova/SKILL.md \
   .claude/skills/verificar/SKILL.md \
   docs/hld.md \

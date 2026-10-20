@@ -170,7 +170,7 @@ O aceite é conferido na máquina antes do push, como descrito em "Antes do push
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera código em `apps/`, e todo ticket com aceite que altera o harness (`scripts/`, `.claude/hooks/`, `.github/`), passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera o código que pede revisão (o valor de mesmo nome da lista "Valores das skills do ticket": o código em `apps/` e, em ticket com aceite, o harness) passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
 No fluxo do ticket, ela vem depois da `/sincronizar`, da `/simplify` e da `/code-review`, e antes do `full`, para as revisões verem o resultado do merge e as correções entrarem na única verificação completa: implementação, commit, `/sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
 
@@ -233,9 +233,13 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 - **Comando do contrato:** `.claude/skills/contrato/scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
-O valor da `/revisao-conformidade`:
+Os valores da `/revisao-conformidade`:
 
-- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa. É também o que o aviso do modo completo da verificação chama.
+- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
+- **Base:** a `HARNESS_BASE_REF`, com `origin/main` por padrão (`scripts/harness-base.sh`). O script dos insumos, `.claude/skills/revisao-conformidade/scripts/review-inputs.sh`, não lê a variável: passe `--base "${HARNESS_BASE_REF:-origin/main}"`.
+- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`scripts/`, `.claude/hooks/`, `.github/`, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
+- **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
+- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
 Os valores da `/proteger-harness`:
 

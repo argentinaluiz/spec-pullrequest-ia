@@ -7,7 +7,7 @@ The skill of this project that holds what depends on its stack in the verificati
 
 ## The entry point
 
-`scripts/verify.sh <mode>`, in this folder. Its header is the reference of the modes (`fast`, `full`, `unlock`, `prepush`, `apps`, `contract`, `plan`, `review`) and of the variables it reads. The CI runs `full`; the hooks run `fast` and `prepush`. The path in full is `.claude/skills/verificar/scripts/verify.sh`.
+`scripts/verify.sh <mode>`, in this folder. Its header is the reference of the modes (`fast`, `full`, `unlock`, `prepush`, `apps` and `plan`) and of the variables it reads. The CI runs `full`; the hooks run `fast` and `prepush`. The path in full is `.claude/skills/verificar/scripts/verify.sh`.
 
 ## The pieces
 

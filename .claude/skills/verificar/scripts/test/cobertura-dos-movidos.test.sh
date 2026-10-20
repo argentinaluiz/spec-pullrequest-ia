@@ -22,7 +22,7 @@ cd "$ROOT" || exit 2
 mapfile -t suites < <("$SKILL/scripts/verify/skill-tests.sh" sh)
 
 # As suítes que mudaram de lugar, e que a busca tem de achar sem lista à mão.
-for moved in api-migration-order full-lock full-semaphore git-mount shell-tests skill-tests verify-plan verify-review \
+for moved in api-migration-order full-lock full-semaphore git-mount shell-tests skill-tests verify-plan \
   push-verify stop-verify record-touched settings-hooks; do
   found=no
   for suite in "${suites[@]}"; do
