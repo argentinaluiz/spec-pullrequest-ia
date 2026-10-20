@@ -1,6 +1,6 @@
 ---
 name: revisao-conformidade
-description: "Run the conformance review of a change that alters code in apps/, or of a ticket with an acceptance file that alters the harness (scripts/, .claude/hooks/, .github/): prepare its inputs with scripts/verify.sh review, call the revisor-conformidade subagent with paths only, record and triage the findings, then publish them as a PR comment. Use after /code-review and before scripts/verify.sh full, and again when the pull request is opened."
+description: "Run the conformance review of a change that alters code in apps/, or of a ticket with an acceptance file that alters the harness (scripts/, .claude/hooks/, .github/): prepare its inputs with .claude/skills/verificar/scripts/verify.sh review, call the revisor-conformidade subagent with paths only, record and triage the findings, then publish them as a PR comment. Use after /code-review and before .claude/skills/verificar/scripts/verify.sh full, and again when the pull request is opened."
 ---
 
 How to run the conformance review that the root `AGENTS.md` requires, and what to do with its result. The rule (who reviews, when, and that the review is not a mechanical gate) is in that file, section "Revisão de conformidade"; what the `revisor-conformidade` subagent checks is in the root `REVIEW.md` and in `.claude/agents/revisor-conformidade.md`.
@@ -14,8 +14,8 @@ The skill has two parts, at two moments: **Review**, after `/code-review` and be
 2. **Inputs.** From the repository root, run:
 
    ```bash
-   scripts/verify.sh review <pai> <ticket>     # with a ticket
-   scripts/verify.sh review sem-ticket <nome>  # without one
+   .claude/skills/verificar/scripts/verify.sh review <pai> <ticket>     # with a ticket
+   .claude/skills/verificar/scripts/verify.sh review sem-ticket <nome>  # without one
    ```
 
    It writes, in the folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written). It fails, and says what to do, when the ticket has no plan commit, when `criterios.md` is missing, when the inputs would not be ignored by Git, or, with a ticket, when the `api` container is down. The base is `origin/main`; for a pull request to another base, set `HARNESS_BASE_REF`, as in `HARNESS_BASE_REF=test/main`. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.

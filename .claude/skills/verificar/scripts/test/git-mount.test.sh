@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# Testes do scripts/git-mount.sh, que diz o que o contêiner da varredura de segredos precisa para ler o
+# Testes do .claude/skills/verificar/scripts/git-mount.sh, que diz o que o contêiner da varredura de segredos precisa para ler o
 # histórico do Git: nada num repositório (onde o `.git` é uma pasta, dentro da pasta montada), e o `.git`
 # comum e o `GIT_DIR` num worktree (onde o `.git` é um arquivo que aponta para fora dela, com caminho
 # relativo ou absoluto, conforme a configuração do Git de quem o criou). O Docker não entra: o teste confere
-# os argumentos. Rodam na máquina, porque usam o `git`. Quem chama é o scripts/verify.sh.
+# os argumentos. Rodam na máquina, porque usam o `git`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 # shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 # shellcheck source=../git-mount.sh
-source "$ROOT/scripts/git-mount.sh"
+source "$ROOT/.claude/skills/verificar/scripts/git-mount.sh"
 
 command -v git >/dev/null || { echo "Falta o \`git\` na máquina: o teste precisa dele."; exit 2; }
 
@@ -52,4 +52,4 @@ check "o worktree está com o .git absoluto" grep -q "^gitdir: $repo/" "$work/ab
 check "num worktree com o .git absoluto, pede o mesmo" \
   test "$(args_in "$work/absoluto")" = "$(expected_for_worktree absoluto)"
 
-finish "do scripts/git-mount.sh"
+finish "do .claude/skills/verificar/scripts/git-mount.sh"

@@ -1,32 +1,33 @@
 #!/usr/bin/env bash
 #
 # Verificação do projeto. É a única definição de "passou": a CI chama o modo completo,
-# e os hooks chamam o modo rápido e o de antes do push.
+# e os hooks chamam o modo rápido e o de antes do push. Mora na skill do projeto /verificar e roda da raiz
+# do repositório: .claude/skills/verificar/scripts/verify.sh <modo>. Abaixo, `verify.sh` é esse caminho.
 #
-#   scripts/verify.sh fast [app...]                tipos e lint das apps citadas (todas, se nenhuma)
-#   scripts/verify.sh full [--start-apps]          o grupo completo de todas as apps, os testes do
+#   verify.sh fast [app...]                        tipos e lint das apps citadas (todas, se nenhuma)
+#   verify.sh full [--start-apps]                  o grupo completo de todas as apps, os testes do
 #                                                  harness, o aceite e a varredura de segredos; é o
 #                                                  veredito, e só ele libera o push. Roda uma vez, no
 #                                                  fim da tarefa; trava na terceira reprovação igual
 #                                                  seguida, fora da CI
-#   scripts/verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas; não libera
+#   verify.sh full <app>... [--start-apps] só o grupo completo das apps citadas; não libera
 #                                                  o push
-#   scripts/verify.sh unlock                       tira a trava do modo completo; é do usuário, e um
+#   verify.sh unlock                               tira a trava do modo completo; é do usuário, e um
 #                                                  hook nega o comando ao agente
-#   scripts/verify.sh prepush                      a varredura de segredos, e a conferência de que o
+#   verify.sh prepush                              a varredura de segredos, e a conferência de que o
 #                                                  modo completo aprovou o que está no último commit
-#   scripts/verify.sh apps                         as apps registradas, uma por linha
-#   scripts/verify.sh contract [<de> [<para>]]     a visão legível do contrato e do schema entre dois
+#   verify.sh apps                                 as apps registradas, uma por linha
+#   verify.sh contract [<de> [<para>]]             a visão legível do contrato e do schema entre dois
 #                                                  pontos do Git (commits, ou a árvore do índice), em
 #                                                  Markdown; sem <para>, até a pasta de trabalho, e
 #                                                  sem nenhum, do HEAD até ela. É o comando do
 #                                                  contrato da skill de plano
-#   scripts/verify.sh plan <pai> <ticket> [<commit>]
+#   verify.sh plan <pai> <ticket> [<commit>]
 #                                                  atalho para o plan-page.sh da skill de plano, com
 #                                                  os valores deste projeto; <pai> é a issue pai do
 #                                                  ticket, a pasta dele em docs/tickets
-#   scripts/verify.sh review <pai> <ticket>
-#   scripts/verify.sh review sem-ticket <nome>
+#   verify.sh review <pai> <ticket>
+#   verify.sh review sem-ticket <nome>
 #                                                  os insumos do revisor de conformidade na pasta do
 #                                                  ticket: o diff da branch, com os arquivos novos, e,
 #                                                  com ticket, a mensagem do commit de plano e o desvio
@@ -43,7 +44,7 @@
 # repositório. A trava fica na pasta `harness/` do `.git` comum, que os checkouts dividem, e o `full` que
 # chega com outro em andamento espera, mostrando o checkout, a branch, o PID e a hora de início do que está
 # rodando. A espera não conta como reprovação na trava das reprovações repetidas nem apaga a aprovação
-# anterior, mesmo interrompida. Não vale na CI. O mecanismo está no scripts/full-semaphore.sh. Como a
+# anterior, mesmo interrompida. Não vale na CI. O mecanismo está no .claude/skills/verificar/scripts/full-semaphore.sh. Como a
 # espera soma ao tempo do `full`, ele deve rodar em segundo plano.
 #
 # Na API, o passo "ordem das migrações" reprova a migração nova da branch (a que a base não tem) com nome
@@ -53,10 +54,10 @@
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../../../.."
 
 # As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
-# uma fica em scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports, e, se a
+# uma fica em .claude/skills/verificar/scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports, e, se a
 # app tem contrato planejado, <app>_contract_drift.
 APPS=(api web)
 
@@ -69,7 +70,7 @@ START_APPS=no
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A base da comparação (BASE_REF), que a varredura de segredos, a ordem das migrações e o desvio do plano
 # usam, vem do scripts/harness-base.sh, o mesmo que o scripts/frentes.sh carrega.
-# shellcheck source=harness-base.sh
+# shellcheck source=../../../../scripts/harness-base.sh
 source scripts/harness-base.sh
 # O fim da branch, para o desvio do plano. Na CI de um pull request, a pasta de trabalho é o merge da
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
@@ -80,29 +81,29 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
-# confere), achadas por scripts/verify/skill-tests.sh; o texto de uma skill não entra.
+# confere), achadas por .claude/skills/verificar/scripts/verify/skill-tests.sh; o texto de uma skill não entra.
 VERIFIED_PATHS=(apps compose.dev.yaml scripts docs/tickets)
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
-done < <(scripts/verify/skill-tests.sh dirs)
+done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs)
 # O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
 # o .claude/skills/proteger-harness/scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
 # estado a exigem, com o `require_state`.
-# shellcheck source=../.claude/skills/proteger-harness/scripts/harness-dir.sh
+# shellcheck source=../../proteger-harness/scripts/harness-dir.sh
 source .claude/skills/proteger-harness/scripts/harness-dir.sh
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
-# A trava das reprovações repetidas do modo completo, com as funções do scripts/full-lock.sh.
+# A trava das reprovações repetidas do modo completo, com as funções do .claude/skills/verificar/scripts/full-lock.sh.
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
-source scripts/full-lock.sh
-# O semáforo do modo completo, com as funções do scripts/full-semaphore.sh.
+source .claude/skills/verificar/scripts/full-lock.sh
+# O semáforo do modo completo, com as funções do .claude/skills/verificar/scripts/full-semaphore.sh.
 # shellcheck source=full-semaphore.sh
-source scripts/full-semaphore.sh
+source .claude/skills/verificar/scripts/full-semaphore.sh
 # O que o contêiner da varredura de segredos precisa para ler o histórico num worktree, com a função
-# `gitleaks_git_args` do scripts/git-mount.sh.
+# `gitleaks_git_args` do .claude/skills/verificar/scripts/git-mount.sh.
 # shellcheck source=git-mount.sh
-source scripts/git-mount.sh
+source .claude/skills/verificar/scripts/git-mount.sh
 # A pasta dos tickets.
 TICKETS_DIR=docs/tickets
 
@@ -116,7 +117,7 @@ usage() {
 
 for app in "${APPS[@]}"; do
   # shellcheck source=/dev/null
-  source "scripts/verify/$app.sh"
+  source ".claude/skills/verificar/scripts/verify/$app.sh"
 done
 
 # Sai com o uso se algum nome não é de uma app registrada.
@@ -139,7 +140,7 @@ abort() {
 require_state() {
   [[ -n "$HARNESS_DIR" ]] ||
     abort "não foi possível definir a pasta de estado do harness: a raiz do checkout não é uma pasta que se alcança." \
-      "rode o scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
+      "rode o .claude/skills/verificar/scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
 }
 
 # Um comando que não verifica falhou: o erro e o que fazer, e devolve 1.
@@ -177,7 +178,7 @@ require_container() {
 # Confere o relatório JSON de uma suíte dentro do contêiner, onde está o Node.
 check_report() {
   local service="$1" kind="$2" file="$3"
-  in_container "$service" node - "$kind" "$file" <scripts/check-report.cjs
+  in_container "$service" node - "$kind" "$file" <.claude/skills/verificar/scripts/check-report.cjs
 }
 
 responds() {
@@ -226,31 +227,31 @@ node_in_api() {
 # `api_full`, que roda antes, porque o Node não a cria.
 HARNESS_REPORT=reports/harness/node-tests.json
 # O dos testes em shell do harness, na mesma pasta e no mesmo formato. É outro arquivo porque quem o grava
-# é o executor, na máquina (scripts/test/shell-tests.sh), e o do Node é gravado no contêiner: cada
+# é o executor, na máquina (.claude/skills/verificar/scripts/test/shell-tests.sh), e o do Node é gravado no contêiner: cada
 # relatório tem um escritor só.
 HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 
 # Roda os testes do harness: os do conferidor e do renderizador do contrato e os das skills (o parser e a
 # página do plano, por exemplo) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
 # completo, os modos do verify.sh e as das skills) na máquina, pelo executor que grava o relatório delas. Os
-# testes das skills são achados por scripts/verify/skill-tests.sh, sem lista à mão: uma skill nova com um
+# testes das skills são achados por .claude/skills/verificar/scripts/verify/skill-tests.sh, sem lista à mão: uma skill nova com um
 # teste ao lado do script entra sozinha. Os dois relatórios passam pelo `check_report`, e um grupo que falha
 # não impede o outro de rodar.
 harness_tests() {
   local code=0
   local -a skill_node_tests skill_shell_tests
-  mapfile -t skill_node_tests < <(scripts/verify/skill-tests.sh cjs)
-  mapfile -t skill_shell_tests < <(scripts/verify/skill-tests.sh sh)
+  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs)
+  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh)
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.
   node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
-    --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
+    --test-reporter=./.claude/skills/verificar/scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     scripts/test/*.test.cjs "${skill_node_tests[@]}" &&
     check_report api vitest "$HARNESS_REPORT" || code=1
   # As suítes em shell usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que
   # roda na máquina: elas rodam aqui. O relatório é o que faz um caso delas provar um critério.
-  scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh "${skill_shell_tests[@]}" &&
+  .claude/skills/verificar/scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh "${skill_shell_tests[@]}" &&
     check_report api vitest "$HARNESS_SHELL_REPORT" || code=1
   return $code
 }
@@ -349,7 +350,7 @@ acceptance() {
       report="apps/$app/${spec#*:}"
       if [[ ! -f "$report" ]]; then
         printf '\nO relatório %s não existe.\n' "$report" >&2
-        printf 'Como corrigir: a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `scripts/verify.sh full` de novo.\n' >&2
+        printf 'Como corrigir: a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `.claude/skills/verificar/scripts/verify.sh full` de novo.\n' >&2
       fi
       specs+=("${spec%%:*}:/repo/$report")
     done
@@ -426,7 +427,7 @@ run_prepush() {
     "tire o segredo do código e reescreva o commit que o trouxe. Ele ainda não saiu da máquina." \
     secret_scan
   step "Aprovação do modo completo" \
-    "faça o commit de tudo, salve o corpo do pull request num arquivo e rode \`ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full\`. Se mudar algo em ${VERIFIED_PATHS[*]} depois, rode de novo." \
+    "faça o commit de tudo, salve o corpo do pull request num arquivo e rode \`ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full\`. Se mudar algo em ${VERIFIED_PATHS[*]} depois, rode de novo." \
     approval
 }
 
@@ -453,7 +454,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, em scripts/ ou na pasta scripts/ ou hooks/ de uma skill (os testes dela ficam na pasta test/ ao lado), e rode \`scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou, em scripts/ ou na pasta scripts/ ou hooks/ de uma skill (os testes dela ficam na pasta test/ ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
@@ -489,7 +490,7 @@ require_point() {
 run_plan() {
   local args=(
     --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node scripts/node-in-api.sh --contrato "scripts/verify.sh contract"
+    --node scripts/node-in-api.sh --contrato ".claude/skills/verificar/scripts/verify.sh contract"
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
   [[ -n "${3:-}" ]] && args+=(--commit "$3")
@@ -552,7 +553,7 @@ run_review() {
   if [[ "$1" == sem-ticket ]]; then
     [[ -f "$dir/criterios.md" ]] ||
       abort "não há critérios para a revisão: $dir/criterios.md não existe." \
-        "escreva nele os critérios de aceite da mudança, antes de revisar, e rode \`scripts/verify.sh review sem-ticket $2\` de novo."
+        "escreva nele os critérios de aceite da mudança, antes de revisar, e rode \`.claude/skills/verificar/scripts/verify.sh review sem-ticket $2\` de novo."
   else
     acceptance="$dir/aceite.md"
     [[ -f "$acceptance" ]] ||
@@ -676,12 +677,12 @@ case "$mode" in
     require_container api
     api_contract_view "$from" "$to" ||
       fail "A visão do contrato não pôde ser montada: o erro está acima." \
-        "corrija o que ele aponta (num snapshot ilegível, o JSON de $API_SNAPSHOT, no ponto que o oasdiff mostra) e rode \`scripts/verify.sh contract\` de novo."
+        "corrija o que ele aponta (num snapshot ilegível, o JSON de $API_SNAPSHOT, no ponto que o oasdiff mostra) e rode \`.claude/skills/verificar/scripts/verify.sh contract\` de novo."
     exit $?
     ;;
   plan)
     # A página não é verificação: não aprova nada.
-    plan_example='scripts/verify.sh plan PROJ-1 PROJ-123 [<commit>]'
+    plan_example='.claude/skills/verificar/scripts/verify.sh plan PROJ-1 PROJ-123 [<commit>]'
     [[ $# -ge 1 && $# -le 3 ]] || usage
     [[ $# -ge 2 ]] ||
       abort "falta o <pai> no \`plan\`: o comando é \`plan <pai> <ticket> [<commit>]\`, e só um argumento foi passado." \
@@ -695,14 +696,14 @@ case "$mode" in
     ;;
   review)
     # Os insumos não são verificação: não aprovam nada.
-    review_example='scripts/verify.sh review PROJ-1 PROJ-123` ou `scripts/verify.sh review sem-ticket <nome>'
+    review_example='.claude/skills/verificar/scripts/verify.sh review PROJ-1 PROJ-123` ou `.claude/skills/verificar/scripts/verify.sh review sem-ticket <nome>'
     [[ $# -eq 2 ]] ||
       abort "o \`review\` recebe dois argumentos: \`review <pai> <ticket>\`, ou \`review sem-ticket <nome>\`." \
         "passe a issue pai e o ticket, ou \`sem-ticket\` e um nome curto, como em \`$review_example\`."
     if [[ "$1" == sem-ticket ]]; then
       [[ "$2" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
         abort "o nome \`$2\` não vale para uma mudança sem ticket." \
-          "use só letras minúsculas, algarismos e hífens, começando por letra ou algarismo, como em \`scripts/verify.sh review sem-ticket skill-de-revisao\`."
+          "use só letras minúsculas, algarismos e hífens, começando por letra ou algarismo, como em \`.claude/skills/verificar/scripts/verify.sh review sem-ticket skill-de-revisao\`."
     else
       [[ "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ && "$2" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
         abort "os argumentos de \`review\` não são <pai> e <ticket>." \
@@ -739,7 +740,7 @@ fi
 
 if [[ ${#apps[@]} -gt 0 ]]; then
   printf '\nAPROVADO (%s %s).\n' "$mode" "${apps[*]}"
-  printf 'Isto não libera o push: rode `scripts/verify.sh full`, sem apps, antes de enviar.\n'
+  printf 'Isto não libera o push: rode `.claude/skills/verificar/scripts/verify.sh full`, sem apps, antes de enviar.\n'
   exit 0
 fi
 

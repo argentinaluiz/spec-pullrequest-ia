@@ -2,7 +2,7 @@
 #
 # O semáforo do modo completo: um `full` por vez entre todos os checkouts do repositório na máquina,
 # porque vários rodando juntos disputam processador e memória, e uma falha por disputa reprovaria testes
-# à toa. Quem carrega estas funções é o scripts/verify.sh, que descreve o comportamento no cabeçalho.
+# à toa. Quem carrega estas funções é o .claude/skills/verificar/scripts/verify.sh, que descreve o comportamento no cabeçalho.
 #
 # As travas da máquina ficam na pasta `harness/` do `.git` comum, que todos os checkouts do repositório
 # dividem e o Git ignora: `full.lock`, o alvo do `flock`, e `full.owner`, em texto, com o checkout, a

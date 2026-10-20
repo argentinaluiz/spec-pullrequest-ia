@@ -3,13 +3,13 @@
 # Testes do hook .claude/hooks/freeze-acceptance.sh, pela entrada que o Claude Code entrega a ele
 # (um JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam na máquina,
 # como o hook, porque ele usa o `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o
-# scripts/verify.sh.
+# .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOOK="$ROOT/.claude/hooks/freeze-acceptance.sh"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o hook e o teste dele precisam dele."; exit 2; }

@@ -12,7 +12,7 @@
 # (o padrão), bugfix, hotfix ou docs. O checkout principal também é uma frente quando está numa branch
 # que não é a main (um HEAD solto conta). Uma frente do ticket é qualquer worktree cuja branch termina no
 # ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a HARNESS_BASE_REF, lida
-# pelo scripts/harness-base.sh, o mesmo do scripts/verify.sh: o remoto é o que vem antes da barra, e a main, o que
+# pelo scripts/harness-base.sh, o mesmo do .claude/skills/verificar/scripts/verify.sh: o remoto é o que vem antes da barra, e a main, o que
 # vem depois. O script roda em qualquer checkout do repositório e não fala com o Linear.
 #
 # O slot, de 0 a 3, dá à frente um bloco de portas na máquina. O principal é o slot 0, e o `novo` dá o
@@ -33,7 +33,7 @@
 # remoto da base) e a pasta com mudança sem commit ou arquivo novo fora do .gitignore, dizendo o que
 # encontrou. Então derruba o ambiente com os volumes (`docker compose down -v`), remove o worktree e apaga
 # a branch local. O `--forcar` pula as duas conferências e remove com força, para abandonar um ticket sem
-# merge: é só do usuário, e o hook de antes do comando (.claude/hooks/push-verify.sh) o nega ao agente.
+# merge: é só do usuário, e o hook de antes do comando (.claude/skills/verificar/hooks/push-verify.sh) o nega ao agente.
 #
 # O `listar` mostra também com quem cada frente conflita, na última coluna ("conflita com") e numa seção
 # "CONFLITOS" abaixo da tabela, que traz os arquivos de cada par de frentes e de cada frente contra a main do
@@ -53,7 +53,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do scripts/harness-base.sh, o mesmo que o scripts/verify.sh carrega.
+# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do scripts/harness-base.sh, o mesmo que o .claude/skills/verificar/scripts/verify.sh carrega.
 # shellcheck source=harness-base.sh
 source "$SCRIPT_DIR/harness-base.sh"
 COMPOSE_FILE=compose.dev.yaml
@@ -73,8 +73,8 @@ if [[ "${HARNESS_TEST:-}" == 1 ]]; then
   PORT_OWNER="${FRENTES_PORT_OWNER:-}"
 fi
 
-# shellcheck source=full-semaphore.sh
-source "$SCRIPT_DIR/full-semaphore.sh"
+# shellcheck source=../.claude/skills/verificar/scripts/full-semaphore.sh
+source "$SCRIPT_DIR/../.claude/skills/verificar/scripts/full-semaphore.sh"
 
 die() {
   printf '%s\n' "$@" >&2

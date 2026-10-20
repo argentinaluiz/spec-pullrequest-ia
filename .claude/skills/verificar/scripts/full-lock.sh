@@ -1,6 +1,6 @@
 # A trava do modo completo contra a mesma reprovação repetida. Quem carrega estas funções é o
-# scripts/verify.sh, que define FULL_LOCK_FILE, o arquivo do estado, na pasta do harness, e o hook
-# .claude/hooks/push-verify.sh, que usa só a instrução de destravar.
+# .claude/skills/verificar/scripts/verify.sh, que define FULL_LOCK_FILE, o arquivo do estado, na pasta do harness, e o hook
+# .claude/skills/verificar/hooks/push-verify.sh, que usa só a instrução de destravar.
 #
 # A mesma falha é o mesmo conjunto de passos reprovados, seja qual for o teste que falhou dentro
 # deles. A contagem atravessa as sessões e só zera com uma aprovação ou com o `unlock`, que é do
@@ -14,7 +14,7 @@
 FULL_LOCK_LIMIT=3
 
 # O que fazer com o modo completo travado, para as mensagens do verify.sh e do hook.
-FULL_LOCK_ASK='pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock` no prompt. Só ele destrava: não destrave nem contorne a trava.'
+FULL_LOCK_ASK='pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock` no prompt. Só ele destrava: não destrave nem contorne a trava.'
 
 # Se a trava vale: fora da CI (a variável CI vazia). Na CI, o veredito é a CI.
 full_lock_enabled() {

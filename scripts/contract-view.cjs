@@ -8,7 +8,7 @@
 // lê (formatos/contrato.md, "Saída do comando do contrato"): as seções `# Contrato` e `# Schema`, que
 // viram as abas de mesmo nome da página de revisão do plano.
 //
-// Roda dentro do contêiner `api` (ver o `api_contract_view`, no scripts/verify/api.sh), sobre as
+// Roda dentro do contêiner `api` (ver o `api_contract_view`, no .claude/skills/verificar/scripts/verify/api.sh), sobre as
 // fontes que o `api_contract_sources` junta na máquina e entrega pela entrada padrão:
 //   node contract-view.cjs -
 // A entrada tem o formato da entrada do construtor da página da skill de plano (o cabeçalho do
@@ -33,7 +33,7 @@ const PHRASES = {
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 const LOCATIONS = { path: 'caminho', query: 'consulta', cookie: 'cookie' };
 // O texto de documentação, que não muda o contrato. São os mesmos elementos que o `oasdiff diff`
-// ignora no scripts/verify/api.sh.
+// ignora no .claude/skills/verificar/scripts/verify/api.sh.
 const TEXT = new Set(['description', 'summary', 'example', 'examples']);
 // Os objetos cujas chaves são nomes (de campo, de cabeçalho), e não palavras da OpenAPI: um campo
 // chamado `description` é contrato.

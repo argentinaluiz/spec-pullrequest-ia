@@ -2,7 +2,7 @@
 #
 # Roda o Node no contêiner `api`, que o tem, sobre o repositório que o serviço monta só para leitura
 # em /repo, sem o .git (compose.dev.yaml). É o comando do Node deste projeto para a skill de plano (o
-# AGENTS.md da raiz o declara em "Plano do ticket") e o do `node_in_api` do scripts/verify.sh, que o
+# AGENTS.md da raiz o declara em "Plano do ticket") e o do `node_in_api` do .claude/skills/verificar/scripts/verify.sh, que o
 # usa para o conferidor, o renderizador e os testes do harness.
 #
 #   scripts/node-in-api.sh <argumentos do node>...

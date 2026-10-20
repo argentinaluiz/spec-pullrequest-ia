@@ -1,4 +1,4 @@
-# Grupo de verificação da API. Quem chama estas funções é o scripts/verify.sh, que define os
+# Grupo de verificação da API. Quem chama estas funções é o .claude/skills/verificar/scripts/verify.sh, que define os
 # auxiliares (`step`, `in_container`, `node_in_api`, `plain_diff`, `require_container`, `check_report`).
 
 # Relatórios que o aceite confere, no formato
@@ -25,7 +25,7 @@ api_full() {
     "renomeie a migração nova que a mensagem aponta para um nome posterior à mais recente da base, como ela explica." \
     api_migration_order
   # Relatório antigo não vale como evidência desta execução. A pasta do relatório dos testes do
-  # harness (`HARNESS_REPORT`, no scripts/verify.sh), que o Node não cria, nasce vazia aqui. Quem a cria é
+  # harness (`HARNESS_REPORT`, no .claude/skills/verificar/scripts/verify.sh), que o Node não cria, nasce vazia aqui. Quem a cria é
   # o contêiner, e os testes em shell do harness, que rodam na máquina, gravam nela: onde o usuário da
   # máquina não é o do contêiner (o runner da CI), ela abre para todos.
   in_container api sh -c "rm -rf reports && mkdir -p '$(dirname "$HARNESS_REPORT")' && chmod a+rwx reports '$(dirname "$HARNESS_REPORT")'"

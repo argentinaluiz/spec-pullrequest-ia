@@ -4,13 +4,13 @@
 # (.claude/skills/plan-ticket/scripts/plan-page.sh): o `--pai` obrigatório e validado, a página
 # gravada em <tickets>/<pai>/<ticket>/ e as regras do .gitignore na profundidade nova. O script roda
 # num repositório temporário, com um comando do Node de mentira. Rodam na máquina, como o script,
-# porque ele usa o `git` e o `bash`, que o contêiner `api` não tem. Quem chama é o scripts/verify.sh.
+# porque ele usa o `git` e o `bash`, que o contêiner `api` não tem. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SCRIPT="$ROOT/.claude/skills/plan-ticket/scripts/plan-page.sh"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 project="$(mktemp -d)"
 trap 'rm -rf "$project"' EXIT

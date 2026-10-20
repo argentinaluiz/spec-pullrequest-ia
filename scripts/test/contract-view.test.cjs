@@ -1,4 +1,4 @@
-// Testes do renderizador da visão do contrato, pela interface que o scripts/verify/api.sh usa: dois
+// Testes do renderizador da visão do contrato, pela interface que o .claude/skills/verificar/scripts/verify/api.sh usa: dois
 // snapshots da OpenAPI na entrada e o Markdown na saída, que a aba Contrato da página de revisão do
 // plano mostra. Rodam com o runner nativo do Node, dentro do contêiner `api`.
 

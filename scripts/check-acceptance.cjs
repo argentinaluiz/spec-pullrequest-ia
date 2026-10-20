@@ -5,7 +5,7 @@
 // tags reprova, dizendo para mover o ID para uma tag. Confere também a seção `## Aceite` do corpo do pull request. O formato do arquivo de
 // aceite está na skill de plano (formatos/aceite.md).
 //
-// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no scripts/verify.sh):
+// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no .claude/skills/verificar/scripts/verify.sh):
 //   node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <vitest|playwright>:<relatório>...
 //   node check-acceptance.cjs --cited - <pasta dos tickets>
 // O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A

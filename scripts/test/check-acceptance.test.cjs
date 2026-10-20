@@ -1,4 +1,4 @@
-// Testes do conferidor de aceite, pela mesma interface que o scripts/verify.sh usa: o corpo do PR,
+// Testes do conferidor de aceite, pela mesma interface que o .claude/skills/verificar/scripts/verify.sh usa: o corpo do PR,
 // os arquivos de aceite e os relatórios das suítes na entrada; o código de saída e as mensagens
 // na saída. Rodam com o runner nativo do Node, dentro do contêiner `api`.
 

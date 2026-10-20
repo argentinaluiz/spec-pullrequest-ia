@@ -1,7 +1,7 @@
 // Confere o relatório JSON de uma suíte: ele tem de existir, ter rodado ao menos um teste,
 // sem falha e sem teste pulado. Teste instável (falhou e passou na nova tentativa) vira aviso.
 //
-// Roda dentro do contêiner do projeto, lido pela entrada padrão (ver scripts/verify.sh):
+// Roda dentro do contêiner do projeto, lido pela entrada padrão (ver .claude/skills/verificar/scripts/verify.sh):
 //   node - <vitest|playwright> <arquivo do relatório>
 
 const fs = require('node:fs');

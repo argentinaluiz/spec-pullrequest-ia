@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# O que o contêiner da varredura de segredos do scripts/verify.sh precisa para ler o histórico do Git
+# O que o contêiner da varredura de segredos do .claude/skills/verificar/scripts/verify.sh precisa para ler o histórico do Git
 # do checkout, além da pasta montada. Carregado com `source`, define `gitleaks_git_args`, que imprime,
 # um por linha, os argumentos extras do `docker run` (a pasta atual é montada em /repo).
 #

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Testes da busca dos testes das skills (scripts/verify/skill-tests.sh) e do uso dela pela verificação
+# Testes da busca dos testes das skills (.claude/skills/verificar/scripts/verify/skill-tests.sh) e do uso dela pela verificação
 # completa: numa árvore temporária com duas skills, cada uma com um teste ao lado do script ou do hook, a
 # busca acha os dois sem lista à mão, e o executor dos testes em shell reprova pelo que falha e aprova sem
-# ele. Rodam na máquina. Quem chama é o scripts/verify.sh.
+# ele. Rodam na máquina. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-FINDER="$ROOT/scripts/verify/skill-tests.sh"
-RUNNER="$ROOT/scripts/test/shell-tests.sh"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
+FINDER="$ROOT/.claude/skills/verificar/scripts/verify/skill-tests.sh"
+RUNNER="$ROOT/.claude/skills/verificar/scripts/test/shell-tests.sh"
 # shellcheck source=sh-helpers.sh
-source "$ROOT/scripts/test/sh-helpers.sh"
+source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor dos testes em shell precisa dele."; exit 2; }
 
@@ -58,7 +58,7 @@ check "o relatório da verificação que reprovou traz o caso que falhou @LUI-19
 check "sem o teste que falha, a verificação aprova @LUI-194-CA5" exits_with $? 0
 
 uses_finder_in_both_groups() {
-  grep -q 'skill-tests.sh cjs' "$ROOT/scripts/verify.sh" && grep -q 'skill-tests.sh sh' "$ROOT/scripts/verify.sh"
+  grep -q 'skill-tests.sh cjs' "$ROOT/.claude/skills/verificar/scripts/verify.sh" && grep -q 'skill-tests.sh sh' "$ROOT/.claude/skills/verificar/scripts/verify.sh"
 }
 check "o full do projeto usa a busca nos testes em Node e nos em shell @LUI-194-CA5" uses_finder_in_both_groups
 
