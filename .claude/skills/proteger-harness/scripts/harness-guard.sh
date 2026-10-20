@@ -36,6 +36,10 @@ fi
 
 # Quantos arquivos o pull request diz alterar. Vem do workflow, e é opcional na máquina.
 declared="${2:-}"
+if [[ -n "$declared" && ! "$declared" =~ ^[0-9]+$ ]]; then
+  echo "::error title=Guarda do harness::O total de arquivos do pull request (\"$declared\") não é um número. Sem ele, não dá para saber se a lista de arquivos está inteira."
+  exit 2
+fi
 if [[ -n "$declared" && "$declared" -ge "$API_FILE_LIMIT" ]]; then
   echo "::error title=Guarda do harness::O pull request altera $declared arquivos, e a API só lista $API_FILE_LIMIT. Um arquivo protegido poderia ficar fora da lista."
   echo "Como resolver: divida o pull request, ou o admin confere os arquivos protegidos à mão e faz o merge com bypass."
@@ -112,8 +116,12 @@ scripts_changed() {
   [[ -z "${HEAD_DIR:-}" ]] && return 1
   # Arquivo criado, apagado ou renomeado: não dá para comparar, então conta como mudança.
   [[ -f "$file" && -f "$HEAD_DIR/$file" ]] || return 0
-  ! diff -q <(jq -S '.scripts // {}' "$file" 2>&1) \
-    <(jq -S '.scripts // {}' "$HEAD_DIR/$file" 2>&1) >/dev/null
+  # Um manifesto que o `jq` não lê (ou a falta do `jq`) também conta como mudança: dois erros iguais não
+  # provam que os comandos são os mesmos.
+  local base head
+  base="$(jq -S '.scripts // {}' "$file" 2>/dev/null)" || return 0
+  head="$(jq -S '.scripts // {}' "$HEAD_DIR/$file" 2>/dev/null)" || return 0
+  [[ "$base" != "$head" ]]
 }
 
 blocked=()

@@ -62,6 +62,10 @@ guard "$tmp/lista.txt" apps/api/package.json
 check "$case1: o manifesto com os comandos trocados reprova" bash -c '[[ $1 -eq 1 && $2 == *"apps/api/package.json (seção scripts)"* ]]' _ "$code" "$out"
 guard "$tmp/lista.txt" apps/web/package.json
 check "$case1: o manifesto que só mudou dependências avisa" bash -c '[[ $1 -eq 0 && $2 == *"Arquivo em aviso alterado::apps/web/package.json"* ]]' _ "$code" "$out"
+printf '{"scripts":' >"$head/apps/web/package.json"
+guard "$tmp/lista.txt" apps/web/package.json
+check "$case1: o manifesto que o jq não lê conta como mudança nos comandos" bash -c '[[ $1 -eq 1 ]]' _ "$code"
+printf '{"scripts":{"test":"vitest"},"dependencies":{"a":"2"}}\n' >"$head/apps/web/package.json"
 guard "$tmp/lista.txt" README.md
 check "$case1: o caminho que nenhum padrão casa passa" bash -c '[[ $1 -eq 0 && $2 == APROVADO* ]]' _ "$code" "$out"
 guard "$tmp/lista.txt" config/sub/a.json
@@ -96,6 +100,8 @@ code=$?
 check "$case2: a lista de caminhos vazia sai com o código 2" bash -c '[[ $1 -eq 2 && $2 == *vazia* ]]' _ "$code" "$out"
 LIST='' DECLARED=3000 run_outside notas.txt
 check "$case2: mais arquivos que o limite da API sai com o código 2" bash -c '[[ $1 -eq 2 && $2 == *3000* ]]' _ "$code" "$out"
+LIST='' DECLARED=abc run_outside notas.txt
+check "$case2: o total que não é um número sai com o código 2 @LUI-194-CA2" bash -c '[[ $1 -eq 2 && $2 == *"não é um número"* ]]' _ "$code" "$out"
 LIST='' DECLARED=2999 run_outside notas.txt
 check "$case2: o limite da API é só o teto, abaixo dele passa" exits 0
 
