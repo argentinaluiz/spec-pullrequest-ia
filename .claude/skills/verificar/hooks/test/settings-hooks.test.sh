@@ -35,6 +35,12 @@ for hook in stop-verify.sh record-touched.sh push-verify.sh; do
   check "$name: o $hook não continua em .claude/hooks" test ! -e "$ROOT/.claude/hooks/$hook"
 done
 
+# O hook das frentes é da skill worktree, e o settings.json o chama pelo caminho dela: sem essa ligação, o hook existiria
+# e nunca rodaria.
+frentes_hook="$(settings_hook frentes-guard.sh)"
+check "o settings.json chama o hook das frentes pela skill worktree, que o tem executável @LUI-199-CA5" \
+  test "$frentes_hook" = .claude/skills/worktree/hooks/frentes-guard.sh -a -x "$ROOT/.claude/skills/worktree/hooks/frentes-guard.sh"
+
 # O hook de antes do push, chamado pelo caminho do settings.json: nega o destravar, o full de um subagente e
 # o CI= no comando da verificação, e libera o resto. O push em si é da aprovação, testada à parte.
 PUSH="$ROOT/$(settings_hook push-verify.sh)"

@@ -54,6 +54,8 @@ expect 2 "nega o unlock pelo caminho relativo, com aspas, por outro shell ou dep
   "$(command_input 'cd /repo && bash "./.claude/skills/verificar/scripts/verify.sh"   unlock')"
 expect 2 "nega o unlock numa segunda linha" \
   "$(command_input $'echo oi\n.claude/skills/verificar/scripts/verify.sh unlock 2>&1')"
+expect 0 "libera o script de frentes com o abandono e com as variáveis do modo de teste, que são do hook da skill worktree @LUI-199-CA5" \
+  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso .claude/skills/ambiente/scripts/frentes.sh remover LUI-186 --forcar')"
 expect 0 "libera os outros modos do verify.sh" \
   "$(command_input '.claude/skills/verificar/scripts/verify.sh full && .claude/skills/verificar/scripts/verify.sh fast web')"
 expect 0 "libera um comando que só cita a palavra unlock" \

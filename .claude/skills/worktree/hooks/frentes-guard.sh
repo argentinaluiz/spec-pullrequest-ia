@@ -2,7 +2,7 @@
 #
 # Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente dois usos do script de
 # frentes que são só do usuário: o `remover --forcar`, que abandona uma frente sem merge e apaga o trabalho dela, e o
-# `frentes.sh` com as variáveis do modo de teste (`HARNESS_TEST` e as `FRENTES_*`), que trocam o `gh`, o comando de
+# `frentes.sh` com as variáveis do modo de teste (`HARNESS_TEST`, `FRENTES_GH`, `FRENTES_DOCKER`, `FRENTES_PORT_OWNER` e `FRENTES_GIT_VERSION`), que trocam o `gh`, o comando de
 # ambiente e as conferências do script e fariam o `remover` remover uma frente sem o merge. O padrão olha o nome do
 # script (`frentes.sh`), então vale também para o atalho que um projeto ponha na frente do núcleo. É uma guarda para um
 # agente que coopera, e não uma barreira de segurança.
@@ -23,13 +23,13 @@ deny_forcar() {
 
 deny_test_mode() {
   deny "O comando foi negado: o \`frentes.sh\` não roda com as variáveis do modo de teste do harness." \
-    "\`HARNESS_TEST\` e as \`FRENTES_*\` trocam o \`gh\`, o comando de ambiente e as conferências do script, e com elas o \`remover\` removeria uma frente sem o merge. São dos testes do script. Rode o \`frentes.sh\` sem elas."
+    "\`HARNESS_TEST\`, \`FRENTES_GH\`, \`FRENTES_DOCKER\`, \`FRENTES_PORT_OWNER\` e \`FRENTES_GIT_VERSION\` trocam o \`gh\`, o comando de ambiente e as conferências do script, e com elas o \`remover\` removeria uma frente sem o merge. São dos testes do script. Rode o \`frentes.sh\` sem elas."
 }
 
 # O `frentes.sh` com o `--forcar` em qualquer ponto do comando, e com uma variável do modo de teste em qualquer ponto do
 # comando. Uma mensagem que cite os dois também é negada: o hook falha fechado.
 forcar='frentes\.sh.*--forcar'
-test_mode='(HARNESS_TEST|FRENTES_[A-Z_]+)'
+test_mode='(HARNESS_TEST|FRENTES_(GH|DOCKER|PORT_OWNER|GIT_VERSION))'
 
 # O hook recebe um JSON pela entrada padrão, com o comando em `tool_input.command`.
 input="$(cat)"

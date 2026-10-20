@@ -337,7 +337,7 @@ cmd_novo() {
 
   # O fetch fica dentro da trava: duas criações ao mesmo tempo se serializam ali, em vez de disputar a mesma ref.
   lock_slots
-  git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a branch $BASE_BRANCH do remoto \`$BASE_REMOTE\`."
+  GIT_TERMINAL_PROMPT=0 timeout 60 git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a branch $BASE_BRANCH do remoto \`$BASE_REMOTE\`."
   if [[ -n "$(ticket_worktrees "$TICKET_KEY")" ]]; then
     die "O ticket $1 já tem frente: $(ticket_worktrees "$TICKET_KEY" | cut -f 1 | paste -sd ' ')"
   fi

@@ -653,7 +653,7 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 
 | Variável do `.env` | Slot 0 (padrão do Compose) | Slot 1 | Quem lê |
 | --- | --- | --- | --- |
-| `SLOT` | não precisa existir | `1` | Só informa: o Compose não a lê, e o script de frentes a usa para achar o slot de cada pasta |
+| `SLOT` | não precisa existir | `1` | Só informa: o Compose não a lê, e o script de frentes não a usa, porque o slot de cada frente mora no diretório privado do Git do worktree dela |
 | `WEB_PORT` | 3000 | 3010 | Porta publicada da web |
 | `API_PORT` | 3001 | 3011 | Porta publicada da API |
 | `STORAGE_PORT` | 4443 | 4453 | Porta publicada do storage, e a em que o emulador escuta e se anuncia (`-port` e `-public-host`) |
