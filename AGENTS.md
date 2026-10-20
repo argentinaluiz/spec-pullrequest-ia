@@ -150,7 +150,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, em `scripts/`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -239,7 +239,7 @@ Os valores da `/revisao-conformidade`:
 
 - **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
 - **Base:** a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`). O script dos insumos, `.claude/skills/revisao-conformidade/scripts/review-inputs.sh`, não lê a variável: passe `--base "${HARNESS_BASE_REF:-origin/main}"`.
-- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`scripts/`, `.claude/hooks/`, `.github/`, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
+- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`.claude/hooks/`, `.github/`, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
 - **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
@@ -253,6 +253,12 @@ Os valores do `/worktree`:
 - **Status e tipo da branch:** os padrões da skill ("In Progress", "In Review" e "Done"; `bugfix` para a label `Bug`, `feature` para o resto).
 - **Atualizar o ambiente, recriar o banco, gerar uma migração, subir as aplicações e regenerar o gerado:** os comandos da seção "Commands the sync uses" da `/ambiente` (`.claude/skills/ambiente/SKILL.md`). O único arquivo gerado é `apps/api/openapi.json`.
 - **Verificação completa:** `.claude/skills/verificar/scripts/verify.sh full`, em segundo plano. Se a branch altera `apps/`, ele recebe o corpo do pull request, com a seção `## Aceite`, em `ACCEPTANCE_BODY_FILE=<arquivo>`.
+
+Os valores da `/implement`:
+
+- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
+- **Código que pede revisão:** o da `/revisao-conformidade`, acima.
+- **Verificação completa:** a dos valores do `/worktree`, acima.
 
 Os valores da `/proteger-harness`:
 
@@ -276,7 +282,11 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
-**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`scripts/test/` e `hooks/test/`). A verificação completa acha e roda os testes de todas as skills sem lista à mão.
+**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). A verificação completa acha e roda os testes de todas as skills sem lista à mão.
+
+**Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
+
+**Genericidade.** O que a suíte `.claude/skills/verificar/scripts/genericity.sh` reprova está no cabeçalho dela, e a lista dela, `.claude/skills/verificar/genericidade.txt`, é protegida. A suíte roda na verificação completa, pelo teste dela.
 
 **Proteção.** O texto de uma skill (o `SKILL.md`, os formatos, o modelo do revisor) é livre: este arquivo vale mais que qualquer skill, e as regras e os comandos de entrada ficam aqui. O mecanismo de uma skill, ou seja, os scripts e os hooks dela, é protegido, e a lista de arquivos protegidos é a da skill `/verificar` (`.claude/skills/verificar/arquivos-protegidos.txt`), que a Guarda do harness lê.
 
@@ -287,7 +297,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que o `/worktree sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
-- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
+- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas
 

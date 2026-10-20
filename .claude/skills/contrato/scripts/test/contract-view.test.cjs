@@ -9,7 +9,7 @@ const path = require('node:path');
 
 const { render } = require('../contract-view.cjs');
 const { build } = require('../../../plan-ticket/scripts/page.cjs');
-const { panel, snapshot } = require('../../../../../scripts/test/helpers.cjs');
+const { panel, snapshot } = require('./helpers.cjs');
 
 const PROBLEM = { $ref: '#/components/schemas/ProblemDetailsDto' };
 

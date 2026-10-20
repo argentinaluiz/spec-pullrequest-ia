@@ -95,7 +95,7 @@ require_git_version() {
 # O ticket PREFIXO-N em minúsculas (lui-186), no TICKET_KEY. Sai com o uso se o formato não vale.
 # parse_ticket <ticket> <uso>
 parse_ticket() {
-  [[ "$1" =~ ^([A-Za-z][A-Za-z0-9]*)-([0-9]+)$ ]] || die "Uso: $2, com o ticket no formato PREFIXO-N (LUI-186)."
+  [[ "$1" =~ ^([A-Za-z][A-Za-z0-9]*)-([0-9]+)$ ]] || die "Uso: $2, com o ticket no formato PREFIXO-N (PROJ-186)."
   TICKET_KEY="$(tr '[:upper:]' '[:lower:]' <<<"${BASH_REMATCH[1]}")-${BASH_REMATCH[2]}"
 }
 

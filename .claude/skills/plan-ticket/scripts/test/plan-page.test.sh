@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
 # Testes dos argumentos e da pasta do ticket do script da página do plano
-# (.claude/skills/plan-ticket/scripts/plan-page.sh): o `--pai` obrigatório e validado, a página
-# gravada em <tickets>/<pai>/<ticket>/ e as regras do .gitignore na profundidade nova. O script roda
-# num repositório temporário, com um comando do Node de mentira. Rodam na máquina, como o script,
-# porque ele usa o `git` e o `bash`, que o contêiner `api` não tem. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# (plan-page.sh, desta skill): o `--pai` obrigatório e validado, a página gravada em
+# <tickets>/<pai>/<ticket>/ e as regras do .gitignore na profundidade nova. O script roda num repositório
+# temporário, com um comando do Node de mentira. Rodam na máquina, como o script, porque ele usa o `git` e o
+# `bash`. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo nome.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SCRIPT="$ROOT/.claude/skills/plan-ticket/scripts/plan-page.sh"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="$HERE/../plan-page.sh"
+# shellcheck source=helpers.sh
+source "$HERE/helpers.sh"
 
 project="$(mktemp -d)"
 trap 'rm -rf "$project"' EXIT
@@ -78,11 +78,11 @@ check "aceita as regras da profundidade nova" test $code -eq 0
 # O mapa de testes do ticket é versionado como o aceite: um .gitignore que só versiona o aceite é recusado.
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$project/.gitignore"
 plan --pai PROJ-1 --ticket PROJ-2
-check "o script exige que o mapa de testes do ticket não seja ignorado @LUI-196-CA5" test $code -eq 2
+check "o script exige que o mapa de testes do ticket não seja ignorado" test $code -eq 2
 check "a mensagem diz que o mapa de testes é ignorado" contains 'ignora o docs/tickets/PROJ-1/PROJ-2/mapa-de-testes.txt'
 check "a mensagem pede a linha que versiona o mapa" contains '`!docs/tickets/*/*/mapa-de-testes.txt`'
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$project/.gitignore"
 plan --pai PROJ-1 --ticket PROJ-2
-check "o script monta a página quando o aceite e o mapa de testes são versionados @LUI-196-CA5" test $code -eq 0
+check "o script monta a página quando o aceite e o mapa de testes são versionados" test $code -eq 0
 
 finish "do script da página do plano"

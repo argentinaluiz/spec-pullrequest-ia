@@ -8,8 +8,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/../freeze-acceptance.sh"
-# shellcheck source=helpers.sh
-source "$HERE/helpers.sh"
+# shellcheck source=../../scripts/test/helpers.sh
+source "$HERE/../../scripts/test/helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o hook e o teste dele precisam dele."; exit 2; }
