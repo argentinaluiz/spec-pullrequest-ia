@@ -1,6 +1,5 @@
-// Auxiliares dos testes do harness deste projeto: o renderizador do contrato e o aceite da skill de
-// plano (a página e o parser, testados aqui pelos módulos da skill). Não termina em `.test.cjs`,
-// então o `node --test` não o roda como teste.
+// Auxiliares dos testes do renderizador do contrato: o snapshot de exemplo da OpenAPI e a leitura de um
+// painel da página de revisão. Não termina em `.test.cjs`, então o `node --test` não o roda como teste.
 
 const assert = require('node:assert/strict');
 

@@ -1,13 +1,13 @@
-// Testes de aceite da skill de plano neste projeto: a página de revisão do plano, pelo construtor da
-// skill (.claude/skills/plan-ticket/scripts/page.cjs), com as fontes de um plano de exemplo na entrada
-// e o HTML na saída. Ficam aqui, e não na pasta da skill, porque citam os IDs dos critérios deste
-// projeto. Rodam com o runner nativo do Node, dentro do contêiner `api`.
+// Testes da página de revisão do plano que provam critérios de aceite do projeto, pelo construtor da
+// skill (page.cjs), com as fontes de um plano de exemplo na entrada e o HTML na saída. Como a skill é de uso
+// geral, nenhum título cita o ID de um critério: a ligação vai pelo mapa de testes do ticket. Rodam com o
+// runner nativo do Node.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { build } = require('../../.claude/skills/plan-ticket/scripts/page.cjs');
-const { parseAcceptanceFile } = require('../../.claude/skills/plan-ticket/scripts/plan.cjs');
+const { build } = require('../page.cjs');
+const { parseAcceptanceFile } = require('../plan.cjs');
 const { panel, text } = require('./helpers.cjs');
 
 const ORIGIN = 'Montada da pasta de trabalho.';
@@ -33,7 +33,7 @@ const ACCEPTANCE = [
   '',
 ].join('\n');
 
-test('mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, lidos pelo parser do conferidor @LUI-173-CA3', () => {
+test('mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, lidos pelo parser do conferidor', () => {
   // O parser do conferidor do aceite é o da skill (plan.cjs), que o conferidor importa.
   const { intro, criteria } = parseAcceptanceFile('PROJ-900.md', ACCEPTANCE);
 
@@ -66,7 +66,7 @@ test('mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, l
   assert.doesNotMatch(second, /<details/);
 });
 
-test('mostra em negrito o trecho que contém código, sem sobrar asteriscos @LUI-174-CA1', () => {
+test('mostra em negrito o trecho que contém código, sem sobrar asteriscos', () => {
   const acceptance = ACCEPTANCE.replace(
     'Ticket de exemplo.',
     'Ticket de exemplo.\n\n**Como o teste faz o `GET` da URL.** O resto do parágrafo.',
@@ -85,7 +85,7 @@ test('mostra em negrito o trecho que contém código, sem sobrar asteriscos @LUI
   );
 });
 
-test('monta a aba Contrato do Markdown recebido, ou diz que o projeto não declara contrato @LUI-175-CA2', () => {
+test('monta a aba Contrato do Markdown recebido, ou diz que o projeto não declara contrato', () => {
   const contract = [
     '# Contrato',
     '',
@@ -203,7 +203,7 @@ const SOURCES = {
   message: MESSAGE,
 };
 
-test('monta a página com as seis abas, cada uma com o conteúdo da sua fonte @LUI-173-CA1', () => {
+test('monta a página com as seis abas, cada uma com o conteúdo da sua fonte', () => {
   const html = build(SOURCES);
 
   // As seis abas, nesta ordem, cada uma com o seu painel.
