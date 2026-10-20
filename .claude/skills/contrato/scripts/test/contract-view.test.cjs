@@ -1,4 +1,4 @@
-// Testes do renderizador da visão do contrato, pela interface que o .claude/skills/verificar/scripts/verify/api.sh usa: dois
+// Testes do renderizador da visão do contrato, pela interface que o contract-lib.sh usa: dois
 // snapshots da OpenAPI na entrada e o Markdown na saída, que a aba Contrato da página de revisão do
 // plano mostra. Rodam com o runner nativo do Node, dentro do contêiner `api`.
 
@@ -8,8 +8,8 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const { render } = require('../contract-view.cjs');
-const { build } = require('../../.claude/skills/plan-ticket/scripts/page.cjs');
-const { panel, snapshot } = require('./helpers.cjs');
+const { build } = require('../../../plan-ticket/scripts/page.cjs');
+const { panel, snapshot } = require('../../../../../scripts/test/helpers.cjs');
 
 const PROBLEM = { $ref: '#/components/schemas/ProblemDetailsDto' };
 
@@ -183,9 +183,9 @@ test('gera a visão em Markdown, uma seção por rota, com as tabelas de parâme
   // Uma seção por rota que mudou, na ordem do snapshot novo, e nada da que não mudou.
   assert.equal(render(base, head), `${CHILDREN_SECTION}\n\n${COPIES_SECTION}\n`);
 
-  // O modo `contract` do script de verificação imprime o que a linha de comando do renderizador
+  // O comando contract-view.sh imprime o que a linha de comando do renderizador
   // imprime sobre as fontes, em pares nome e valor terminados por NUL na entrada padrão (`-`), como o
-  // `api_contract_view` as escreve: o changelog, esse mesmo Markdown e o diff do schema. Os snapshots
+  // `contract_view` as escreve: o changelog, esse mesmo Markdown e o diff do schema. Os snapshots
   // vão como o texto dos arquivos.
   const sources = [
     ['base', JSON.stringify(base)],

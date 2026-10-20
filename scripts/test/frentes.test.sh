@@ -448,7 +448,7 @@ convergence_split() {
   [[ "$attention" == *"apps/api/prisma/schema.prisma (manual)"* && "$attention" == *"apps/api/.env.example (manual)"* ]] || return 1
   [[ "$mechanical" != *"schema.prisma"* && "$mechanical" != *".env.example"* ]]
 }
-check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção @LUI-187-CA2 @LUI-192-CA2" convergence_split
+check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção @LUI-187-CA2 @LUI-192-CA2 @LUI-197-CA4" convergence_split
 
 # --- Um erro ao calcular o merge é dito, e não passa por "sem conflito"; o nome com acento sai sem aspas ---
 conflict_errors() {

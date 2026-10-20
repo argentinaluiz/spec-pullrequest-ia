@@ -64,7 +64,7 @@ covered_by_the_maps() {
         assertionResults: [ .[] | {title: .[2], fullName: .[2], ancestorTitles: [], tags: [], status: "passed"} ]
       } ]}' "$links" >"$work/relatorio.json" || return 1
   local out id
-  out="$(scripts/node-in-api.sh "$CHECKER" --optional - "$TICKETS" "vitest:/repo/${work}/relatorio.json" 2>&1 </dev/null)"
+  out="$(.claude/skills/ambiente/scripts/node-in-api.sh "$CHECKER" --optional - "$TICKETS" "vitest:/repo/${work}/relatorio.json" 2>&1 </dev/null)"
   while IFS= read -r id; do
     [[ "$out" == *"$id: coberto por"* ]] || { echo "o ID $id não saiu coberto pelo mapa"; return 1; }
   done < <(cut -f1 "$links" | sort -u)

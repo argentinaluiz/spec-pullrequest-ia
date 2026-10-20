@@ -42,7 +42,7 @@
 # calcular, busca a main do remoto (sem falhar se a rede faltar). Os arquivos em conflito saem em dois grupos:
 # os pontos de convergência com regra mecânica, cada um com o tipo, e os que pedem atenção, que são o código
 # e os pontos que se juntam à mão (documentos e manual), estes com o tipo ao lado do nome.
-# A classificação, os tipos e os arquivos de cada um, é de scripts/pontos-de-convergencia.txt, o dono
+# A classificação, os tipos e os arquivos de cada um, é de .claude/skills/ambiente/pontos-de-convergencia.txt, o dono
 # único dela: este script e a skill /sincronizar a leem, e um ponto novo é uma linha lá.
 #
 # Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`, que a
@@ -237,7 +237,7 @@ require_free_ports() {
 COMPUTE_ERROR="@@erro"
 
 # O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação de
-# scripts/pontos-de-convergencia.txt; nada, se o arquivo é código.
+# .claude/skills/ambiente/pontos-de-convergencia.txt; nada, se o arquivo é código.
 # convergence_type <arquivo>
 convergence_type() {
   local type pattern
@@ -245,7 +245,7 @@ convergence_type() {
     [[ -z "$type" || "$type" == \#* ]] && continue
     # shellcheck disable=SC2053
     [[ "$1" == $pattern ]] && { echo "$type"; return 0; }
-  done <"$SCRIPT_DIR/pontos-de-convergencia.txt"
+  done <"$SCRIPT_DIR/../.claude/skills/ambiente/pontos-de-convergencia.txt"
   return 0
 }
 

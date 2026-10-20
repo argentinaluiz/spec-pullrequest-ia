@@ -8,8 +8,8 @@
 // lê (formatos/contrato.md, "Saída do comando do contrato"): as seções `# Contrato` e `# Schema`, que
 // viram as abas de mesmo nome da página de revisão do plano.
 //
-// Roda dentro do contêiner `api` (ver o `api_contract_view`, no .claude/skills/verificar/scripts/verify/api.sh), sobre as
-// fontes que o `api_contract_sources` junta na máquina e entrega pela entrada padrão:
+// Roda dentro do contêiner `api` (ver o `contract_view`, no contract-lib.sh), sobre as
+// fontes que o `contract_sources` junta na máquina e entrega pela entrada padrão:
 //   node contract-view.cjs -
 // A entrada tem o formato da entrada do construtor da página da skill de plano (o cabeçalho do
 // page.cjs dela, que a lê pelo mesmo `readSources`), com as fontes `base` e `novo` (o texto dos dois
@@ -18,7 +18,7 @@
 
 const fs = require('node:fs');
 
-const { readSources } = require('../.claude/skills/plan-ticket/scripts/page.cjs');
+const { readSources } = require('../../plan-ticket/scripts/page.cjs');
 
 // As frases e os títulos de seção da visão.
 const PHRASES = {

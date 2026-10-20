@@ -36,22 +36,24 @@ cp -R "$ROOT/$SK/scripts/verify.sh" "$ROOT/$SK/scripts/verify" "$ROOT/$SK/script
 cp "$ROOT/scripts/harness-base.sh" "$repo/scripts/"
 cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$repo/.claude/skills/proteger-harness/scripts/"
 grep '^!\{0,1\}docs/tickets/' "$ROOT/.gitignore" >"$repo/.gitignore"
-# O desvio falso: com FAKE_DRIFT, há desvio, e ele faz como o grupo da API (acrescenta a visão ao
-# arquivo e avisa); sem ela, diz que o contrato está igual, sem gravar nada.
-cat >>"$repo/.claude/skills/verificar/scripts/verify/api.sh" <<'EOF'
-
-api_contract_drift() {
-  if [[ -n "${FAKE_DRIFT_FAIL:-}" ]]; then
-    echo "o oasdiff não rodou"
-    return 1
-  elif [[ -n "${FAKE_DRIFT:-}" ]]; then
-    printf '%s\n' "$FAKE_DRIFT" | tee -a "$3"
-    echo "::warning title=Contrato diferente do planejado::aviso"
-  else
-    echo "O contrato e o schema estão iguais ao planejado no commit de plano $(git rev-parse --short "$1")."
-  fi
-}
+# O comando do desvio do /contrato, falso: com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e
+# avisa); sem ela, diz que o contrato está igual, sem gravar nada; com FAKE_DRIFT_FAIL, não consegue conferir. A biblioteca do
+# contrato é a de verdade, porque o grupo da API a carrega.
+mkdir -p "$repo/.claude/skills/contrato/scripts"
+cp "$ROOT/.claude/skills/contrato/scripts/contract-lib.sh" "$repo/.claude/skills/contrato/scripts/"
+cat >"$repo/.claude/skills/contrato/scripts/contract-drift.sh" <<'EOF'
+#!/usr/bin/env bash
+if [[ -n "${FAKE_DRIFT_FAIL:-}" ]]; then
+  echo "o oasdiff não rodou"
+  exit 1
+elif [[ -n "${FAKE_DRIFT:-}" ]]; then
+  printf '%s\n' "$FAKE_DRIFT" | tee -a "$3"
+  echo "::warning title=Contrato diferente do planejado::aviso"
+else
+  echo "O contrato e o schema estão iguais ao planejado no commit de plano $(git rev-parse --short "$1")."
+fi
 EOF
+chmod +x "$repo/.claude/skills/contrato/scripts/contract-drift.sh"
 git -C "$repo" init -q -b main
 git -C "$repo" config user.email teste@exemplo.com
 git -C "$repo" config user.name Teste
