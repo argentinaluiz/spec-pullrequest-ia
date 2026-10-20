@@ -1,7 +1,8 @@
 .history/
-# A pasta de cada ticket, dentro da pasta da issue pai: só o arquivo de aceite é versionado.
+# A pasta de cada ticket, dentro da pasta da issue pai: só o arquivo de aceite e o mapa de testes são versionados.
 docs/tickets/*/*/*
 !docs/tickets/*/*/aceite.md
+!docs/tickets/*/*/mapa-de-testes.txt
 .playwright-mcp/
 # O estado interno do harness: a trava e as aprovações.
 .harness/

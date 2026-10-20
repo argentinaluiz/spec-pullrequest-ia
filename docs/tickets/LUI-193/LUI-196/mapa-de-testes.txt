@@ -1,0 +1,7 @@
+# Ligações do LUI-196: os testes do conferidor e do hook de congelamento moram na skill plan-ticket e não levam o ID na tag.
+# ID, arquivo do teste e nome do caso, separados por tabulação.
+LUI-196-CA1	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	uma linha do mapa vale como a tag do caso ligado, e o critério fica coberto quando o caso roda e passa
+LUI-196-CA2	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	um caso do mapa que não aparece no relatório reprova, dizendo o ID, o arquivo e o nome do caso
+LUI-196-CA3	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	um ID do mapa que não está em nenhum arquivo de aceite reprova
+LUI-196-CA4	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	o teste com o ID na tag continua cobrindo o critério, com ou sem mapa no ticket
+LUI-196-CA6	.claude/skills/plan-ticket/hooks/test/freeze-acceptance.test.sh	nega editar o aceite em commit, libera o mapa de testes e respeita a pasta dos tickets do argumento

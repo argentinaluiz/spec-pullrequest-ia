@@ -267,7 +267,7 @@ require_body() {
 # O arquivo de aceite citado na seção "Aceite" do corpo do pull request, lido pelo mesmo conferidor,
 # com o corpo na entrada padrão. Não imprime nada quando não há corpo e quando a seção diz "nenhum".
 cited_acceptance() {
-  require_body && node_in_api scripts/check-acceptance.cjs --cited - "$TICKETS_DIR" <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
+  require_body && node_in_api .claude/skills/plan-ticket/scripts/check-acceptance.cjs --cited - "$TICKETS_DIR" <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
 }
 
 # O `git diff` que a visão do contrato lê: sem cor nem diff externo, com os prefixos `a/` e `b/` fixos
@@ -356,7 +356,7 @@ acceptance() {
     done
   done
 
-  node_in_api scripts/check-acceptance.cjs "$mode" - "$TICKETS_DIR" "${specs[@]}" <"${body:-/dev/null}"
+  node_in_api .claude/skills/plan-ticket/scripts/check-acceptance.cjs "$mode" - "$TICKETS_DIR" "${specs[@]}" <"${body:-/dev/null}"
 }
 
 require_base() {
@@ -484,7 +484,7 @@ require_point() {
 }
 
 # O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
-# valores é o AGENTS.md da raiz ("Plano do ticket", "Valores da skill de plano"); o atalho só os passa.
+# valores é o AGENTS.md da raiz ("Plano do ticket", "Valores das skills do ticket"); o atalho só os passa.
 # A lógica e as mensagens são do script.
 # run_plan <pai> <ticket> [<commit>]
 run_plan() {

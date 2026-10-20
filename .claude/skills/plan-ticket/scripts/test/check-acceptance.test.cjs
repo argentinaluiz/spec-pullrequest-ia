@@ -10,7 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const CHECKER = path.join(__dirname, '..', 'check-acceptance.cjs');
-const SKILL_PARSER = path.join(__dirname, '..', '..', '.claude', 'skills', 'plan-ticket', 'scripts', 'plan.cjs');
+const SKILL_PARSER = path.join(__dirname, '..', 'plan.cjs');
 const { parseAcceptanceFile } = require(CHECKER);
 const { parseMessage } = require(SKILL_PARSER);
 
@@ -303,7 +303,7 @@ const PARSER_MESSAGE = [
 // O parser do aceite e da mensagem é o da skill de plano, que o conferidor importa. O esperado é o que
 // o parser que morava no conferidor e na página do plano devolvia para as mesmas entradas, gravado
 // antes de ele ir para a skill.
-test('lê o aceite e a mensagem como o parser do conferidor, que o importa da skill @LUI-175-CA1', () => {
+test('lê o aceite e a mensagem como o parser do conferidor, que o importa da skill', () => {
   assert.deepEqual(parseAcceptanceFile('PROJ-901.md', PARSER_ACCEPTANCE), {
     intro: 'Introdução do aceite, com `código`.\n\nSegundo parágrafo da introdução.',
     criteria: [
@@ -337,15 +337,15 @@ test('lê o aceite e a mensagem como o parser do conferidor, que o importa da sk
   assert.equal(parseMessage(null), null);
 });
 
-test('o conferidor importa o parser da pasta da skill de plano: aprova o critério cujo teste passou e reprova sem o teste @LUI-175-CA1', () => {
+test('o conferidor importa o parser da pasta da skill de plano: aprova o critério cujo teste passou e reprova sem o teste', () => {
   assert.equal(require(CHECKER).parseAcceptanceFile, require(SKILL_PARSER).parseAcceptanceFile);
   assert.equal(require(CHECKER).CHECKS, require(SKILL_PARSER).CHECKS);
 
-  // Uma cópia do conferidor só com o parser na pasta da skill: aprova com o teste que passou e
-  // reprova pelo critério sem teste.
+  // Uma cópia do conferidor só com o parser, lado a lado como na pasta da skill: aprova com o teste que
+  // passou e reprova pelo critério sem teste.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'conferidor-'));
-  const copy = path.join(root, 'scripts', 'check-acceptance.cjs');
-  const parser = path.join(root, '.claude', 'skills', 'plan-ticket', 'scripts', 'plan.cjs');
+  const copy = path.join(root, 'skill', 'scripts', 'check-acceptance.cjs');
+  const parser = path.join(root, 'skill', 'scripts', 'plan.cjs');
   fs.mkdirSync(path.dirname(copy), { recursive: true });
   fs.mkdirSync(path.dirname(parser), { recursive: true });
   fs.copyFileSync(CHECKER, copy);
@@ -567,7 +567,7 @@ test('no modo --cited, imprime só o arquivo de aceite citado na seção do corp
   assert.equal(cited(null), '');
 });
 
-test('confere o relatório da suíte de unidade da web: aceita o teste que passou e recusa o que falhou @LUI-164-CA1', () => {
+test('confere o relatório da suíte de unidade da web: aceita o teste que passou e recusa o que falhou', () => {
   // O relatório da web chega ao conferidor como `vitest:`, como o da API: o ID na tag é a ligação.
   const unit = (status) => [['o login volta para a página pedida', status, ['@PROJ-1-CA1']]];
   const passed = check({ files: TICKET, vitest: unit('passed') });
@@ -579,7 +579,7 @@ test('confere o relatório da suíte de unidade da web: aceita o teste que passo
   assert.match(failed.out, /PROJ-1-CA1: um teste com o ID dele falhou/);
 });
 
-test('aceita a marca teste de integração e exige o teste com o ID que rodou e passou @LUI-164-CA2', () => {
+test('aceita a marca teste de integração e exige o teste com o ID que rodou e passou', () => {
   const files = { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste de integração']]) };
 
   const none = check({ files });
@@ -603,4 +603,114 @@ test('aceita a marca teste de integração e exige o teste com o ID que rodou e 
   assert.equal(manual.code, 1);
   assert.match(manual.out, /marca "teste manual" desconhecida/);
   assert.match(manual.out, /teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento/);
+});
+
+// O mapa de testes (formatos/mapa-de-testes.md): uma linha por ligação, com o ID, o arquivo de teste e o nome
+// do caso, separados por uma tabulação. O relatório do Vitest dos testes acima traz os casos do arquivo
+// `/work/apps/api/test/x.e2e-spec.ts`.
+const MAP = 'PROJ-100/PROJ-1/mapa-de-testes.txt';
+const mapLine = (id, file, name) => `${id}\t${file}\t${name}\n`;
+const MAPPED_FILE = 'apps/api/test/x.e2e-spec.ts';
+
+test('uma linha do mapa vale como a tag do caso ligado, e o critério fica coberto quando o caso roda e passa', () => {
+  const extra = { [MAP]: mapLine('PROJ-1-CA1', MAPPED_FILE, 'devolve 201') };
+
+  const passed = check({ files: TICKET, extra, vitest: [['devolve 201', 'passed']] });
+  assert.equal(passed.code, 0, passed.out);
+  assert.match(passed.out, /PROJ-1-CA1: coberto por 1 teste/);
+
+  const failed = check({ files: TICKET, extra, vitest: [['devolve 201', 'failed']] });
+  assert.equal(failed.code, 1, failed.out);
+  assert.match(failed.out, /PROJ-1-CA1: um teste com o ID dele falhou/);
+
+  const skipped = check({ files: TICKET, extra, vitest: [['devolve 201', 'pending']] });
+  assert.equal(skipped.code, 1, skipped.out);
+  assert.match(skipped.out, /PROJ-1-CA1: um teste com o ID dele foi pulado/);
+});
+
+test('uma linha do mapa vale também para o caso do relatório do Playwright, que traz o caminho do arquivo mais curto que o do repositório', () => {
+  const files = { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste no Playwright']]) };
+  const extra = { [MAP]: mapLine('PROJ-1-CA1', 'apps/web/e2e/x.spec.ts', 'o Usuário copia') };
+  const { code, out } = check({ files, extra, playwright: [['o Usuário copia', 'passed']] });
+  assert.equal(code, 0, out);
+  assert.match(out, /PROJ-1-CA1: coberto por 1 teste/);
+});
+
+test('um caso do mapa que não aparece no relatório reprova, dizendo o ID, o arquivo e o nome do caso', () => {
+  const extra = { [MAP]: mapLine('PROJ-1-CA1', MAPPED_FILE, 'devolve 201') };
+
+  const missing = check({ files: TICKET, extra, vitest: [['outro caso', 'passed']] });
+  assert.equal(missing.code, 1, missing.out);
+  assert.match(missing.out, /PROJ-1-CA1/);
+  assert.ok(missing.out.includes(MAPPED_FILE), missing.out);
+  assert.ok(missing.out.includes('"devolve 201"'), missing.out);
+  assert.match(missing.out, /não aparece no relatório/);
+
+  // O mesmo nome de caso, mas de outro arquivo de teste, não é o caso da linha.
+  const otherFile = check({
+    files: TICKET,
+    extra: { [MAP]: mapLine('PROJ-1-CA1', 'apps/api/test/y.e2e-spec.ts', 'devolve 201') },
+    vitest: [['devolve 201', 'passed']],
+  });
+  assert.equal(otherFile.code, 1, otherFile.out);
+  assert.match(otherFile.out, /não aparece no relatório/);
+  assert.ok(otherFile.out.includes('y.e2e-spec.ts'), otherFile.out);
+});
+
+test('um ID do mapa que não está em nenhum arquivo de aceite reprova', () => {
+  const unknown = check({
+    files: TICKET,
+    extra: { [MAP]: mapLine('PROJ-9-CA1', MAPPED_FILE, 'devolve 201') },
+    vitest: [['devolve 201', 'passed', ['@PROJ-1-CA1']]],
+  });
+  assert.equal(unknown.code, 1, unknown.out);
+  assert.match(unknown.out, /PROJ-9-CA1, que não está em nenhum arquivo de aceite/);
+  assert.ok(unknown.out.includes('mapa-de-testes.txt'), unknown.out);
+
+  const malformed = check({
+    files: TICKET,
+    extra: { [MAP]: `# ligações\n\nPROJ-1-CA1\t${MAPPED_FILE}\n` },
+    vitest: [['devolve 201', 'passed', ['@PROJ-1-CA1']]],
+  });
+  assert.equal(malformed.code, 1, malformed.out);
+  assert.match(malformed.out, /linha 3/);
+});
+
+test('o teste com o ID na tag continua cobrindo o critério, com ou sem mapa no ticket', () => {
+  const files = { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste HTTP']]), 'PROJ-2': acceptanceFile([['PROJ-2-CA1', 'teste HTTP']]) };
+  const vitest = [['devolve 201', 'passed', ['@PROJ-1-CA1']], ['copia o item', 'passed']];
+
+  // Sem mapa nenhum, o PROJ-2-CA1 fica sem teste, e o PROJ-1-CA1, coberto pela tag.
+  const withoutMap = check({ files, vitest });
+  assert.match(withoutMap.out, /PROJ-1-CA1: coberto por 1 teste/);
+  assert.match(withoutMap.out, /PROJ-2-CA1 .*não tem nenhum teste/);
+
+  // O mapa do PROJ-2 liga o caso dele, e o PROJ-1, que não tem mapa, segue coberto pela tag.
+  const withMap = check({
+    files,
+    vitest,
+    extra: { 'PROJ-100/PROJ-2/mapa-de-testes.txt': mapLine('PROJ-2-CA1', MAPPED_FILE, 'copia o item') },
+  });
+  assert.equal(withMap.code, 0, withMap.out);
+  assert.match(withMap.out, /PROJ-1-CA1: coberto por 1 teste/);
+  assert.match(withMap.out, /PROJ-2-CA1: coberto por 1 teste/);
+
+  // O mapa do mesmo ticket que liga só outro critério não tira a cobertura do critério que tem a tag.
+  const sameTicket = check({
+    files: { 'PROJ-1': acceptanceFile([['PROJ-1-CA1', 'teste HTTP'], ['PROJ-1-CA2', 'teste HTTP']]) },
+    vitest,
+    extra: { [MAP]: mapLine('PROJ-1-CA2', MAPPED_FILE, 'copia o item') },
+  });
+  assert.equal(sameTicket.code, 0, sameTicket.out);
+  assert.match(sameTicket.out, /PROJ-1-CA1: coberto por 1 teste/);
+  assert.match(sameTicket.out, /PROJ-1-CA2: coberto por 1 teste/);
+
+  // O ID na tag e a linha do mapa para o mesmo critério contam como dois testes.
+  const both = check({
+    files: TICKET,
+    vitest: [['devolve 201', 'passed', ['@PROJ-1-CA1']], ['outro caso', 'passed']],
+    extra: { [MAP]: mapLine('PROJ-1-CA1', MAPPED_FILE, 'outro caso') },
+  });
+  assert.equal(both.code, 0, both.out);
+  assert.match(both.out, /PROJ-1-CA1: coberto por 2 teste/);
 });
