@@ -72,7 +72,7 @@ As dependências instaladas, o `.env` e os dados do banco continuam e são reapr
 
 **Procedimentos raros**
 
-Recomeçar do zero (apagar o volume do banco e recriá-lo) e consertar a API que não sobe estão na skill `/ambiente` (`.claude/skills/ambiente/SKILL.md`). Se o `up --wait` terminar com erro, veja a causa com `docker compose -f compose.dev.yaml logs api` e siga a skill.
+Recomeçar do zero (apagar o volume do banco e recriá-lo) e consertar a API que não sobe, inclusive ver a causa de um `up --wait` que termina com erro, estão na skill `/ambiente` (`.claude/skills/ambiente/SKILL.md`).
 
 ### Banco e e-mails
 

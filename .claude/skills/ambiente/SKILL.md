@@ -31,6 +31,8 @@ After the fix, start the environment again.
 
 ## What lives here
 
+The paths below are relative to this skill's folder, `.claude/skills/ambiente/`.
+
 - `scripts/node-in-api.sh`: the Node command of this project. It runs Node in the `api` container, over the repository that the service mounts read-only at `/repo`, because the machine does not run `node`. Its header says how it runs, and what it does when the container is down. The plan skill, the verification and the contract skill call it.
 - `pontos-de-convergencia.txt`: the files where parallel fronts usually collide, by type. It is the single owner of that classification: `scripts/frentes.sh` reads it to separate the conflicts, and the `/sincronizar` skill reads it to know what to resolve by rule. The rule of each type belongs to `/sincronizar`.
 - `scripts/test/dev-env-slot.test.sh`: the test of the environment by slot, beside the configuration it checks. `scripts/test/node-in-api.test.sh` is the test of the Node command.
