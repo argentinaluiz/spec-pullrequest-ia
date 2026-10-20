@@ -32,9 +32,10 @@ for moved in api-migration-order full-lock full-semaphore git-mount shell-tests 
 done
 
 # Os critérios congelados que essas suítes provavam, cada um com o ID na tag de um caso de alguma suíte
-# achada: LUI-183 (o relatório dos testes em shell), LUI-185 (o semáforo e a ordem das migrações), LUI-186
-# (o hook de antes do push, na negação do abandono de frentes) e LUI-194 (a busca dos testes das skills).
-for id in LUI-183-CA1 LUI-183-CA2 LUI-183-CA3 LUI-185-CA1 LUI-185-CA2 LUI-185-CA3 LUI-186-CA7 LUI-194-CA5; do
+# achada: LUI-183 (o relatório dos testes em shell), LUI-185 (o semáforo e a ordem das migrações) e LUI-194 (a busca
+# dos testes das skills). A negação do abandono de frentes (LUI-186-CA7) saiu do hook de antes do push para o hook da
+# skill worktree e, como o teste dela é de uma skill de uso geral, é ligada pelo mapa de testes do ticket.
+for id in LUI-183-CA1 LUI-183-CA2 LUI-183-CA3 LUI-185-CA1 LUI-185-CA2 LUI-185-CA3 LUI-194-CA5; do
   check "$name: o $id continua com a tag em uma suíte achada" grep -qF -- "@$id" "${suites[@]}"
 done
 

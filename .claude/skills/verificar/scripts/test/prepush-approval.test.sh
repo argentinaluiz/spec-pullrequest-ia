@@ -31,7 +31,7 @@ chmod +x "$tmp/bin/docker"
 mkdir -p "$repo/scripts" "$repo/$SK" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets"
 cp -R "$ROOT/$SK/scripts" "$repo/$SK/"
 rm -rf "$repo/$SK/scripts/test"
-cp "$ROOT/scripts/harness-base.sh" "$repo/scripts/"
+mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
 cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$ROOT/.claude/skills/proteger-harness/scripts/harness-state-guard.sh" \
   "$repo/.claude/skills/proteger-harness/scripts/"
 git -C "$repo" init -q -b main

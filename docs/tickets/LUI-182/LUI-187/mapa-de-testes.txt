@@ -1,0 +1,4 @@
+# Ligações do LUI-187: os testes da coluna e da seção de conflitos do listar moram no núcleo das frentes, na skill worktree, e não levam o ID na tag.
+# ID, arquivo do teste e nome do caso, separados por tabulação.
+LUI-187-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o listar mostra, para cada par de frentes e para cada frente contra a main, se há conflito e em quais arquivos, sem mudar nada
+LUI-187-CA2	.claude/skills/worktree/scripts/test/frentes.test.sh	o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção

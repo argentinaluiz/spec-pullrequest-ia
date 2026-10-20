@@ -3,7 +3,7 @@
 # Teste dos mapas de testes do repositório (docs/tickets/<pai>/<ticket>/mapa-de-testes.txt, formato da skill
 # plan-ticket): cada linha liga um critério a um caso de um teste de skill, que não pode levar ID de critério deste
 # projeto. O teste confere que cada linha de cada mapa tem o ID num arquivo de aceite e o nome do caso no arquivo
-# de teste dela; que nenhum teste da skill de plano traz um ID deste projeto; e que o conferidor do aceite, com um
+# de teste dela; que nenhum teste da skill de plano nem da skill worktree traz um ID deste projeto; e que o conferidor do aceite, com um
 # relatório montado das linhas dos mapas, cobre cada critério ligado, sem tag nenhuma no relatório. Roda na máquina,
 # como o executor, e chama o conferidor no contêiner `api`. O caso leva a tag do critério de aceite no nome.
 
@@ -48,7 +48,8 @@ links_are_real() {
 # Um teste de skill de uso geral não traz o ID de um critério deste projeto: os IDs de fixture (PROJ-*) valem.
 skill_tests_have_no_project_ids() {
   local found
-  found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' .claude/skills/plan-ticket/scripts/test .claude/skills/plan-ticket/hooks/test |
+  found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' .claude/skills/plan-ticket/scripts/test .claude/skills/plan-ticket/hooks/test \
+    .claude/skills/worktree/scripts/test .claude/skills/worktree/hooks/test |
     grep -v '^@PROJ-' || true)"
   [[ -z "$found" ]] || { echo "ID deste projeto em teste da skill: $found"; return 1; }
 }
@@ -71,9 +72,9 @@ covered_by_the_maps() {
   [[ "$out" != *"não aparece no relatório"* && "$out" != *"que não está em nenhum arquivo de aceite"* ]]
 }
 
-name="os critérios provados pelos testes do conferidor continuam cobertos pelo mapa, sem ID deste projeto nos testes da skill @LUI-196-CA7"
+name="os critérios provados pelos testes do conferidor continuam cobertos pelo mapa, sem ID deste projeto nos testes da skill @LUI-196-CA7 @LUI-199-CA7"
 check "$name: os mapas existem e cada linha liga um critério a um caso que está no arquivo" links_are_real
-check "$name: nenhum teste da skill de plano traz o ID de um critério deste projeto" skill_tests_have_no_project_ids
+check "$name: nenhum teste da skill de plano nem da skill worktree traz o ID de um critério deste projeto" skill_tests_have_no_project_ids
 check "$name: o conferidor cobre cada critério ligado só pelo mapa" covered_by_the_maps
 
 finish "dos mapas de testes"

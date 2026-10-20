@@ -57,9 +57,9 @@ START_APPS=no
 # Versão fixa, para o mesmo diff dar sempre o mesmo resultado.
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A base da comparação (BASE_REF), que a varredura de segredos, a ordem das migrações e o desvio do plano
-# usam, vem do scripts/harness-base.sh, o mesmo que o scripts/frentes.sh carrega.
-# shellcheck source=../../../../scripts/harness-base.sh
-source scripts/harness-base.sh
+# usam, vem do .claude/skills/worktree/scripts/harness-base.sh, o mesmo que o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh) carrega.
+# shellcheck source=../../worktree/scripts/harness-base.sh
+source .claude/skills/worktree/scripts/harness-base.sh
 # O fim da branch, para o desvio do plano. Na CI de um pull request, a pasta de trabalho é o merge da
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.

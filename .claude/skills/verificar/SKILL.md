@@ -14,10 +14,10 @@ The skill of this project that holds what depends on its stack in the verificati
 - `scripts/verify/`: the group of each app (`api.sh`, `web.sh`) and the finder of the tests of the skills (`skill-tests.sh`), which the `full` uses to find and run the tests of every skill without a list by hand.
 - `scripts/full-lock.sh`: the lock of repeated failures of the full, and `scripts/full-semaphore.sh`: the wait of the full among the checkouts of the machine. `scripts/git-mount.sh`: what the container of the secret scan needs to read the history of a worktree.
 - `scripts/check-report.cjs`: the check of the test reports. `scripts/test/shell-tests.sh` and `scripts/test/sh-helpers.sh`: the runner of the shell tests and its helpers, with the way to name a case that proves an acceptance criterion; `scripts/test/node-test-report.cjs`: the reporter of the Node tests.
-- `hooks/`: the hook of the end of the turn (`stop-verify.sh`), the one that records the touched files (`record-touched.sh`) and the one before the command (`push-verify.sh`: the approval of the push, the unlock, the CI variables, the `full` in a subagent and the abandon option of the fronts). They are configured in `.claude/settings.json`.
+- `hooks/`: the hook of the end of the turn (`stop-verify.sh`), the one that records the touched files (`record-touched.sh`) and the one before the command (`push-verify.sh`: the approval of the push, the unlock, the CI variables and the `full` in a subagent). They are configured in `.claude/settings.json`.
 - Each piece has its tests next to it, in `scripts/test/` and `hooks/test/`.
 
-What belongs to other skills, and the verification calls from there: the Node in the container (`/ambiente`), the view and the drift of the contract (`/contrato`) and the checker of the acceptance (`/plan-ticket`). The base (`scripts/harness-base.sh`) still has no new owner and stays where it is.
+What belongs to other skills, and the verification calls from there: the Node in the container (`/ambiente`), the view and the drift of the contract (`/contrato`) and the checker of the acceptance (`/plan-ticket`). The base (`.claude/skills/worktree/scripts/harness-base.sh`) still has no new owner and stays where it is.
 
 ## The list of protected files
 
