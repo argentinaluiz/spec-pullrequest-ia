@@ -24,8 +24,8 @@ state_unavailable() {
   exit 0
 }
 
-# shellcheck source=../../scripts/harness-dir.sh
-source "${0%/*}/../../scripts/harness-dir.sh"
+# shellcheck source=../skills/proteger-harness/scripts/harness-dir.sh
+source "${0%/*}/../skills/proteger-harness/scripts/harness-dir.sh"
 [[ -n "$HARNESS_DIR" ]] || state_unavailable
 cd "${HARNESS_DIR%/.harness}" || state_unavailable
 

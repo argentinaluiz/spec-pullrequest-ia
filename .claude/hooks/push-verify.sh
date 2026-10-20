@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
-# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente seis
+# Hook de antes do comando do Claude Code (evento PreToolUse, ferramenta Bash). Nega ao agente cinco
 # comandos: o `scripts/frentes.sh` com `--forcar`, que abandona uma frente sem merge e é só do usuário, ou
 # com as variáveis do modo de teste, que trocam o `gh` e contornariam a conferência do merge;
 # o `scripts/verify.sh full` a um subagente, porque o modo completo é de quem fecha a tarefa;
 # o `scripts/verify.sh unlock`, que tira a trava do modo completo e é só do usuário; o
-# `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; o que mexe
-# na pasta de estado do harness (`.harness/`), onde ficam a trava e a aprovação; e o `git push`
+# `scripts/verify.sh` com `CI=` ou `GITHUB_ACTIONS=` no comando, que desligaria a trava; e o `git push`
 # que o `scripts/verify.sh prepush` não aprova, porque os commits trazem segredo ou o modo completo
 # não aprovou o último commit. As guardas são para um agente que coopera, e não uma barreira de
 # segurança.
@@ -19,9 +18,9 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 # A instrução de destravar, a mesma das mensagens do verify.sh (FULL_LOCK_ASK).
 # shellcheck source=../../scripts/full-lock.sh
 source scripts/full-lock.sh 2>/dev/null
-# A leitura do que é mexer na pasta de estado do harness e a das aspas, definidas num lugar só.
-# shellcheck source=../../scripts/harness-state-guard.sh
-source scripts/harness-state-guard.sh
+# A leitura das aspas de um comando de shell, que é da skill proteger-harness.
+# shellcheck source=../skills/proteger-harness/scripts/harness-state-guard.sh
+source .claude/skills/proteger-harness/scripts/harness-state-guard.sh
 
 # Nega o comando com as linhas dadas.
 deny() {
@@ -53,11 +52,6 @@ deny_subagent_full() {
     "Termine com os testes ligados aos arquivos que mudou, com os comandos do AGENTS.md do projeto, e devolva o resultado dizendo o que rodou (AGENTS.md da raiz, \"Definição de pronto\")."
 }
 
-deny_state() {
-  deny "O comando foi negado: a pasta de estado do harness (\`.harness/\`) guarda a trava (\`full-lock\`) e a aprovação (\`full-ok\`) do modo completo, e o estado é da verificação, não do agente." \
-    "Não leia, não apague e não grave nada nela: quem mexe nesse estado é o scripts/verify.sh. Se o modo completo travou: ${FULL_LOCK_ASK:-}"
-}
-
 # Uma atribuição de variável de ambiente na frente de um comando.
 assignment='[[:alnum:]_]+=[^[:space:]]*[[:space:]]+'
 # A posição de um comando: o começo de uma linha ou depois de `;`, `&`, `|` ou `(`, com variáveis de
@@ -82,7 +76,8 @@ ci_assignment='(^|[[:space:];&|(])(CI|GITHUB_ACTIONS)='
 # A mesma atribuição em qualquer ponto, para a entrada que o hook não consegue ler.
 ci_mention='(^|[^[:alnum:]_])(CI|GITHUB_ACTIONS)='
 
-# O `split_quotes` é do scripts/harness-state-guard.sh.
+# O `split_quotes` é da skill proteger-harness (scripts/harness-state-guard.sh). A pasta de estado do
+# harness (`.harness/`) é negada pelo hook dela (hooks/state-guard.sh), configurado à parte no settings.json.
 
 # Se o comando roda o `verify.sh` com `CI=` ou `GITHUB_ACTIONS=`: a atribuição fora das aspas, com o
 # `verify.sh` em qualquer ponto, ou um trecho entre aspas que traga os dois, como o de um `bash -c`.
@@ -113,7 +108,6 @@ if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; 
   [[ "$input" =~ $verify_unlock ]] && deny_unlock
   [[ "$input" =~ $frentes_forcar ]] && deny_forcar
   [[ "$input" == *frentes.sh* && "$input" =~ $frentes_test_mode ]] && deny_frentes_test
-  harness_state_in_raw "$input" && deny_state
   [[ "$input" == *verify.sh* && "$input" =~ $ci_mention ]] && deny_ci
   [[ "$input" =~ git.*push ]] || exit 0
   command="git push"
@@ -122,7 +116,6 @@ fi
 [[ "$command" =~ $verify_unlock ]] && deny_unlock
 [[ "$command" =~ $frentes_forcar ]] && deny_forcar
 [[ "$command" == *frentes.sh* && "$command" =~ $frentes_test_mode ]] && deny_frentes_test
-harness_state_touched "$command" && deny_state
 # O Claude Code põe o `agent_id` na entrada quando o comando vem de um subagente.
 [[ -n "$(jq -r '.agent_id // empty' <<<"$input" 2>/dev/null)" && "$command" =~ $verify_full ]] &&
   deny_subagent_full

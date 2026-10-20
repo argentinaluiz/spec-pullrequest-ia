@@ -3,8 +3,8 @@ name: Guarda do harness
 # Reprova o pull request que altera um arquivo protegido do harness. Sem isto, um pull request
 # poderia enfraquecer a CI e ser aprovado pela CI enfraquecida.
 #
-# O `pull_request_target` roda a versão da `main` deste workflow e do script, e não a do pull
-# request. O código do pull request nunca é baixado nem executado aqui.
+# O `pull_request_target` roda a versão da `main` deste workflow, do script e da lista de arquivos
+# protegidos, e não a do pull request. O código do pull request nunca é baixado nem executado aqui.
 
 on:
   pull_request_target:
@@ -52,4 +52,7 @@ jobs:
                 -H "Accept: application/vnd.github.raw" > "$HEAD_DIR/$path" || rm -f "$HEAD_DIR/$path"
             done
 
-          scripts/harness-guard.sh "$CHANGED_FILES" < "$RUNNER_TEMP/changed-files.txt"
+          # A Guarda é da skill proteger-harness, e a lista de arquivos protegidos, da skill verificar: as duas
+          # são as da `main`, que o checkout trouxe, e nunca as do pull request.
+          .claude/skills/proteger-harness/scripts/harness-guard.sh \
+            .claude/skills/verificar/arquivos-protegidos.txt "$CHANGED_FILES" < "$RUNNER_TEMP/changed-files.txt"
