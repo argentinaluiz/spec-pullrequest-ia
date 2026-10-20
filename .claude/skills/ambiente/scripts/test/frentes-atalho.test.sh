@@ -56,4 +56,14 @@ real_run() {
 }
 check "$name: o atalho de verdade chama o núcleo de verdade e o listar mostra as portas do slot" real_run
 
+# A trava dos slots do núcleo e o semáforo da verificação completa ficam na mesma pasta da máquina: o núcleo define o caminho
+# por conta própria (uma skill genérica não carrega arquivo do projeto), e este caso prende os dois à mesma expressão.
+same_lock_folder() {
+  local core verification
+  core="$(sed -n '/^lock_dir()/,/^}/p' "$ROOT/.claude/skills/worktree/scripts/frentes.sh" | grep -o 'rev-parse --path-format=absolute --git-common-dir)/harness')"
+  verification="$(sed -n '/^full_semaphore_dir()/,/^}/p' "$ROOT/.claude/skills/verificar/scripts/full-semaphore.sh" | grep -o 'rev-parse --path-format=absolute --git-common-dir)/harness')"
+  [[ -n "$core" && "$core" == "$verification" ]]
+}
+check "o núcleo das frentes e a verificação completa travam na mesma pasta das travas da máquina" same_lock_folder
+
 finish "do atalho das frentes"
