@@ -7,12 +7,12 @@ The one place for everything about the parallel fronts. A front is a Git worktre
 
 ## Step 0: the project values
 
-Read, in the project's agent instructions file, the list "Valores das skills do ticket", the entries of this skill. Read only the ones the mode you are going to run uses (the last column). Each value has a default for when the list does not give it:
+Read, in the project's agent instructions file, the list "Valores das skills do ticket", the entries of this skill. Read only the ones the mode you are going to run uses (the last column). Each value has a default for when the list does not give it, and a project with no such list (or no instructions file) runs every value on its default:
 
 | Value | Default | Used in |
 | --- | --- | --- |
 | Base | the main branch of the origin remote, `origin/<branch>`; the variable `HARNESS_BASE_REF` adjusts it | `abrir` and `sincronizar`: what a front leaves from and what the sync brings (the core reads it by itself in the other modes) |
-| Fronts command | the core script of this skill, `scripts/frentes.sh`, with its own defaults | `novo`, `listar`, `remover`, and `abrir` (steps 2, 3, 6 and 7) |
+| Fronts command | the core script of this skill, `scripts/frentes.sh`, with its own defaults (a limit of 3, no environment, no convergence points) | `novo`, `listar`, `remover`, and `abrir` (steps 2, 3, 6 and 7) |
 | Limit of fronts | 3 | `abrir`: step 3, how many fit |
 | Convergence points file | `nenhum`, and every conflicting file is code | `sincronizar`: step 4 |
 | Statuses | "In Progress", "In Review" and "Done" | `abrir`: steps 2 and 3, which tickets are taken or finished |
@@ -23,9 +23,9 @@ Read, in the project's agent instructions file, the list "Valores das skills do 
 | Generate a migration | `nenhum` | `sincronizar`: step 5 |
 | Start the applications | `nenhum` | `sincronizar`: step 5 |
 | Regenerate each generated file | `nenhum`: a pair of the file and the command that regenerates it; a generated file in conflict with no command makes the agent ask | `sincronizar`: steps 4 and 5 |
-| Full verification | none: ask | `sincronizar`, when it runs on its own: step 8 |
+| Full verification | none: ask | `sincronizar`, when it runs on its own: ask now, before the merge, because step 8 runs it |
 
-When the mode reads values other than the fronts command, say in the chat, in one line, which of them came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the entry for the list in the agent instructions file. The values mean:
+Say in the chat, in one line, which of the values the mode reads came from the default, all of them when the project has no list. The modes `novo`, `listar` and `remover`, which read only the fronts command, say it only when the project has no list. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the entry for the list in the agent instructions file. The values mean:
 - **Fronts command:** called as `<command> novo <ticket> [kind]`, `<command> listar` and `<command> remover <ticket>`. The core script takes its own options before the subcommand (`--limite`, `--ambiente` and `--pontos`) and works with Git alone when none is given. A project with an environment per front, a limit of its own or convergence points declares a shortcut that passes them, and that shortcut is the value; the limit and the convergence points file of the list are the ones the shortcut passes, so keep them equal.
 - **Convergence points file:** one line per pattern, `type<TAB>path`, where the path accepts `*`; the first pattern that matches wins, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`. The file only classifies; the rule of each type is in `modos/sincronizar.md`.
 - **Update the environment, recreate the database, generate a migration, start the applications, regenerate each generated file:** the commands of the environment step of the sync. Each runs in the folder of the front.
