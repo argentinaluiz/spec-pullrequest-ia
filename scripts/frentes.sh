@@ -11,9 +11,9 @@
 # (o nome do projeto no Compose sai dela), na branch <tipo>/<ticket em minúsculas>, com o tipo feature
 # (o padrão), bugfix, hotfix ou docs. O checkout principal também é uma frente quando está numa branch
 # que não é a main (um HEAD solto conta). Uma frente do ticket é qualquer worktree cuja branch termina no
-# ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a HARNESS_BASE_REF do
-# scripts/verify.sh, origin/main por padrão: o remoto é o que vem antes da barra, e a main, o que vem
-# depois. O script roda em qualquer checkout do repositório e não fala com o Linear.
+# ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a HARNESS_BASE_REF, lida
+# pelo scripts/harness-base.sh, o mesmo do scripts/verify.sh: o remoto é o que vem antes da barra, e a main, o que
+# vem depois. O script roda em qualquer checkout do repositório e não fala com o Linear.
 #
 # O slot, de 0 a 3, dá à frente um bloco de portas na máquina. O principal é o slot 0, e o `novo` dá o
 # menor livre de 1 a 3, pelo SLOT do `.env` de cada pasta de `git worktree list`: o slot mora na própria
@@ -40,9 +40,9 @@
 # remoto da base. É um merge de três vias só de leitura (`git merge-tree`) entre as pontas das branches: conta o
 # que está em commit, como o merge de verdade, e não muda pasta, índice nem ref de nenhuma frente. Antes de
 # calcular, busca a main do remoto (sem falhar se a rede faltar). Os arquivos em conflito saem em dois grupos:
-# os pontos de convergência com regra mecânica, cada um com o tipo (gerado, migracoes ou registros), e os que
-# pedem atenção, que são o código e os documentos (um documento leva o tipo documentos, porque se junta à mão).
-# A classificação, os quatro tipos e os arquivos de cada um, é de scripts/pontos-de-convergencia.txt, o dono
+# os pontos de convergência com regra mecânica, cada um com o tipo, e os que pedem atenção, que são o código
+# e os pontos que se juntam à mão (documentos e manual), estes com o tipo ao lado do nome.
+# A classificação, os tipos e os arquivos de cada um, é de scripts/pontos-de-convergencia.txt, o dono
 # único dela: este script e a skill /sincronizar a leem, e um ponto novo é uma linha lá.
 #
 # Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`, que a
@@ -53,9 +53,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_REF="${HARNESS_BASE_REF:-origin/main}"
-REMOTE="${BASE_REF%%/*}"
-MAIN_BRANCH="${BASE_REF#*/}"
+# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do scripts/harness-base.sh, o mesmo que o scripts/verify.sh carrega.
+# shellcheck source=harness-base.sh
+source "$SCRIPT_DIR/harness-base.sh"
 COMPOSE_FILE=compose.dev.yaml
 GIT_MIN=2.38
 # O máximo de frentes ao todo, contando o principal quando ele é uma.
@@ -140,7 +140,7 @@ fronts() {
   local main dir branch
   main="$(main_checkout)"
   while IFS=$'\t' read -r dir branch; do
-    [[ "$dir" != "$main" || "$branch" != "$MAIN_BRANCH" ]] && printf '%s\t%s\n' "$dir" "$branch"
+    [[ "$dir" != "$main" || "$branch" != "$BASE_BRANCH" ]] && printf '%s\t%s\n' "$dir" "$branch"
   done < <(worktrees)
 }
 
@@ -179,7 +179,7 @@ ENV
 
 # O repositório do remoto da base, no formato dono/nome, para o `gh` (o repositório tem dois remotos).
 remote_repo() {
-  git remote get-url "$REMOTE" 2>/dev/null | sed -nE 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)(.+/[^/]+)$#\2#p' | sed 's/\.git$//'
+  git remote get-url "$BASE_REMOTE" 2>/dev/null | sed -nE 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)(.+/[^/]+)$#\2#p' | sed 's/\.git$//'
 }
 
 # O PR de uma branch, "ESTADO número commit" (o commit é a ponta do PR), ou nada sem PR. Havendo vários, vale o
@@ -236,7 +236,7 @@ require_free_ports() {
 # O marcador de um par cujo merge não deu para calcular, no lugar do arquivo.
 COMPUTE_ERROR="@@erro"
 
-# O tipo de um ponto de convergência (gerado, migracoes, registros ou documentos), pela classificação de
+# O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação de
 # scripts/pontos-de-convergencia.txt; nada, se o arquivo é código.
 # convergence_type <arquivo>
 convergence_type() {
@@ -278,7 +278,7 @@ front_conflicts() {
       if ((j > $#)); then b="$BASE_REF"; else b="${!j}"; fi
       [[ -n "$a" && -n "$b" ]] || continue
       while IFS= read -r file; do
-        [[ -n "$file" ]] && printf '%s\t%s\t%s\n' "$a" "${b#"$REMOTE"/}" "$file"
+        [[ -n "$file" ]] && printf '%s\t%s\t%s\n' "$a" "${b#"$BASE_REMOTE"/}" "$file"
       done < <(conflict_files "$a" "$b" || { [[ $? -eq 2 ]] && echo "$COMPUTE_ERROR"; true; })
     done
   done
@@ -287,7 +287,7 @@ front_conflicts() {
 cmd_listar() {
   local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention failed
   # A main do remoto, sem perguntar nada e sem esperar mais de 20 s: sem rede, vale a do último fetch.
-  GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q "$REMOTE" "$MAIN_BRANCH" 2>/dev/null
+  GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" 2>/dev/null
   while IFS=$'\t' read -r dir branch; do
     dirs+=("$dir")
     branches+=("$branch")
@@ -317,7 +317,7 @@ cmd_listar() {
     type="$(convergence_type "$file")"
     case "$type" in
       gerado | migracoes | registros) mechanical+="    $type: $file"$'\n' ;;
-      documentos) attention+="    $file (documentos)"$'\n' ;;
+      documentos | manual) attention+="    $file ($type)"$'\n' ;;
       *) attention+="    $file"$'\n' ;;
     esac
   done <<<"$conflicts"
@@ -356,13 +356,13 @@ cmd_novo() {
   branch="$type/$TICKET_KEY"
 
   # A rede antes da trava, para a espera de uma criação não esperar a rede da outra.
-  git fetch -q "$REMOTE" "$MAIN_BRANCH" || die "Não deu para buscar a main do remoto \`$REMOTE\`."
+  git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a main do remoto \`$BASE_REMOTE\`."
   lock_slots
   if [[ -n "$(ticket_worktrees "$TICKET_KEY")" ]]; then
     die "O ticket $1 já tem frente: $(ticket_worktrees "$TICKET_KEY" | cut -f 1 | paste -sd ' ')"
   fi
   if [[ "$(fronts | wc -l)" -ge "$FRENTES_LIMITE" ]]; then
-    die "Já há $FRENTES_LIMITE frentes abertas, o limite de $FRENTES_LIMITE frentes ao todo (FRENTES_LIMITE), e o principal conta quando não está na $MAIN_BRANCH." \
+    die "Já há $FRENTES_LIMITE frentes abertas, o limite de $FRENTES_LIMITE frentes ao todo (FRENTES_LIMITE), e o principal conta quando não está na $BASE_BRANCH." \
       "As abertas:" "$(cmd_listar)"
   fi
   slot="$(free_slot)" || die "Não há slot livre (1 a 3)."

@@ -1,4 +1,4 @@
-# Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em quatro tipos. É o
+# Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. É o
 # dono único desta classificação: o scripts/frentes.sh a lê para separar os conflitos do `listar`, e a
 # skill /sincronizar a lê para saber o que resolver por regra. Este arquivo só classifica; a regra de cada
 # tipo é da /sincronizar.
@@ -7,21 +7,20 @@
 # (casa também barras). Vale o primeiro padrão que casa. Um arquivo que nenhum padrão casa é código e pede
 # atenção.
 #
-# Só os três primeiros tipos têm regra mecânica; os documentos a pessoa junta à mão.
+# Só os três primeiros tipos têm regra mecânica; os documentos e os manuais a pessoa junta à mão.
 #
 #   gerado       o snapshot da OpenAPI, regenerado a partir do código mergeado
-#   migracoes    o schema do Prisma e a pasta de migrações
+#   migracoes    a pasta de migrações, cuja pasta atrasada se recria com nome novo
 #   registros    as listas em que cada frente acrescenta um item, em ordem alfabética
 #   documentos   os documentos do projeto
+#   manual       o schema do Prisma e o arquivo de exemplo de variáveis, que se juntam à mão, como código
 
 gerado	apps/api/openapi.json
 
-migracoes	apps/api/prisma/schema.prisma
 migracoes	apps/api/prisma/migrations/*
 
 registros	apps/api/src/app.module.ts
 registros	apps/api/src/config/env.schema.ts
-registros	apps/api/.env.example
 registros	apps/web/lib/api/types.ts
 
 documentos	docs/lld.md
@@ -30,3 +29,6 @@ documentos	apps/api/AGENTS.md
 documentos	apps/web/AGENTS.md
 documentos	GLOSSARY.md
 documentos	docs/design-system.md
+
+manual	apps/api/prisma/schema.prisma
+manual	apps/api/.env.example
