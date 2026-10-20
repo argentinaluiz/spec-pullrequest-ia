@@ -33,13 +33,11 @@ test_mode='(HARNESS_TEST|FRENTES_[A-Z_]+)'
 
 # O hook recebe um JSON pela entrada padrão, com o comando em `tool_input.command`.
 input="$(cat)"
+# Os dois padrões precisam do nome do script: sem ele, o comando passa sem o custo do `jq`.
+[[ "$input" == *frentes.sh* ]] || exit 0
 
-# Sem conseguir ler o comando, a menção a cada padrão conta como ele, para a falha do `jq` não liberá-lo.
-if ! command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)"; then
-  [[ "$input" =~ $forcar ]] && deny_forcar
-  [[ "$input" == *frentes.sh* && "$input" =~ $test_mode ]] && deny_test_mode
-  exit 0
-fi
+# Sem conseguir ler o comando, a entrada inteira conta como ele, para a falha do `jq` não liberá-lo.
+command="$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null)" || command="$input"
 
 [[ "$command" =~ $forcar ]] && deny_forcar
 [[ "$command" == *frentes.sh* && "$command" =~ $test_mode ]] && deny_test_mode

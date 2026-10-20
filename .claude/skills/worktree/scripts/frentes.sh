@@ -138,9 +138,10 @@ store_slot() {
 # O menor slot livre de 1 até o limite, pelo arquivo de cada pasta da lista de worktrees. O principal fica no 0.
 free_slot() {
   local dir used=" " slot
+  # O principal é o 0 e não precisa ser consultado.
   while IFS=$'\t' read -r dir _; do
     used+="$(slot_of "$dir") "
-  done < <(worktrees)
+  done < <(worktrees | tail -n +2)
   for ((slot = 1; slot <= LIMITE; slot++)); do
     [[ "$used" == *" $slot "* ]] || { echo "$slot"; return 0; }
   done
@@ -258,7 +259,7 @@ front_conflicts() {
 }
 
 cmd_listar() {
-  local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention failed
+  local dir branch slot i dirs=() branches=() conflicts pair last="" a b file type mechanical attention
   # A branch principal do remoto, sem perguntar nada e sem esperar mais de 20 s: sem rede, vale a do último fetch.
   GIT_TERMINAL_PROMPT=0 timeout 20 git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" 2>/dev/null
   while IFS=$'\t' read -r dir branch; do
@@ -334,10 +335,9 @@ cmd_novo() {
   folder="$(dirname "$main")/$(basename "$main")-$TICKET_KEY"
   branch="$type/$TICKET_KEY"
 
-  # A rede antes da trava, para a espera de uma criação não esperar a rede da outra. Com duas criações ao mesmo tempo, os
-  # dois fetch disputam a mesma ref e um pode falhar: ele tenta de novo, já com a ref atualizada pelo outro.
-  git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" 2>/dev/null || git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a branch $BASE_BRANCH do remoto \`$BASE_REMOTE\`."
+  # O fetch fica dentro da trava: duas criações ao mesmo tempo se serializam ali, em vez de disputar a mesma ref.
   lock_slots
+  git fetch -q "$BASE_REMOTE" "$BASE_BRANCH" || die "Não deu para buscar a branch $BASE_BRANCH do remoto \`$BASE_REMOTE\`."
   if [[ -n "$(ticket_worktrees "$TICKET_KEY")" ]]; then
     die "O ticket $1 já tem frente: $(ticket_worktrees "$TICKET_KEY" | cut -f 1 | paste -sd ' ')"
   fi
@@ -398,13 +398,20 @@ cmd_remover() {
 # As opções do chamador, antes do subcomando.
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --limite | --ambiente | --pontos)
+    --limite)
       [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
-      case "$1" in
-        --limite) [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "A opção --limite pede um número inteiro maior que zero, e veio \`$2\`."; LIMITE="$2" ;;
-        --ambiente) AMBIENTE="$2" ;;
-        --pontos) PONTOS="$2" ;;
-      esac
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "A opção --limite pede um número inteiro maior que zero, e veio \`$2\`."
+      LIMITE="$2"
+      shift 2
+      ;;
+    --ambiente)
+      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
+      AMBIENTE="$2"
+      shift 2
+      ;;
+    --pontos)
+      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
+      PONTOS="$2"
       shift 2
       ;;
     -*) die "A opção \`$1\` não existe: as opções são --limite, --ambiente e --pontos, antes do subcomando." ;;

@@ -87,7 +87,8 @@ echo "imports base" >"$seed/apps/api/src/app.module.ts"
 git -C "$seed" add -A
 git -C "$seed" "${GIT_ID[@]}" commit -q -m inicial
 git -C "$seed" push -q origin main
-# A main do remoto anda depois do clone de cada caso: a frente tem de nascer dela, e não da main do clone.
+# fresh <nome>: um checkout principal novo, em pasta própria (as frentes dele ficam ao lado), na main. Deixa o caminho em
+# $repo e zera as opções, o registro do comando de ambiente e a recusa dele.
 fresh() {
   OPTS=()
   : >"$ENV_LOG"
@@ -95,10 +96,6 @@ fresh() {
   mkdir -p "$work/$1"
   git clone -q "$remote" "$work/$1/principal"
   repo="$work/$1/principal"
-  echo "chegou depois do clone" >"$seed/chegou-depois.txt"
-  git -C "$seed" add -A
-  git -C "$seed" "${GIT_ID[@]}" commit -q -m "chegou depois" --allow-empty
-  git -C "$seed" push -q origin main
 }
 
 # pr <branch> <número> <ABERTO|MERGEADO|FECHADO> [commit]: o `gh` passa a responder esse PR para a branch, com a
@@ -145,58 +142,40 @@ slot_of_front() {
 
 # --- O núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas ---
 git_only() {
-  local front="$work/so-git-repo/principal-lui-1" second="$work/so-git-repo/principal-lui-2" line
+  local front="$work/so-git-repo/principal-lui-1" line
   fresh so-git-repo
-  # Sem Docker e sem comando de ambiente: um PATH só com o Git e o que o núcleo usa.
+  # Sem Docker e sem comando de ambiente: um PATH só com o Git e o que o núcleo usa. As recusas (ticket repetido, PR aberto,
+  # pasta suja, principal, Git antigo) são dos casos próprios, abaixo.
   PATH="$work/so-git" frentes "$repo" novo LUI-1
   [[ $code -eq 0 && "$(git -C "$front" branch --show-current)" == feature/lui-1 ]] || return 1
   contains "cd $front" && contains "claude" && [[ ! -e "$front/.env" ]] || return 1
-  PATH="$work/so-git" frentes "$repo" novo LUI-2
-  [[ $code -eq 0 ]] || return 1
   # O listar mostra o slot, a branch, o PR e os conflitos, e as portas como "-", porque não há comando de ambiente.
   pr feature/lui-1 5 ABERTO
   PATH="$work/so-git" frentes "$repo" listar
   [[ $code -eq 0 ]] && contains "CONFLITA COM" || return 1
   line="$(grep 'feature/lui-1 ' <<<"$out")"
   [[ "$line" == *" 1 "* && "$line" == *"#5 aberto"* && "$line" == *" - "* ]] || return 1
-  # O limite se ajusta pela opção, e o ticket que já tem frente é recusado.
-  OPTS=(--limite 2)
-  PATH="$work/so-git" frentes "$repo" novo LUI-3
-  [[ $code -ne 0 ]] && contains "limite de 2 frentes" || return 1
+  # O limite se ajusta pela opção.
+  OPTS=(--limite 1)
+  PATH="$work/so-git" frentes "$repo" novo LUI-2
+  [[ $code -ne 0 ]] && contains "limite de 1 frentes" || return 1
   OPTS=()
-  PATH="$work/so-git" frentes "$repo" novo LUI-1
-  [[ $code -ne 0 ]] && contains "já tem frente" || return 1
-  # O remover recusa o PR que não está mergeado e a pasta suja, e desmonta a frente de um PR mergeado com a pasta limpa.
-  PATH="$work/so-git" frentes "$repo" remover LUI-1
-  [[ $code -ne 0 ]] && contains "#5 aberto" && [[ -d "$front" ]] || return 1
+  # O remover desmonta a frente de um PR mergeado com a pasta limpa.
   pr feature/lui-1 5 MERGEADO
-  echo x >"$front/sobrou.txt"
   PATH="$work/so-git" frentes "$repo" remover LUI-1
-  [[ $code -ne 0 ]] && contains "sobrou.txt" && [[ -d "$front" ]] || return 1
-  rm "$front/sobrou.txt"
-  PATH="$work/so-git" frentes "$repo" remover LUI-1
-  [[ $code -eq 0 && ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null || return 1
-  # O principal nunca é removido, e um Git abaixo da versão mínima é recusado.
-  git -C "$repo" checkout -q -b feature/lui-9
-  pr feature/lui-9 9 MERGEADO
-  PATH="$work/so-git" frentes "$repo" remover LUI-9
-  [[ $code -ne 0 ]] && contains "principal" && [[ -d "$repo/.git" ]] || return 1
-  out="$(cd "$repo" && FRENTES_GIT_VERSION=2.30.1 "$FRENTES" listar 2>&1)"
-  [[ $? -ne 0 ]] && contains "2.38" && [[ -d "$second" ]]
+  [[ $code -eq 0 && ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
 }
 check "o núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas" git_only
 
 # --- O núcleo chama o comando de ambiente da frente para verificar, criar e derrubar, e lista as portas que ele informa ---
 environment_contract() {
-  local front="$work/contrato/principal-lui-1" verified created
+  local front="$work/contrato/principal-lui-1"
   fresh contrato
   OPTS=(--ambiente "$AMBIENTE")
   frentes "$repo" novo LUI-1
   [[ $code -eq 0 ]] || return 1
   # O `verificar` vem com o slot antes de a pasta existir (só o principal está na lista), e o `criar` depois, com a pasta e o slot.
-  verified="$(grep -n 'verificar 1 worktrees=1$' "$ENV_LOG" | cut -d: -f1)"
-  created="$(grep -nxF "criar $front 1 pasta=existe" "$ENV_LOG" | cut -d: -f1)"
-  [[ -n "$verified" && -n "$created" && "$verified" -lt "$created" ]] || return 1
+  [[ "$(<"$ENV_LOG")" == "verificar 1 worktrees=1"$'\n'"criar $front 1 pasta=existe" ]] || return 1
 
   # Recusado o slot, nada é criado e o `criar` não é chamado.
   : >"$ENV_LOG"
@@ -244,16 +223,16 @@ check "o número da frente fica nela, apagar a pasta o libera e duas criações 
 
 # --- Duas criações ao mesmo tempo recebem slots diferentes ---
 concurrent_creations() {
-  local a b
+  local a b slots
   fresh simultaneas
   (cd "$repo" && ENV_SLOW=1 "$FRENTES" --ambiente "$AMBIENTE" novo LUI-1 >"$work/simultaneas-a.out" 2>&1) &
   a=$!
   (cd "$repo" && ENV_SLOW=1 "$FRENTES" --ambiente "$AMBIENTE" novo LUI-2 >"$work/simultaneas-b.out" 2>&1) &
   b=$!
-  wait "$a" && wait "$b" || { cat "$work"/simultaneas-?.out; return 1; }
+  wait "$a" "$b" || { cat "$work"/simultaneas-?.out; return 1; }
   # Slots diferentes: uma frente tem o 1 e a outra, o 2, em qualquer ordem.
-  { [[ "$(slot_of_front "$work/simultaneas/principal-lui-1")" == 1 && "$(slot_of_front "$work/simultaneas/principal-lui-2")" == 2 ]]; } ||
-    { [[ "$(slot_of_front "$work/simultaneas/principal-lui-1")" == 2 && "$(slot_of_front "$work/simultaneas/principal-lui-2")" == 1 ]]; }
+  slots="$(slot_of_front "$work/simultaneas/principal-lui-1")$(slot_of_front "$work/simultaneas/principal-lui-2")"
+  [[ "$slots" == 12 || "$slots" == 21 ]]
 }
 check "duas criações ao mesmo tempo recebem slots diferentes" concurrent_creations
 
@@ -261,6 +240,9 @@ check "duas criações ao mesmo tempo recebem slots diferentes" concurrent_creat
 creation() {
   local front="$work/criacao/principal-lui-186" second="$work/criacao/principal-lui-187"
   fresh criacao
+  # A main do remoto anda depois do clone: a frente tem de nascer dela, e não da main do clone.
+  change "$seed" chegou-depois.txt "chegou depois do clone"
+  git -C "$seed" push -q origin main
   frentes "$repo" novo LUI-186
   [[ $code -eq 0 ]] || return 1
   # A pasta irmã, na branch do ticket, nascida da main que o remoto tem agora.
