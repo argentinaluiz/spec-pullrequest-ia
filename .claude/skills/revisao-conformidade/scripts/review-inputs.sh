@@ -30,8 +30,7 @@ abort() {
   exit 2
 }
 
-self="$(basename "$0")"
-usage_example="$self PROJ-1 PROJ-123\` ou \`$self sem-ticket <nome>"
+self="${0##*/}"
 
 tickets=docs/tickets
 base=""
@@ -53,7 +52,7 @@ done
 
 [[ $# -eq 2 ]] ||
   abort "o comando recebe dois argumentos: \`<pai> <ticket>\`, ou \`sem-ticket <nome>\`." \
-    "passe a issue pai e o ticket, ou \`sem-ticket\` e um nome curto, como em \`$usage_example\`."
+    "passe a issue pai e o ticket, ou \`sem-ticket\` e um nome curto, como em \`$self PROJ-1 PROJ-123\` ou \`$self sem-ticket <nome>\`."
 if [[ "$1" == sem-ticket ]]; then
   [[ "$2" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
     abort "o nome \`$2\` não vale para uma mudança sem ticket." \
@@ -61,7 +60,7 @@ if [[ "$1" == sem-ticket ]]; then
 else
   [[ "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ && "$2" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
     abort "os argumentos não são <pai> e <ticket>." \
-      "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$usage_example\`."
+      "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$self PROJ-1 PROJ-123\` ou \`$self sem-ticket <nome>\`."
 fi
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || abort "esta pasta não está num repositório do Git." "rode de dentro do repositório."
@@ -75,7 +74,8 @@ git rev-parse --verify --quiet "$base" >/dev/null ||
     "rode \`git fetch origin\`, ou passe outra base com \`--base <ref>\`."
 
 # O `git diff` sem cor, sem diff externo, com os prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for a
-# configuração de quem roda.
+# configuração de quem roda. Uma skill de uso geral não carrega arquivo de projeto nem de outra skill, então esta e a `added_by` são
+# cópias deliberadas das da verificação do projeto.
 plain_diff() {
   git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
 }
@@ -108,14 +108,6 @@ review_diff() {
   return $code
 }
 
-# Roda um comando dado como texto, que pode ter argumentos próprios, com os argumentos dados.
-# run_command <comando> <argumentos...>
-run_command() {
-  local command="$1"
-  shift
-  bash -c "$command"' "$@"' "$command" "$@"
-}
-
 # O desvio do contrato desde o commit de plano, pelo comando que quem chama deu. O comando só grava o arquivo quando há desvio;
 # o revisor recebe o arquivo sempre, então, sem desvio, ele leva o que o comando disse. Sem comando, ou se o comando falha, o
 # arquivo diz que o desvio não foi conferido, para o revisor não ler um vazio.
@@ -125,8 +117,9 @@ review_drift() {
   rm -f "$drift"
   if [[ -z "$drift_command" ]]; then
     echo "Nenhum comando do desvio do contrato foi declarado: não há desvio a conferir." >"$drift"
-  elif out="$(run_command "$drift_command" "$plan" "" "$drift" 2>&1)"; then
-    [[ -s "$drift" ]] || printf '%s\n' "$out" >"$drift"
+  # O comando é texto, que pode ter argumentos próprios, e recebe os três argumentos depois deles.
+  elif out="$(bash -c "$drift_command"' "$@"' _ "$plan" "" "$drift" 2>&1)"; then
+    [[ -s "$drift" ]] || printf '%s\n' "${out:-O comando do desvio do contrato não disse nada: não há desvio a conferir.}" >"$drift"
   else
     printf 'O desvio do contrato não pôde ser conferido. O que o comando disse:\n\n%s\n' "$out" >>"$drift"
   fi
@@ -147,7 +140,7 @@ else
     abort "não deu para ler o histórico da branch ($base..HEAD) com o \`git log\`." \
       "confira se a base existe (\`git fetch origin\`, ou outra base com \`--base\`) e se o clone tem o histórico inteiro."
   [[ -n "$plan" ]] ||
-    abort "nenhum commit desta branch criou o $acceptance: o ticket não tem commit de plano." \
+    abort "nenhum commit desta branch ($base..HEAD) criou o $acceptance: o ticket não tem commit de plano." \
       "planeje o ticket e faça o commit de plano antes da revisão."
 fi
 

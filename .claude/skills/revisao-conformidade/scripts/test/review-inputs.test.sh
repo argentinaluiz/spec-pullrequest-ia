@@ -81,7 +81,7 @@ review() {
   local errfile="$tmp/err" opts=(--base main --desvio "$tmp/desvio")
   out="$(cd "$repo" && $SK/scripts/review-inputs.sh "${opts[@]}" "$@" 2>"$errfile")"
   code=$?
-  err="$(cat "$errfile")"
+  err="$(<"$errfile")"
 }
 
 # --- argumentos
@@ -236,7 +236,7 @@ echo mudanca >"$outside/novo.txt"
 outside_run() {
   out="$(cd "$outside" && $SK/scripts/review-inputs.sh "$@" 2>"$tmp/err")"
   code=$?
-  err="$(cat "$tmp/err")"
+  err="$(<"$tmp/err")"
 }
 outside_defaults() {
   outside_run EX-1 EX-2 &&
@@ -260,5 +260,25 @@ outside_bad_base() {
   [[ $code -eq 2 && "$err" == *"naoexiste"* ]]
 }
 check "uma base que não existe é recusada, dizendo qual" outside_bad_base
+
+# O ramo principal do remoto de origem não é main: a base padrão é o que o remoto diz (origin/HEAD).
+outside_other_head() {
+  git -C "$outside" update-ref refs/remotes/origin/principal "$(git -C "$outside" rev-parse HEAD)"
+  git -C "$outside" remote set-head origin principal >/dev/null
+  outside_run EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *"origin/principal..HEAD"* ]]
+}
+check "sem --base, a base é o ramo principal que o remoto de origem diz" outside_other_head
+
+# O comando do desvio pode ter argumentos próprios: eles vão antes do commit de plano.
+outside_command_with_arguments() {
+  git -C "$outside" remote set-head origin -d >/dev/null
+  printf '#!/usr/bin/env bash\necho "recebi: $*"\n' >"$tmp/desvio-args"
+  chmod +x "$tmp/desvio-args"
+  outside_run --base origin/main --desvio "$tmp/desvio-args um-argumento" EX-1 EX-2 &&
+    [[ $code -eq 0 ]] &&
+    [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == "recebi: um-argumento "* ]]
+}
+check "o comando do desvio com argumentos próprios os recebe antes do commit de plano" outside_command_with_arguments
 
 finish "do script dos insumos da revisão"

@@ -105,7 +105,7 @@ usage() {
   exit 2
 }
 
-# O `plain_diff` e os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma), da skill contrato, que o grupo da API
+# Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node, da skill contrato, que o grupo da API
 # também carrega.
 # shellcheck source=../../contrato/scripts/contract-lib.sh
 source .claude/skills/contrato/scripts/contract-lib.sh

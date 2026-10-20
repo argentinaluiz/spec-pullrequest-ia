@@ -23,6 +23,6 @@ check "$name: o cabeçalho da cópia dá o nome do agente" bash -c '[[ "$1" == *
 check "$name: a única ferramenta do projeto no cabeçalho é a do Linear" \
   bash -c '[[ "$1" == *"tools: Read, Grep, Glob, mcp__linear-server__get_issue"* ]]' _ "$header"
 check "$name: o modelo não cita arquivo, comando nem ferramenta deste projeto" \
-  bash -c '! grep -qE "apps/|scripts/|verify\.sh|AGENTS\.md|docs/lld|linear-server|Linear|docs/sessoes" "$1"' _ "$MODEL"
+  bash -c '! grep -qE "apps/|scripts/|\.claude/|docs/|verify\.sh|AGENTS\.md|linear-server|Linear" "$1"' _ "$MODEL"
 
 finish "da cópia instalada do revisor"

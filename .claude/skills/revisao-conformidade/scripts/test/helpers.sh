@@ -38,20 +38,6 @@ check() {
   if "$@"; then pass_case "$name"; else fail_case "$name"; fi
 }
 
-# Um caso de hook: roda o hook com a entrada dada e confere o código de saída e um trecho da saída de
-# erro, que é o que volta para o agente. Os argumentos do hook vêm de HOOK_ARGS.
-# expect_hook <hook> <código esperado> <nome> <entrada> [trecho esperado na saída de erro]
-expect_hook() {
-  local hook="$1" want="$2" name="$3" input="$4" text="${5:-}" got err
-  err="$("$hook" "${HOOK_ARGS[@]}" <<<"$input" 2>&1 >/dev/null)"
-  got=$?
-  if [[ $got -ne $want || "$err" != *"$text"* ]]; then
-    fail_case "$name" "saída $got, esperava $want; erro: $err"
-  else
-    pass_case "$name"
-  fi
-}
-
 # finish <o que o teste cobre>
 finish() {
   [[ $failed -eq 0 ]] || {
