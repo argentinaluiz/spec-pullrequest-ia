@@ -89,15 +89,17 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando não está na branch principal (a `main`), e isso inclui o HEAD solto, que não é estado de repouso; o limite é de 3 frentes ao todo. Em repouso, o principal fica na branch principal, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
-- **Criar:** `.claude/skills/ambiente/scripts/frentes.sh novo <ticket> [tipo]` cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
-- **Listar:** `.claude/skills/ambiente/scripts/frentes.sh listar` mostra o slot, a branch, as portas e o estado do PR de cada frente.
-- **Remover:** `.claude/skills/ambiente/scripts/frentes.sh remover <ticket>` desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
+Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos: `novo`, `listar`, `remover`, `abrir` e `sincronizar`. Os três primeiros também rodam no terminal, pelo atalho `.claude/skills/ambiente/scripts/frentes.sh`.
 
-**Abrir as frentes de uma spec:** use a `/abrir-frentes` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
+- **Criar:** `/worktree novo <ticket> [tipo]` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh novo <ticket> [tipo]`) cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
+- **Listar:** `/worktree listar` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh listar`) mostra o slot, a branch, as portas e o estado do PR de cada frente.
+- **Remover:** `/worktree remover <ticket>` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh remover <ticket>`) desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
 
-**Trazer a `main` para a frente:** use a `/sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
+**Abrir as frentes de uma spec:** use o `/worktree abrir` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
 
-O `.claude/skills/ambiente/scripts/frentes.sh` é o atalho: chama o núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) com os valores deste projeto, o limite de 3, o ambiente por slot (`.claude/skills/ambiente/scripts/frente-ambiente.sh`) e os pontos de convergência. As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+**Trazer a `main` para a frente:** use o `/worktree sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
+
+O `.claude/skills/ambiente/scripts/frentes.sh` é o atalho (o "Comando das frentes" dos valores do `/worktree`): chama o núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) com os valores deste projeto, o limite de 3, o ambiente por slot (`.claude/skills/ambiente/scripts/frente-ambiente.sh`) e os pontos de convergência. As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente, um perfil por slot.
 
@@ -130,7 +132,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `.claude/skills/verificar/scripts/verify.sh fast`. O `.claude/skills/verificar/scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
-- **O `full` roda uma vez, no fim da tarefa,** depois do commit do trabalho e da `/sincronizar`, e quem o roda é quem fecha a tarefa. No fluxo de ticket, é a sessão do ticket, na frente, e nunca um subagente, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade"). Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
+- **O `full` roda uma vez, no fim da tarefa,** depois do commit do trabalho e do `/worktree sincronizar`, e quem o roda é quem fecha a tarefa. No fluxo de ticket, é a sessão do ticket, na frente, e nunca um subagente, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade"). Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
 - **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `.claude/skills/verificar/scripts/verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
@@ -172,7 +174,7 @@ O aceite é conferido na máquina antes do push, como descrito em "Antes do push
 
 Quem escreveu o código não é quem o confere. Toda mudança que altera o código que pede revisão (o valor de mesmo nome da lista "Valores das skills do ticket": o código em `apps/` e, em ticket com aceite, o harness) passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-No fluxo do ticket, ela vem depois da `/sincronizar`, da `/simplify` e da `/code-review`, e antes do `full`, para as revisões verem o resultado do merge e as correções entrarem na única verificação completa: implementação, commit, `/sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
+No fluxo do ticket, ela vem depois do `/worktree sincronizar`, da `/simplify` e da `/code-review`, e antes do `full`, para as revisões verem o resultado do merge e as correções entrarem na única verificação completa: implementação, commit, `/worktree sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
 
 Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
 
@@ -241,6 +243,17 @@ Os valores da `/revisao-conformidade`:
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
 - **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
+Os valores do `/worktree`:
+
+- **Base:** a mesma da `/revisao-conformidade`: a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`).
+- **Comando das frentes:** `.claude/skills/ambiente/scripts/frentes.sh`, o atalho que chama o núcleo com o limite, o ambiente por slot da frente e os pontos de convergência deste projeto.
+- **Limite de frentes:** 3. A variável `FRENTES_LIMITE` o ajusta, pelo atalho.
+- **Arquivo dos pontos de convergência:** `.claude/skills/ambiente/pontos-de-convergencia.txt`.
+- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
+- **Status e tipo da branch:** os padrões da skill ("In Progress", "In Review" e "Done"; `bugfix` para a label `Bug`, `feature` para o resto).
+- **Atualizar o ambiente, recriar o banco, gerar uma migração, subir as aplicações e regenerar o gerado:** os comandos da seção "Commands the sync uses" da `/ambiente` (`.claude/skills/ambiente/SKILL.md`). O único arquivo gerado é `apps/api/openapi.json`.
+- **Verificação completa:** `.claude/skills/verificar/scripts/verify.sh full`, em segundo plano. Se a branch altera `apps/`, ele recebe o corpo do pull request, com a seção `## Aceite`, em `ACCEPTANCE_BODY_FILE=<arquivo>`.
+
 Os valores da `/proteger-harness`:
 
 - **Lista de arquivos protegidos:** `.claude/skills/verificar/arquivos-protegidos.txt`, que o workflow da Guarda do harness passa à Guarda.
@@ -258,7 +271,7 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 
 O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
 
-- **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
+- **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
 - **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, `/ambiente` (o Docker Compose, o Node no contêiner e os pontos de convergência) e `/contrato` (a visão e o desvio do contrato), e as que nascem nos próximos tickets da LUI-193.
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
@@ -273,7 +286,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 - **Branches de trabalho:** `feature/*`, `bugfix/*`, `hotfix/*` e `docs/*`, criadas a partir da `main` e integradas por pull request.
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
-- **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que a `/sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
+- **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que o `/worktree sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
 - **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `scripts/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas

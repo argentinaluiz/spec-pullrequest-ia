@@ -1,5 +1,0 @@
-interface:
-  display_name: "Sincronizar"
-  short_description: "Bring main into the branch of a front and report what came in"
-policy:
-  allow_implicit_invocation: true

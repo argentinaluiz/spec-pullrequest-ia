@@ -1,7 +1,7 @@
 # Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. É o
-# dono único desta classificação: o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh, pelo atalho do /ambiente) a lê para separar os conflitos do `listar`, e a
-# skill /sincronizar a lê para saber o que resolver por regra. Este arquivo só classifica; a regra de cada
-# tipo é da /sincronizar.
+# dono único desta classificação: o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh, pelo atalho do /ambiente) a lê para separar os conflitos do `listar`, e o
+# modo sincronizar da /worktree a lê para saber o que resolver por regra. Este arquivo só classifica; a regra de cada
+# tipo é desse modo.
 #
 # Uma linha por padrão: o tipo, uma tabulação e o caminho, relativo à raiz do repositório, que aceita `*`
 # (casa também barras). Vale o primeiro padrão que casa. Um arquivo que nenhum padrão casa é código e pede
