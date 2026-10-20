@@ -49,6 +49,9 @@ while IFS=$'\t' read -r kind first second; do
     generica) generic+=("$first") ;;
     padrao)
       [[ -n "$first" ]] || die "Uma linha \`padrao\` da lista não traz a expressão."
+      # O grep sai com 2 numa expressão inválida (e com 0 ou 1 numa válida): a lista malformada para a suíte.
+      grep -qE -e "$first" </dev/null 2>/dev/null
+      [[ $? -le 1 ]] || die "A expressão \`$first\` da lista não é uma expressão regular estendida válida."
       patterns+=("$first")
       descriptions+=("$second")
       printf '%s\n' "$first" >>"$work/padroes"

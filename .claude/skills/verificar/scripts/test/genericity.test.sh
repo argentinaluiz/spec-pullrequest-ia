@@ -70,6 +70,12 @@ pattern_found() {
   put so-teste scripts/test/x.test.sh 'echo oi'
   run
   [[ $code -eq 1 && "$out" == *'so-teste: nenhum arquivo da skill genérica foi varrido'* && "$out" == *'fantasma: a pasta da skill genérica não existe'* ]] || return 1
+  # Uma expressão inválida na lista é uma lista malformada: sai com 2, e não aprova.
+  fresh invalido
+  list 'generica\tlimpa' 'padrao\t(abre\tparêntese sem fechar'
+  put limpa SKILL.md $'# Limpa'
+  run
+  [[ $code -eq 2 && "$out" == *'(abre'* ]] || return 1
   # Sem nenhum achado, a suíte aprova.
   fresh padrao
   list 'generica\tlimpa' 'padrao\tFIXME-[0-9]+\tprefixo dos identificadores do time'

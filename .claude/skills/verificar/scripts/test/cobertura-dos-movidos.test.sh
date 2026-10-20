@@ -52,4 +52,9 @@ SUITE
 tags="$(jq -r '[.testResults[].assertionResults[].tags[]] | sort | join(" ")' "$tmp/relatorio.json" 2>/dev/null)"
 check "$name: o executor põe o token do nome do caso na tag do relatório" test "$tags" = "@PROJ-1-CA1 @PROJ-1-CA2"
 
+# A pasta de scripts da raiz não existe mais, e a verificação não lhe passa glob nenhum: um glob sem arquivo chegaria ao
+# executor como uma suíte que não existe e reprovaria o grupo dos testes do harness.
+check "a verificação não passa glob da pasta de scripts da raiz, que não existe mais" \
+  bash -c '! grep -qE "(^|[ \"])scripts/test/" "$1"' _ "$SKILL/scripts/verify.sh"
+
 finish "da cobertura dos critérios que mudaram de lugar"

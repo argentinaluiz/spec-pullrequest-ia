@@ -242,11 +242,11 @@ harness_tests() {
   # relativos aqui e no /repo, então a lista sai daqui.
   node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
     --test-reporter=./.claude/skills/verificar/scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
-    scripts/test/*.test.cjs "${skill_node_tests[@]}" &&
+    "${skill_node_tests[@]}" &&
     check_report api vitest "$HARNESS_REPORT" || code=1
   # As suítes em shell usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que
   # roda na máquina: elas rodam aqui. O relatório é o que faz um caso delas provar um critério.
-  .claude/skills/verificar/scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" scripts/test/*.test.sh "${skill_shell_tests[@]}" &&
+  .claude/skills/verificar/scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" "${skill_shell_tests[@]}" &&
     check_report api vitest "$HARNESS_SHELL_REPORT" || code=1
   return $code
 }
@@ -437,7 +437,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, em \`scripts/\` ou nas pastas \`scripts/\` e \`hooks/\` de uma skill (os testes dela ficam na pasta \`test/\` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou, nas pastas \`scripts/\` e \`hooks/\` de uma skill (os testes dela ficam na pasta \`test/\` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
