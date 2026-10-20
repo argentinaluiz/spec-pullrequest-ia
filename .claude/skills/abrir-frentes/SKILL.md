@@ -15,7 +15,7 @@ How to open the parallel fronts of a spec. It prepares the places where the work
 - Edit a `.env`, a branch or a folder of a front by hand to make a refused `novo` pass.
 - Open more fronts than the free slots, or open one without the user's confirmation (step 5).
 - Plan or implement a ticket, or start a session in a front. It cannot open a session in another folder, and it tells the user to.
-- Change the status of an issue. "In Progress" is moved by the session of the ticket, as `/implement` says.
+- Change the status of an issue. "In Progress" is moved by the session of the ticket: `/plan-ticket` does it when planning starts, and `/implement` checks it.
 
 ## Steps
 
@@ -31,7 +31,7 @@ How to open the parallel fronts of a spec. It prepares the places where the work
 
    If the frontier is empty, say why (everything is blocked, in progress or done) and stop.
 
-3. **How many fit.** Run `scripts/frentes.sh listar` and count the open fronts. The limit is 3 in total (`FRENTES_LIMITE` adjusts it), and the main checkout counts as one whenever it is not on the `main` branch, a detached HEAD included. An old worktree counts too, with or without a pull request: name the ones that look abandoned and leave them to the user, because removing a front without a merge is the user's. The number to open is the least of: the free tickets, the free fronts, and what the user asked for. If it is zero, show the list and stop.
+3. **How many fit.** Run `scripts/frentes.sh listar` and count the open fronts. The limit is 3 in total (`FRENTES_LIMITE` adjusts it), and the main checkout counts as one whenever it is not on the principal branch (the `main` of the base), a detached HEAD included: at rest it stays on the principal branch, brought up to date with `git merge --ff-only <base>`, and if it is detached or on another branch, say that it takes a slot and how to free it. An old worktree counts too, with or without a pull request: name the ones that look abandoned and leave them to the user, because removing a front without a merge is the user's. The number to open is the least of: the free tickets, the free fronts, and what the user asked for. If it is zero, show the list and stop.
 
 4. **Overlap, and which ones when there are more free tickets than fronts.** Read each free ticket and its section "Decisões de outros tickets", and compare it with the tickets already taken in step 2 whose work is still pending, which keep running while the new fronts work. A ticket with a stale status does not overlap with anything: its work is already in the base the new front starts from. Prefer tickets that touch different areas, because two fronts on the same files meet in a conflict at the sync, and tickets that unblock the most others. Warn when a free ticket overlaps one already taken. Do not pick two tickets where one takes a decision the other also takes: the escalation rule of the root `AGENTS.md` ("Ao trabalhar em um ticket") sends that to the user, so say it. Propose the choice with the reason of each.
 
@@ -41,6 +41,6 @@ How to open the parallel fronts of a spec. It prepares the places where the work
 
 7. **Report.** When all have ended, run `scripts/frentes.sh listar` once and answer in the chat with one row per front: ticket and title, folder, slot and ports, and the command that `novo` printed to open the session. Then, for each ticket, the first thing to run in its session:
    - `/plan-ticket <ticket>` when the base has no acceptance file for it (`git show <base>:docs/tickets/<spec>/<ticket>/aceite.md` fails). A new front starts from the base, so this is the usual case.
-   - `/implement <ticket>` when the base already has the acceptance file, which means the plan is merged.
+   - `/implement <ticket>` when the base already has the acceptance file, which means the plan is merged. In both cases, the implementation of a planned ticket starts in a new session of the same front.
 
    Close with what was left out and why (blocked tickets and what unblocks them, tickets already in progress, refusals), and with the reminders that matter to several fronts: one browser profile per slot, and `scripts/frentes.sh listar` shows which fronts will conflict.

@@ -1,9 +1,9 @@
 ---
 name: revisao-conformidade
-description: "Run the conformance review of a change that alters code in apps/: prepare its inputs with scripts/verify.sh review, call the revisor-conformidade subagent with paths only, record and triage the findings, then publish them as a PR comment. Use after /code-review and before scripts/verify.sh full, and again when the pull request is opened."
+description: "Run the conformance review of a change that alters code in apps/, or of a ticket with an acceptance file that alters the harness (scripts/, .claude/hooks/, .github/): prepare its inputs with scripts/verify.sh review, call the revisor-conformidade subagent with paths only, record and triage the findings, then publish them as a PR comment. Use after /code-review and before scripts/verify.sh full, and again when the pull request is opened."
 ---
 
-How to run the conformance review that the root `AGENTS.md` requires, and what to do with its result. The rule (who reviews, when, and that the review does not block) is in that file, section "Revisão de conformidade"; what the `revisor-conformidade` subagent checks is in the root `REVIEW.md` and in `.claude/agents/revisor-conformidade.md`.
+How to run the conformance review that the root `AGENTS.md` requires, and what to do with its result. The rule (who reviews, when, and that the review is not a mechanical gate) is in that file, section "Revisão de conformidade"; what the `revisor-conformidade` subagent checks is in the root `REVIEW.md` and in `.claude/agents/revisor-conformidade.md`.
 
 The skill has two parts, at two moments: **Review**, after `/code-review` and before the `full`, so the fixes go into the single full verification; and **Publish**, when the pull request exists, which may be in another session.
 
@@ -27,11 +27,11 @@ The skill has two parts, at two moments: **Review**, after `/code-review` and be
 5. **Triage.** Decide each finding and fill its row:
    - **Agree:** fix it. The situation is `Corrigido`, and the reason says what changed.
    - **Disagree:** the situation is `Não corrigido`, and the reason says why it stays as it is.
-   - **High severity you would leave unfixed:** stop and ask the user before going on. Write the decision and that it was the user's in the reason.
+   - **High severity you would leave unfixed:** stop and ask the user before going on. Write the decision and that it was the user's in the reason. The review is not a mechanical gate (it does not stop the `full` or the pull request, and the user decides at the merge what stayed unfixed), but this is the one case where the agent stops and asks first.
 
    In `/implement`, the session fixes the findings of `/code-review` and the ones accepted here. The commit after the fixes does not go through the reviewer again: the `full` verifies it.
 
-6. **Go on** to the `full`, as the root `AGENTS.md` says in "Definição de pronto". In `/implement`, that is after this review and the fixes, and after `/sincronizar`.
+6. **Go on** to the `full`, as the root `AGENTS.md` says in "Definição de pronto". In `/implement`, that is after this review and the fixes; the `/sincronizar` already ran, before the reviews, so the review sees the merged result.
 
 ## Publish
 
