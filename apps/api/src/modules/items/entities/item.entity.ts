@@ -64,6 +64,13 @@ export type RenameResult =
   | { status: 'root' }
   | { status: 'not_found' };
 
+/** O que mover um Item resolve: movido, um movimento impossível (a Pasta raiz, ou uma pasta para dentro dela mesma ou de uma descendente), passando do limite de profundidade, ou sem Item ativo do Usuário ou sem pasta de destino. */
+export type MoveResult =
+  | { status: 'moved'; item: Item }
+  | { status: 'invalid' }
+  | { status: 'too_deep' }
+  | { status: 'not_found' };
+
 /** Quantas pastas o caminho de um Item pode ter, sem contar a Pasta raiz. */
 export const MAX_FOLDER_DEPTH = 50;
 

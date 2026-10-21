@@ -14,14 +14,19 @@ import type {
 
 /**
  * Uma página dos Itens ativos de uma pasta (`root` ou o id de uma pasta ativa do Usuário), com
- * o tamanho de página padrão da API (50).
+ * o tamanho de página padrão da API (50). Com `foldersOnly`, só as pastas, para o seletor de
+ * "Mover para…".
  */
 export function listChildren(
   accessToken: string,
   folderId: string,
   cursor?: string,
+  foldersOnly = false,
 ): Promise<ApiResult<ItemPage>> {
-  const search = cursor ? `?${new URLSearchParams({ cursor })}` : "";
+  const query = new URLSearchParams();
+  if (cursor) query.set("cursor", cursor);
+  if (foldersOnly) query.set("type", "folder");
+  const search = query.size > 0 ? `?${query}` : "";
   return apiRequest(`/items/${encodeURIComponent(folderId)}/children${search}`, {
     accessToken,
   });

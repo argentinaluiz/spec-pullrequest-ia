@@ -13,6 +13,7 @@ import {
   ItemPosition,
   ItemType,
   NewPendingFile,
+  MoveResult,
   RenameResult,
   ROOT_FOLDER_NAME,
 } from './entities/item.entity.js';
@@ -167,7 +168,7 @@ export class ItemsRepository {
    */
   createFolderWithinDepthLimit(folder: NewFolder): Promise<CreateFolderResult> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`items_tree:${folder.ownerId}`}, 0))`;
+      await this.lockTree(folder.ownerId, tx);
       const path = await this.folderPath(folder.ownerId, folder.parentId, tx);
       if (path.length === 0) {
         return { status: 'parent_not_found' };
@@ -209,6 +210,96 @@ export class ItemsRepository {
       return { status: root ? 'root' : 'not_found' };
     }
     return { status: 'renamed', item: toItem(row) };
+  }
+
+  /**
+   * Move o Item ativo do Usuário para a pasta `parentId`, e o renomeia junto
+   * se vier um `name`, na transação que confere o destino. O lock consultivo
+   * do Usuário, tomado antes, faz as gravações que mudam a árvore dele
+   * esperarem umas pelas outras (seção 4.1 do docs/lld.md).
+   */
+  moveActive(
+    ownerId: string,
+    move: { id: string; parentId: string; name?: string },
+  ): Promise<MoveResult> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockTree(ownerId, tx);
+      const current = await tx.item.findFirst({
+        where: { id: move.id, ownerId, status: 'active' },
+        select: { ...ITEM_FIELDS, parentId: true },
+      });
+      if (!current) {
+        return { status: 'not_found' };
+      }
+      // A Pasta raiz, a única sem pai, não se move.
+      if (current.parentId === null) {
+        return { status: 'invalid' };
+      }
+      const path = await this.folderPath(ownerId, move.parentId, tx);
+      if (path.length === 0) {
+        return { status: 'not_found' };
+      }
+      // O caminho do destino traz o próprio destino: o Item nele é um ciclo.
+      if (path.some((entry) => entry.id === move.id)) {
+        return { status: 'invalid' };
+      }
+      // Mover para onde já está não grava nada, nem renova o `updatedAt`.
+      if (current.parentId === move.parentId && move.name === undefined) {
+        const { parentId: _parentId, ...fields } = current;
+        return { status: 'moved', item: toItem(fields) };
+      }
+      // O caminho do destino traz a raiz, que não conta como nível.
+      const height =
+        current.type === 'file'
+          ? 0
+          : await this.subtreeHeight(ownerId, move.id, tx);
+      if (path.length - 1 + height > MAX_FOLDER_DEPTH) {
+        return { status: 'too_deep' };
+      }
+      const row = await tx.item.update({
+        where: { id: move.id },
+        data: {
+          parentId: move.parentId,
+          ...(move.name !== undefined && { name: move.name }),
+        },
+        select: ITEM_FIELDS,
+      });
+      return { status: 'moved', item: toItem(row) };
+    });
+  }
+
+  /**
+   * A altura da subárvore de pastas do Item, pela consulta recursiva que desce
+   * pelos filhos: 1 para uma pasta sem subpastas e 0 para um arquivo. A descida
+   * para alguns níveis além do limite de profundidade.
+   */
+  private async subtreeHeight(
+    ownerId: string,
+    id: string,
+    db: Prisma.TransactionClient,
+  ): Promise<number> {
+    const [row] = await db.$queryRaw<{ height: number }[]>`
+      WITH RECURSIVE subtree AS (
+        SELECT id, 1 AS level
+        FROM items
+        WHERE id = ${id}::uuid AND owner_id = ${ownerId}::uuid AND type = 'folder'
+        UNION ALL
+        SELECT i.id, s.level + 1
+        FROM items i
+        JOIN subtree s ON i.parent_id = s.id
+        WHERE i.owner_id = ${ownerId}::uuid AND i.type = 'folder'
+          AND s.level < ${PATH_QUERY_MAX_LEVEL}
+      )
+      SELECT COALESCE(MAX(level), 0)::int AS height FROM subtree`;
+    return row.height;
+  }
+
+  /** Toma o lock consultivo da árvore do Usuário, solto no fim da transação. */
+  private async lockTree(
+    ownerId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`items_tree:${ownerId}`}, 0))`;
   }
 
   /** Cria o Item `pending` de um arquivo, invisível nas listagens. */

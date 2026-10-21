@@ -19,6 +19,7 @@ export const API_ERROR_CODES = [
   "upload_size_mismatch",
   "upload_incomplete",
   "max_depth_exceeded",
+  "invalid_move",
   "internal_error",
 ] as const;
 
@@ -122,9 +123,11 @@ export interface CreateFolderInput {
   parentId: string;
 }
 
-/** O que `PATCH /items/{id}` pede: só o nome, por ora. */
+/** O que `PATCH /items/{id}` pede: o nome, o novo pai, ou os dois. */
 export interface UpdateItemInput {
-  name: string;
+  name?: string;
+  /** `root` ou o id de uma pasta ativa do Usuário. */
+  parentId?: string;
 }
 
 /** Uma página da listagem. O cursor é opaco, e nulo na última página. */

@@ -17,6 +17,7 @@ import {
   NewPendingFile,
 } from './entities/item.entity.js';
 import { InputValidationError } from '../../common/errors/input-validation.error.js';
+import { InvalidMoveError } from './errors/invalid-move.error.js';
 import { ItemNotFoundError } from './errors/item-not-found.error.js';
 import { MaxDepthExceededError } from './errors/max-depth-exceeded.error.js';
 import { decodeItemCursor, encodeItemCursor } from './item-cursor.js';
@@ -138,6 +139,60 @@ export class ItemsService {
         throw new InputValidationError([
           { field: 'id', messages: ['A Pasta raiz não pode ser renomeada.'] },
         ]);
+      case 'not_found':
+        throw new ItemNotFoundError();
+    }
+  }
+
+  /**
+   * Muda o nome, o pai, ou os dois, de um Item ativo do Usuário. Sem nenhum
+   * dos campos, é entrada inválida.
+   */
+  async update(
+    ownerId: string,
+    id: string,
+    changes: { name?: string | null; parentId?: string | null },
+  ): Promise<Item> {
+    // Um `null` no JSON passa pelo `@IsOptional()` do DTO: vale como campo ausente.
+    const name = changes.name ?? undefined;
+    const parentId = changes.parentId ?? undefined;
+    if (parentId !== undefined) {
+      return this.move(ownerId, id, parentId, name);
+    }
+    if (name === undefined) {
+      throw new InputValidationError([
+        { field: 'name', messages: ['name ou parentId é obrigatório.'] },
+      ]);
+    }
+    return this.rename(ownerId, id, name);
+  }
+
+  /**
+   * Move um Item ativo do Usuário para `parentId` (`root` ou uma pasta ativa
+   * do Usuário), renomeando-o junto se vier um `name`.
+   */
+  private async move(
+    ownerId: string,
+    id: string,
+    parentId: string,
+    name?: string,
+  ): Promise<Item> {
+    const [itemId, destinationId] = await Promise.all([
+      this.folderIdOf(ownerId, id),
+      this.folderIdOf(ownerId, parentId),
+    ]);
+    const result = await this.items.moveActive(ownerId, {
+      id: itemId,
+      parentId: destinationId,
+      name,
+    });
+    switch (result.status) {
+      case 'moved':
+        return result.item;
+      case 'invalid':
+        throw new InvalidMoveError();
+      case 'too_deep':
+        throw new MaxDepthExceededError();
       case 'not_found':
         throw new ItemNotFoundError();
     }

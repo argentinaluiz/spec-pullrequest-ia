@@ -42,7 +42,7 @@ export class ItemsController {
 
   @Patch(':id')
   @ApiOkResponse({ type: ItemDto })
-  @ApiProblem(400, 'validation_error')
+  @ApiProblem(400, 'validation_error', 'invalid_move', 'max_depth_exceeded')
   @ApiProblem(401, 'unauthenticated')
   @ApiProblem(404, 'not_found')
   update(
@@ -50,7 +50,7 @@ export class ItemsController {
     @Body() body: UpdateItemDto,
     @CurrentUserId() userId: string,
   ): Promise<ItemDto> {
-    return this.items.rename(userId, id, body.name);
+    return this.items.update(userId, id, body);
   }
 
   @Get(':id/children')

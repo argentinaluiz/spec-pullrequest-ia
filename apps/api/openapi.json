@@ -699,7 +699,7 @@
             }
           },
           "400": {
-            "description": "validation_error",
+            "description": "validation_error, invalid_move, max_depth_exceeded",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -712,7 +712,9 @@
                     "code": {
                       "type": "string",
                       "enum": [
-                        "validation_error"
+                        "validation_error",
+                        "invalid_move",
+                        "max_depth_exceeded"
                       ]
                     }
                   }
@@ -1747,11 +1749,11 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "parentId": {
+            "type": "string"
           }
-        },
-        "required": [
-          "name"
-        ]
+        }
       },
       "ItemListDto": {
         "type": "object",

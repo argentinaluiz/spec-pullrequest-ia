@@ -1,14 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "./support/account";
+import { rowOf } from "./support/rows";
 import { seedFolder, seedRootFiles } from "./support/items";
 import { uniqueEmail } from "./support/mailpit";
-
-/** As linhas da lista, sem a do cabeçalho. */
-const rowsOf = (page: Page) =>
-  page.getByRole("table").getByRole("row").filter({ has: page.getByRole("cell") });
-
-/** A linha do item de nome `name`. */
-const rowOf = (page: Page, name: string) => rowsOf(page).filter({ hasText: name });
 
 /** Abre o diálogo de renomear a partir do menu "Mais ações" da linha. */
 async function openRename(page: Page, name: string) {
@@ -111,11 +105,11 @@ test(
     await page.reload();
 
     await rowOf(page, "Fotos").getByRole("button", { name: "Mais ações" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Renomear"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Renomear", "Mover para…"]);
     await page.keyboard.press("Escape");
 
     await rowOf(page, "relatorio.txt").getByRole("button", { name: "Mais ações" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Baixar", "Renomear"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Baixar", "Renomear", "Mover para…"]);
     await expect(page.getByRole("menuitem", { name: "Excluir" })).toHaveCount(0);
   },
 );
