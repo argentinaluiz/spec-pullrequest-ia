@@ -15,9 +15,9 @@
 # ponto que não existe ou com o contêiner fora do ar.
 
 set -uo pipefail
-cd "$(dirname "$0")/../../../.." || exit 2
+cd "$(dirname "$0")/.." || exit 2
 # shellcheck source=contract-lib.sh
-source .claude/skills/contrato/scripts/contract-lib.sh
+source scripts/contract-lib.sh
 
 abort() {
   printf '\nNÃO MONTADO: %s\n' "$1" >&2

@@ -1,10 +1,10 @@
 # Grupo de verificação da API. Quem chama estas funções é o verify.sh, que define os
 # auxiliares (`step`, `in_container`, `node_in_api`, `require_container`, `check_report`). O contrato (o snapshot da OpenAPI e o
-# schema do Prisma, a imagem do oasdiff e as funções que o comparam) é da skill contrato, que este grupo carrega: a visão e o
+# schema do Prisma, a imagem do oasdiff e as funções que o comparam) é da pasta de scripts da raiz (scripts/contract-lib.sh), que este grupo carrega: a visão e o
 # desvio do plano são comandos dela, e a verificação os chama de lá.
 
-# shellcheck source=../../../contrato/scripts/contract-lib.sh
-source .claude/skills/contrato/scripts/contract-lib.sh
+# shellcheck source=../../../../scripts/contract-lib.sh
+source scripts/contract-lib.sh
 
 # Relatórios que o aceite confere, no formato
 # <vitest|playwright>:<relatório, na pasta do projeto>

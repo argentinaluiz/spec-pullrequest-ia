@@ -17,9 +17,9 @@
 # Sai com 0, com ou sem desvio e mesmo quando a visão não pôde ser montada, e com 2 no uso errado.
 
 set -uo pipefail
-cd "$(dirname "$0")/../../../.." || exit 2
+cd "$(dirname "$0")/.." || exit 2
 # shellcheck source=contract-lib.sh
-source .claude/skills/contrato/scripts/contract-lib.sh
+source scripts/contract-lib.sh
 
 if [[ $# -ne 3 || -z "$1" || -z "$3" ]]; then
   echo 'Uso: contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>' >&2

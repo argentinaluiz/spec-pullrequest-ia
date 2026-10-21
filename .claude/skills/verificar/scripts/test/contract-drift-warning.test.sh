@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Teste do aviso de desvio do contrato do modo completo (a função `contract_drift` do verify.sh): ele chama o comando do desvio
-# da skill contrato, uma vez, e continua só avisando. O modo completo inteiro é pesado demais para o teste, então ele tira a
+# do contrato da raiz, uma vez, e continua só avisando. O modo completo inteiro é pesado demais para o teste, então ele tira a
 # função do verify.sh e a roda sozinha, com o que ela pede aos vizinhos trocado (a seção "Aceite" do corpo do PR e o commit de
 # plano) e o comando do desvio trocado por um falso, que registra a chamada. O script dos insumos da revisão recebe o mesmo comando
 # por opção, e o teste dele (review-inputs.test.sh, da skill revisao-conformidade) o troca por um falso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
@@ -60,9 +60,9 @@ FAKE_EXIT=1 warn ""
 check "$name: quando o comando falha, devolve 0 mesmo assim e diz que o desvio não foi conferido" \
   bash -c '[[ $1 -eq 0 && $2 == *"falhou, e o desvio não foi conferido"* ]]' _ "$code" "$out"
 
-# Quem chama é o comando do /contrato, e só ele: o verify.sh o declara, e as apps não têm mais a função.
-check "$name: o verify.sh declara o comando do desvio da skill contrato" \
-  grep -qx 'CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh' "$VERIFY"
+# Quem chama é o comando do contrato da raiz, e só ele: o verify.sh o declara, e as apps não têm mais a função.
+check "$name: o verify.sh declara o comando do desvio do contrato da raiz" \
+  grep -qx 'CONTRACT_DRIFT=scripts/contract-drift.sh' "$VERIFY"
 check "$name: nenhuma app declara mais uma função de desvio" \
   bash -c '! grep -rq "_contract_drift" "$1"/verify.sh "$1"/verify/' _ "$ROOT/.claude/skills/verificar/scripts"
 

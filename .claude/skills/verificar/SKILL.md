@@ -18,7 +18,7 @@ The skill of this project that holds what depends on its stack in the verificati
 - `hooks/`: the hook of the end of the turn (`stop-verify.sh`), the one that records the touched files (`record-touched.sh`) and the one before the command (`push-verify.sh`: the approval of the push, the unlock, the CI variables and the `full` in a subagent). They are configured in `.claude/settings.json`.
 - Each piece has its tests next to it, in `scripts/test/` and `hooks/test/`.
 
-What belongs to other skills, and the verification calls from there: the view and the drift of the contract (`/contrato`) and the checker of the acceptance (`/plan-ticket`). The Node in the container is `scripts/node-in-api.sh`, in the root `scripts/` folder, which no skill owns. The base (`.claude/skills/worktree/scripts/harness-base.sh`) belongs to `/worktree`, and the verification loads it from there.
+What belongs to other skills, and the verification calls from there: the checker of the acceptance (`/plan-ticket`). The Node in the container (`scripts/node-in-api.sh`), the view and the drift of the contract (`scripts/contract-view.sh` and `scripts/contract-drift.sh`) are in the root `scripts/` folder, which no skill owns. The base (`.claude/skills/worktree/scripts/harness-base.sh`) belongs to `/worktree`, and the verification loads it from there.
 
 ## The list of protected files
 

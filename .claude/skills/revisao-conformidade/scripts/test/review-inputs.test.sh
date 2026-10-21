@@ -29,7 +29,7 @@ SK=.claude/skills/revisao-conformidade
 mkdir -p "$repo/$SK/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
 cp "$HERE/../review-inputs.sh" "$repo/$SK/scripts/"
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$repo/.gitignore"
-# O comando do desvio do contrato, falso, chamado como o do /contrato: <commit de plano> <para, ou vazio> <arquivo do desvio>.
+# O comando do desvio do contrato, falso, chamado como o do contrato da raiz: <commit de plano> <para, ou vazio> <arquivo do desvio>.
 # Com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e avisa); sem ela, diz que o contrato está
 # igual, sem gravar nada; com FAKE_DRIFT_FAIL, não consegue conferir.
 cat >"$tmp/desvio" <<'EOF'

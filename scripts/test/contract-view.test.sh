@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 #
-# Teste do comando da visão do contrato (.claude/skills/contrato/scripts/contract-view.sh): o comando roda numa cópia da skill num repositório
+# Teste do comando da visão do contrato (scripts/contract-view.sh): o comando roda numa cópia da skill num repositório
 # temporário, com o `docker` trocado por um falso (o oasdiff e o Node no contêiner respondem o que o caso combinou), então
 # nenhum contêiner entra no caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
-mkdir -p "$tmp/bin" "$repo/scripts" "$repo/.claude/skills" "$repo/apps/api/prisma"
-cp -R "$ROOT/.claude/skills/contrato" "$repo/.claude/skills/"
-rm -rf "$repo/.claude/skills/contrato/scripts/test"
-cp "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
+mkdir -p "$tmp/bin" "$repo/scripts" "$repo/apps/api/prisma"
+cp "$ROOT"/scripts/contract-*.sh "$ROOT/scripts/contract-view.cjs" "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
 
 # O `docker` falso: o oasdiff (`run`) responde o changelog; o Node no contêiner (`compose ... exec ... node`) grava a entrada
 # que recebeu e imprime o Markdown de mentira; `exec api true` diz se o contêiner está no ar (FAKE_UP).
@@ -50,7 +48,7 @@ printf 'model A {}\nmodel B {}\n' >"$repo/apps/api/prisma/schema.prisma"
 
 # view <argumentos...>: roda o comando no repositório temporário; deixa a saída em $out e o código em $code.
 view() {
-  out="$(cd "$repo" && .claude/skills/contrato/scripts/contract-view.sh "$@" 2>&1)"
+  out="$(cd "$repo" && scripts/contract-view.sh "$@" 2>&1)"
   code=$?
 }
 

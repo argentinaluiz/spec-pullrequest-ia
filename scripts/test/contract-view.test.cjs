@@ -8,8 +8,8 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const { render } = require('../contract-view.cjs');
-const { build } = require('../../../plan-ticket/scripts/page.cjs');
-const { panel, snapshot } = require('./helpers.cjs');
+const { build } = require('../../.claude/skills/plan-ticket/scripts/page.cjs');
+const { panel, snapshot } = require('./contract-helpers.cjs');
 
 const PROBLEM = { $ref: '#/components/schemas/ProblemDetailsDto' };
 

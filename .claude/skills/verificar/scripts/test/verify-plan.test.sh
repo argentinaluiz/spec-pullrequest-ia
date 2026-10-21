@@ -2,7 +2,7 @@
 #
 # Testes dos argumentos do modo `plan` do verify.sh: a ordem antiga (`plan <ticket> [<commit>]`)
 # é recusada com a ordem nova (`plan <pai> <ticket> [<commit>]`) e um exemplo, e o atalho que passa os
-# valores do projeto ao script da página (o Node e a visão do contrato, das skills ambiente e contrato). Os casos
+# valores do projeto ao script da página (o Node e a visão do contrato, da pasta de scripts da raiz). Os casos
 # recusados rodam no repositório, porque param antes de chamar a página do plano; o do atalho roda numa cópia da
 # verificação num repositório temporário, com o script da página trocado por um falso, que registra os argumentos.
 # Rodam na máquina, como o verify.sh.
@@ -45,12 +45,12 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
 SK=.claude/skills
-mkdir -p "$repo/scripts" "$repo/$SK/verificar/scripts" "$repo/$SK/proteger-harness/scripts" "$repo/$SK/contrato/scripts" "$repo/$SK/plan-ticket/scripts" "$repo/docs/tickets"
+mkdir -p "$repo/scripts" "$repo/$SK/verificar/scripts" "$repo/$SK/proteger-harness/scripts" "$repo/$SK/plan-ticket/scripts" "$repo/docs/tickets"
 cp -R "$ROOT/$SK/verificar/scripts/verify.sh" "$ROOT/$SK/verificar/scripts/verify" "$ROOT/$SK/verificar/scripts/full-lock.sh" \
   "$ROOT/$SK/verificar/scripts/full-semaphore.sh" "$ROOT/$SK/verificar/scripts/git-mount.sh" "$repo/$SK/verificar/scripts/"
 mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
 cp "$ROOT/$SK/proteger-harness/scripts/harness-dir.sh" "$repo/$SK/proteger-harness/scripts/"
-cp "$ROOT/$SK/contrato/scripts/contract-lib.sh" "$repo/$SK/contrato/scripts/"
+cp "$ROOT/scripts/contract-lib.sh" "$repo/scripts/"
 cat >"$repo/$SK/plan-ticket/scripts/plan-page.sh" <<'FAKE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >"$FAKE_ARGS"
@@ -62,9 +62,9 @@ FAKE_ARGS="$tmp/args" env -u CLAUDE_PROJECT_DIR bash -c 'cd "$1" && .claude/skil
 args="$(cat "$tmp/args" 2>/dev/null)"
 name="o atalho plan passa à página o Node e a visão do contrato das skills novas @LUI-197-CA1"
 check "$name: o comando do Node é o script da raiz" bash -c '[[ $1 == *"--node scripts/node-in-api.sh"* ]]' _ "$args"
-check "$name: o comando do contrato é a visão da skill contrato" bash -c '[[ $1 == *"--contrato .claude/skills/contrato/scripts/contract-view.sh"* ]]' _ "$args"
+check "$name: o comando do contrato é a visão da pasta de scripts da raiz" bash -c '[[ $1 == *"--contrato scripts/contract-view.sh"* ]]' _ "$args"
 check "$name: os arquivos do contrato e o commit seguem" \
   bash -c '[[ $1 == *"--contrato-arquivos apps/api/openapi.json apps/api/prisma/schema.prisma"* && $1 == *"--commit abc1234"* ]]' _ "$args"
-check "$name: o Node e o contrato apontados existem" test -x "$ROOT/scripts/node-in-api.sh" -a -x "$ROOT/$SK/contrato/scripts/contract-view.sh"
+check "$name: o Node e o contrato apontados existem" test -x "$ROOT/scripts/node-in-api.sh" -a -x "$ROOT/scripts/contract-view.sh"
 
 finish "do modo plan do verify.sh"

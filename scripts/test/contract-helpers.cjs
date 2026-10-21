@@ -3,7 +3,7 @@
 
 // A leitura de um painel da página é a da skill de plano, que o renderizador do contrato usa (uma skill do projeto
 // pode carregar uma genérica).
-const { panel } = require('../../../plan-ticket/scripts/test/helpers.cjs');
+const { panel } = require('../../.claude/skills/plan-ticket/scripts/test/helpers.cjs');
 
 /** Um snapshot da OpenAPI com as rotas dadas, o esquema `bearer`, o problema e o `MeDto`. */
 function snapshot(paths, schemas = {}) {
