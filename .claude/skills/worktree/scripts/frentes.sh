@@ -122,9 +122,13 @@ load_config() {
   value="$(git config --file "$file" --get frentes.ambiente)"
   if [[ -n "$value" ]]; then
     [[ "$value" == /* ]] || value="$root/$value"
+    [[ -x "$value" && -f "$value" ]] || die "O comando de ambiente \`$value\` (frentes.ambiente de \`$file\`) não existe ou não é executável."
     AMBIENTE="$value"
   fi
   mapfile -t CONVERGENCE < <(git config --file "$file" --get-regexp '^convergencia\.')
+  for value in "${CONVERGENCE[@]}"; do
+    [[ "$value" == *" "* ]] || die "A chave \`$value\` de \`$file\` está sem padrão: a linha é \`<tipo> = <padrão>\`."
+  done
 }
 
 # O ticket PREFIXO-N em minúsculas (lui-186), no TICKET_KEY. Sai com o uso se o formato não vale.

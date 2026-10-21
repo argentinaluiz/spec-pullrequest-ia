@@ -269,7 +269,7 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
 
 - **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
-- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, `/ambiente` (o Docker Compose, o Node no contêiner e os pontos de convergência) e `/contrato` (a visão e o desvio do contrato), e as que nascem nos próximos tickets da LUI-193.
+- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, `/ambiente` (o Docker Compose, o Node no contêiner e o ambiente por slot de uma frente) e `/contrato` (a visão e o desvio do contrato), e as que nascem nos próximos tickets da LUI-193.
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 

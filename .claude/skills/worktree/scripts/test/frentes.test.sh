@@ -452,6 +452,15 @@ invalid_input() {
   config limite=tres
   frentes "$repo" listar
   [[ $code -ne 0 ]] && contains "frentes.limite" && contains "número inteiro" || return 1
+  # Um comando de ambiente que não existe, e um ponto de convergência sem padrão, são recusados na leitura da configuração,
+  # antes de criar qualquer coisa.
+  config ambiente="$work/nao-existe"
+  frentes "$repo" novo LUI-1
+  [[ $code -ne 0 ]] && contains "frentes.ambiente" && contains "nao-existe" && [[ ! -e "$work/invalidas/principal-lui-1" ]] || return 1
+  printf '[convergencia]\n\tgerado\n' >"$work/sem-padrao.conf"
+  OPTS=(--config "$work/sem-padrao.conf")
+  frentes "$repo" listar
+  [[ $code -ne 0 ]] && contains "convergencia.gerado" && contains "sem padrão" || return 1
   OPTS=()
   # O remover recusa um ticket a mais e uma opção que não conhece, em vez de escolher um deles.
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
