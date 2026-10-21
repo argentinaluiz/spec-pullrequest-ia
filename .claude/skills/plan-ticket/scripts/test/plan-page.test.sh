@@ -85,4 +85,31 @@ printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/
 plan --pai PROJ-1 --ticket PROJ-2
 check "o script monta a página quando o aceite e o mapa de testes são versionados" test $code -eq 0
 
+# As mensagens de erro são de uma skill genérica: falam do arquivo de instruções do agente do projeto, e não
+# do nome que este projeto dá a ele.
+lacks() {
+  [[ "$err" != *"$1"* ]]
+}
+fail_cmd="$project/fail-cmd.sh"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$fail_cmd"
+chmod +x "$fail_cmd"
+
+err="$(cd "$project" && "$SCRIPT" --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
+code=$?
+check "recusa a chamada sem os valores do projeto" test $code -eq 2
+check "a mensagem aponta para a lista dos valores das skills" contains 'Valores das skills do ticket'
+check "a mensagem de um valor que falta não cita o nome do arquivo do projeto" lacks "AGENTS.md"
+
+err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fake_node" --contrato "$fail_cmd" --contrato-arquivos x --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
+code=$?
+check "recusa o comando do contrato que falha" test $code -eq 1
+check "a mensagem diz que o comando do contrato falhou" contains 'falhou'
+check "a mensagem do comando do contrato que falha não cita o nome do arquivo do projeto" lacks "AGENTS.md"
+
+err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fail_cmd" --contrato nenhum --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
+code=$?
+check "recusa o comando do Node que falha" test $code -eq 1
+check "a mensagem diz que a página não pôde ser montada" contains 'não pôde ser montada'
+check "a mensagem do comando do Node que falha não cita o nome do arquivo do projeto" lacks "AGENTS.md"
+
 finish "do script da página do plano"
