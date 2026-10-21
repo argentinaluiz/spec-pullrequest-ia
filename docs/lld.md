@@ -649,6 +649,7 @@ A retenção da lixeira, o prazo de upload pendente, a validade dos tokens, a to
 
 - **Fórmula:** a porta de hoje mais slot × 10, para a web, a API, o storage e os e-mails. Os endereços entre contêineres não mudam, com uma exceção: o emulador de storage escuta, dentro do contêiner, na porta do slot, e por isso o endereço dele entre contêineres segue o slot (`STORAGE_EMULATOR_HOST`).
 - **Dono:** este documento decide os nomes e a fórmula. Quem grava o `.env` (o script de frentes, ou a pessoa à mão) só os segue.
+- **Cookies entre slots:** o navegador não separa os cookies por porta, então dois slots no mesmo navegador dividem os de `localhost`: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente.
 - **Sem padrão na passagem:** as variáveis da API e do `playwright` abaixo não têm valor padrão no Compose: sem o `.env`, elas não existem no ambiente do serviço, e a API usa o `apps/api/.env`, como hoje. Um padrão no Compose as faria existir no slot 0, e a configuração resolvida deixaria de ser igual à de antes do slot.
 
 | Variável do `.env` | Slot 0 (padrão do Compose) | Slot 1 | Quem lê |

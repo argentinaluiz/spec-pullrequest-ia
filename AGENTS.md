@@ -46,7 +46,7 @@ O ambiente de desenvolvimento usa o `compose.dev.yaml`, na raiz, com seis servi�
 | `mailpit` | Captura os e-mails enviados e os mostra numa tela | `http://localhost:8025` | SMTP em `mailpit:1025` e API HTTP em `http://mailpit:8025` |
 | `playwright` | Navegadores dos testes da web | Não é publicado | Não recebe conexões |
 
-A tabela é a do slot 0, o de um checkout sem `.env` na raiz. As portas e os endereços de um slot de 1 a 3 estão no `docs/lld.md`, seção 6, "Ambiente local por slot".
+A tabela é a do slot 0, o de um checkout sem `.env` na raiz. As portas e os endereços dos outros slots estão no `docs/lld.md`, seção 6, "Ambiente local por slot".
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
@@ -107,21 +107,21 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 ## Frentes paralelas
 
-Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando não está na branch principal (a `main`), e isso inclui o HEAD solto, que não é estado de repouso; o limite é de 3 frentes ao todo. Em repouso, o principal fica na branch principal, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
+Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker". As outras são worktrees em pastas irmãs, abertas com `cd` e o Claude Code, cada uma com um slot que dá a ela um bloco próprio de portas. O limite de frentes ao todo está em `.config/worktree` (`frentes.limite`).
 
-Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos: `novo`, `listar`, `remover`, `abrir` e `sincronizar`. Os três primeiros também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh`.
+O principal conta como frente quando não está na `main`, e o HEAD solto também conta, porque não é estado de repouso. Em repouso, ele fica na `main`, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
-- **Criar:** `/worktree novo <ticket> [tipo]` (no terminal, `.claude/skills/worktree/scripts/frentes.sh novo <ticket> [tipo]`) cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
-- **Listar:** `/worktree listar` (no terminal, `.claude/skills/worktree/scripts/frentes.sh listar`) mostra o slot, a branch, as portas e o estado do PR de cada frente.
-- **Remover:** `/worktree remover <ticket>` (no terminal, `.claude/skills/worktree/scripts/frentes.sh remover <ticket>`) desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
+Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos. Os três primeiros também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh <modo>`.
 
-**Abrir as frentes de uma spec:** use o `/worktree abrir` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
+- **`novo <ticket> [tipo]`:** cria a frente de um ticket.
+- **`listar`:** mostra as frentes abertas.
+- **`remover <ticket>`:** desmonta a frente depois do merge do PR. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
+- **`abrir <spec>`:** cria uma frente por ticket pronto da spec. A sessão de cada frente é aberta pelo usuário, na pasta dela.
+- **`sincronizar`:** traz a `main` para a frente, quando o PR fica desatualizado em relação a ela (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual.
 
-**Trazer a `main` para a frente:** use o `/worktree sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
+As regras de cada comando estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do `scripts/frente-ambiente.sh`; o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
-O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"). As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente (`scripts/frente-ambiente.sh`), e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
-
-**Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente, um perfil por slot.
+**Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, abra cada slot num perfil diferente (o porquê está em `docs/lld.md`, seção 6, "Ambiente local por slot").
 
 ## Princípios de trabalho
 
