@@ -118,7 +118,7 @@ test(
     await signIn(page, email);
     const alpha = await seedFolder(email, "Alfa");
     await seedFolder(email, "Beta", alpha);
-    await seedRootFiles(email, [{ name: "relatorio.txt" }]);
+    await seedRootFiles(email, [{ name: "relatorio.txt" }, { name: "outro.txt" }]);
     await page.reload();
     const trigger = rowOf(page, "relatorio.txt").getByRole("button", { name: "Mais ações" });
     const download = page.getByRole("menuitem", { name: "Baixar" });
@@ -148,10 +148,11 @@ test(
     await expect(page.getByRole("status")).toContainText("Movido para “Alfa”.");
     await expect(rowOf(page, "relatorio.txt")).toHaveCount(0);
 
-    await openMove(page, "Alfa");
+    const second = await openMove(page, "outro.txt");
+    await second.getByRole("button", { name: "Alfa" }).click();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(rowOf(page, "Alfa")).toHaveCount(1);
+    await expect(rowOf(page, "outro.txt")).toHaveCount(1);
   },
 );
 

@@ -104,13 +104,16 @@ describe('Mover Itens', () => {
           { name: 'relatorio.txt', updatedAt: longAgo },
         ]);
 
-        for (const id of [folderId, fileId]) {
+        for (const [id, name] of [
+          [folderId, 'Fotos'],
+          [fileId, 'relatorio.txt'],
+        ]) {
           const response = await items
             .move(id, accessToken, target)
             .expect(200);
 
           const body = response.body as ItemBody;
-          expect(body.id).toBe(id);
+          expect(body).toMatchObject({ id, name });
           expect(new Date(body.updatedAt).getTime()).toBeGreaterThan(
             longAgo.getTime(),
           );
