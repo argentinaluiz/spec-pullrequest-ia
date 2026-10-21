@@ -9,8 +9,8 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 FINDER="$ROOT/.claude/skills/verificar/scripts/verify/skill-tests.sh"
 RUNNER="$ROOT/.claude/skills/verificar/scripts/test/shell-tests.sh"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor dos testes em shell precisa dele."; exit 2; }
 

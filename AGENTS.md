@@ -14,6 +14,8 @@ Cada projeto tem o próprio `AGENTS.md`, com os comandos, as particularidades da
 - `apps/api/AGENTS.md`: API em NestJS.
 - `apps/web/AGENTS.md`: frontend em Next.js.
 
+Na raiz, o `REVIEW.md` diz o que a revisão de um pull request confere. Ele é lido pelo revisor de conformidade, pelo Copilot e pelo Claude Code Review.
+
 **Onde cada informação mora**
 
 - **O que o sistema faz** fica em `docs/`: escopo, arquitetura, esquema, contrato, regras de negócio e configuração.
@@ -107,13 +109,7 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 ## Frentes paralelas
 
-Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker". As outras são worktrees em pastas irmãs, abertas com `cd` e o Claude Code, cada uma com um slot que dá a ela um bloco próprio de portas. O limite de frentes ao todo está em `.config/project` (`frentes.limite`).
-
-O principal conta como frente quando não está na `main`, e o HEAD solto também conta, porque não é estado de repouso. Em repouso, ele fica na `main`, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
-
-Tudo o que diz respeito às frentes passa pelo `/worktree`. Os modos `novo`, `listar` e `remover` também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh <modo>`. O `--forcar` do `remover` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
-
-As regras de cada comando estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do `scripts/frente-ambiente.sh`; o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+Cada ticket pode correr numa frente, com o próprio checkout, a própria sessão e o próprio PR (a `/worktree` cuida delas). Neste projeto, cada frente tem também o próprio ambiente Docker, num slot que dá a ela um bloco próprio de portas: o checkout principal é o slot 0, com as portas da tabela de "Execução no Docker". O `.env` do slot, as portas e o Compose estão no cabeçalho do `scripts/frente-ambiente.sh`, e o contrato das variáveis do `.env`, na LLD.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, abra cada slot num perfil diferente (o porquê está em `docs/lld.md`, seção 6, "Ambiente local por slot").
 
@@ -146,7 +142,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `verify.sh fast`.
-- **O `full` roda uma vez, no fim da tarefa,** depois das revisões (a ordem está em "Revisão de conformidade"). Quem o roda é quem fecha a tarefa: no fluxo de ticket, a sessão do ticket, na frente, e nunca um subagente. Quem recebeu a tarefa de outro agente (implementar, corrigir achados, revisar) termina com os testes do que mudou e devolve o resultado, dizendo o que rodou. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
+- **O `full` roda uma vez, no fim da tarefa,** e quem o roda é quem fecha a tarefa, nunca um subagente (um hook o nega). Quem recebeu a tarefa de outro agente (implementar, corrigir achados, revisar) termina com os testes do que mudou e devolve o resultado, dizendo o que rodou. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
 - **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
 - **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
@@ -171,12 +167,6 @@ A CI confere, em todos os arquivos de aceite de `docs/tickets/` e não só no do
 
 **Critério sem teste:** escreva o teste, com o ID numa tag (formato em `.claude/skills/plan-ticket/formatos/aceite.md`, seção "Teste de aceite"). Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
-**Revisão de conformidade**
-
-Quem escreveu o código não é quem o confere. Toda mudança que altera o código que pede revisão (as chaves `revisao.sempre` e `revisao.com-aceite` do `.config/project`) passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
-
-No fluxo do ticket, a ordem é: implementação, commit, `/worktree sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão vem depois da sincronização e das outras revisões para ver o resultado do merge, e antes do `full` para as correções entrarem na única verificação completa. Ela não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. O passo a passo está na skill `revisao-conformidade`.
-
 ## Issues e tickets no Linear
 
 O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `linear-server`. Specs e tickets vivem lá, e não em arquivos do repositório.
@@ -188,54 +178,26 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 **Da funcionalidade ao ticket**
 
-1. **Planejamento:** as decisões são fechadas com o usuário e registradas no documento dono delas (ver "Onde cada informação mora"), antes da spec.
-2. **Spec:** uma issue por funcionalidade, com o problema, a solução, as histórias de usuário, as decisões de implementação e de teste e o que fica fora de escopo.
-3. **Tickets:** sub-issues da spec. Cada ticket é uma fatia vertical, que atravessa banco, API, interface e testes e pode ser verificada sozinha. Tickets de preparação (ambiente, base de componentes) são a exceção e vêm primeiro. Um ticket de acabamento de uma spec já concluída também nasce como sub-issue dela: não há ticket sem pai.
-4. **Bloqueios:** as dependências entre tickets são a relação nativa do Linear ("blocked by"), e não texto na descrição.
+As decisões de uma funcionalidade são fechadas com o usuário e registradas no documento dono delas (ver "Onde cada informação mora") antes da spec. Cada funcionalidade é uma spec no Linear, e os tickets são sub-issues dela, inclusive o de acabamento de uma spec já concluída: não há ticket sem pai. As dependências entre tickets são a relação nativa do Linear ("blocked by"), e não texto na descrição.
 
 **Regras de escrita**
 
 - Specs e tickets são escritos em português, com o vocabulário do `GLOSSARY.md`.
 - Não cite caminhos de arquivo nem trechos de código: eles envelhecem rápido. Cite documentos e módulos pelo nome.
-- Todo ticket traz critérios de aceite verificáveis. Cada critério leva um ID `CA<n>` e uma marca de conferência, como descrito em [Plano do ticket](#plano-do-ticket).
+- Todo ticket traz critérios de aceite verificáveis. Cada critério leva um ID `CA<n>` e uma marca de conferência, no formato da `/plan-ticket`.
 
 **Ao trabalhar em um ticket**
 
-- Pegue só tickets cujos bloqueios já foram concluídos.
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
 - Use o identificador da issue no nome da branch.
-- Mova a issue para "In Progress" ao começar o planejamento. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
-- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". Um PR em rascunho, que só o usuário abre à mão, deixa a issue em "In Progress". Os tickets sem PR, como os de design, ficam com o "Done" manual.
+- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`", com todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passando. Um PR em rascunho, que só o usuário abre à mão, deixa a issue em "In Progress". Os tickets sem PR, como os de design, ficam com o "Done" manual.
 - Não feche nem edite a spec pai ao concluir um ticket.
-- Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa. O ID e a marca de um critério nunca mudam; o texto dele só é corrigido, se ficou factualmente desatualizado, com a aprovação do usuário no plano.
-- **Pare e pergunte** diante de uma decisão que não está no ticket nem no plano e que outro ticket em andamento também tomaria, ou diante de mudar algo que outro ticket em andamento usa. Decidir sozinho é como dois tickets paralelos passam nos próprios testes e quebram na integração. As decisões que o ticket consome de outros, e o dono de cada uma, estão na seção "Decisões de outros tickets" dele.
+- Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa.
 
-### Plano do ticket
+### Plano do ticket neste projeto
 
-Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado.
-
-1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit: o commit de plano só vem depois que o usuário aprova a página de revisão que ela apresenta. O passo a passo está na skill.
-2. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
-
-**Os formatos são da skill.** Os do plano (o critério, o arquivo de aceite, a tag do ID no teste, a mensagem do commit de plano e o contrato de rota e de tabela) estão em `.claude/skills/plan-ticket/formatos/`. Siga-os; aqui fica só o que é deste projeto.
-
-**Neste projeto**
-
-- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
-- **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook da skill de plano (`.claude/skills/plan-ticket/hooks/freeze-acceptance.sh`) nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda. O mapa de testes do ticket não é congelado.
-- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os relatórios JSON do Vitest e do Playwright trazem as tags de cada teste; o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor. Um teste de skill de uso geral não leva o ID de um critério deste projeto: a ligação dele com o critério vai para o mapa de testes do ticket, como diz a `/plan-ticket`. Os testes em shell do harness também provam critério; como nomear o caso está no cabeçalho de `.claude/skills/verificar/scripts/test/sh-helpers.sh`.
-
-## Skills do ticket
-
-O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement`, `tdd` e a `/verificar`, que guarda o que depende da stack daqui.
-
-**Configuração do projeto.** O que uma skill precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. O que o arquivo não declara vale o padrão da skill. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
-
-**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`); um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
-
-**Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
-
-**Proteção.** O texto de uma skill (o `SKILL.md`, os formatos, o modelo do revisor) é livre: este arquivo vale mais que qualquer skill, e as regras e os comandos de entrada ficam aqui. O mecanismo dela, ou seja, os scripts e os hooks, é protegido (ver "Arquivos do harness", em "Convenções de Git").
+- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da `/plan-ticket` se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
+- **Cobertura:** o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID de um critério é o conferidor do aceite. Os testes em shell deste projeto também provam critério, pelo token do ID no nome do caso, como diz o cabeçalho dos auxiliares deles (`.claude/skills/plan-ticket/scripts/test/helpers.sh`).
 
 ## Convenções de Git
 

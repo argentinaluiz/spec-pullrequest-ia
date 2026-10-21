@@ -17,10 +17,6 @@
 #   verify.sh prepush                              a varredura de segredos, e a conferência de que o
 #                                                  modo completo aprovou o que está no último commit
 #   verify.sh apps                                 as apps registradas, uma por linha
-#   verify.sh plan <pai> <ticket> [<commit>]
-#                                                  atalho para o plan-page.sh da skill de plano, com
-#                                                  os valores deste projeto; <pai> é a issue pai do
-#                                                  ticket, a pasta dele em docs/tickets
 #
 # Roda tudo nos contêineres do compose.dev.yaml, que já têm de estar no ar. Na suíte no navegador,
 # a web e a API também têm de estar respondendo; o `--start-apps` as sobe, e é para a CI.
@@ -60,14 +56,15 @@ GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # usam, vem do .claude/skills/worktree/scripts/harness-base.sh, o mesmo que o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh) carrega.
 # shellcheck source=../../worktree/scripts/harness-base.sh
 source .claude/skills/worktree/scripts/harness-base.sh
+# O commit que criou um arquivo (`added_by`), que acha o commit de plano, é da skill de plano.
+# shellcheck source=../../plan-ticket/scripts/plan-git.sh
+source .claude/skills/plan-ticket/scripts/plan-git.sh
 # O fim da branch, para o desvio do plano. Na CI de um pull request, a pasta de trabalho é o merge da
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
-# A página do plano, que o atalho `plan` monta, é da skill de plano, e o desvio do contrato, o único dono da comparação com o
-# commit de plano, é um comando da pasta de scripts da raiz: acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
-# No contêiner `api`, os scripts das skills ficam no mesmo caminho, dentro do repositório montado em /repo.
-PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
+# O desvio do contrato, o único dono da comparação com o commit de plano, é um comando da pasta de scripts da raiz:
+# acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
 CONTRACT_DRIFT=scripts/contract-drift.sh
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
@@ -272,20 +269,10 @@ cited_acceptance() {
   require_body && node_in_api .claude/skills/plan-ticket/scripts/check-acceptance.cjs --cited - "$TICKETS_DIR" <"${ACCEPTANCE_BODY_FILE:-/dev/null}"
 }
 
-# O commit mais recente de <commits> (um intervalo ou um ponto, como no `git log`) que criou o
-# <arquivo>. O `--follow` segue o arquivo pelas renomeações: o commit que só o moveu (como o que levou
-# os arquivos de aceite de docs/aceite/ para a pasta de cada ticket) não conta como o que o criou. Não
-# imprime nada quando nenhum o criou, e falha quando o `git log` não lê o histórico.
-# added_by <commits> <arquivo>
-added_by() {
-  local commits
-  commits="$(git log --follow --diff-filter=A --format=%H "$1" -- "$2")" || return 1
-  printf '%s' "${commits%%$'\n'*}"
-}
-
-# O commit de plano: o mais recente da branch que criou o arquivo de aceite, que é o plano em
-# vigor. Não imprime nada quando nenhum commit da branch o criou (um ticket antigo, ou o plano ainda
-# sem commit). Falha quando o `git log` não lê o histórico da branch.
+# O commit de plano: o mais recente da branch que criou o arquivo de aceite (o `added_by` da skill de plano), que é
+# o plano em vigor. O `--follow` dele faz o commit que só moveu o aceite (como o que levou os arquivos de docs/aceite/
+# para a pasta de cada ticket) não contar. Não imprime nada quando nenhum commit da branch o criou (um ticket antigo, ou
+# o plano ainda sem commit). Falha quando o `git log` não lê o histórico da branch.
 # plan_commit <arquivo de aceite>
 plan_commit() {
   added_by "$BASE_REF..${HEAD_REF:-HEAD}" "$1"
@@ -463,24 +450,6 @@ run_full() {
     secret_scan
 }
 
-# O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
-# valores é o .config/project (as chaves tickets.*, node.comando e contrato.*); o atalho só os passa, e a chave
-# que falta vale o padrão da skill de plano. A lógica e as mensagens são do script.
-# run_plan <pai> <ticket> [<commit>]
-run_plan() {
-  local documents files
-  local args=(
-    --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR"
-    --node "$(config_value node.comando node)" --contrato "$(config_value contrato.comando nenhum)"
-  )
-  documents="$(config_value tickets.documentos)"
-  [[ -n "$documents" ]] && args+=(--documentos "$documents")
-  files="$(config_value contrato.arquivos)"
-  [[ -n "$files" ]] && args+=(--contrato-arquivos "$files")
-  [[ -n "${3:-}" ]] && args+=(--commit "$3")
-  "$PLAN_SKILL_SCRIPTS/plan-page.sh" "${args[@]}"
-}
-
 mode="${1:-}"
 [[ $# -gt 0 ]] && shift
 
@@ -539,20 +508,6 @@ case "$mode" in
     [[ $# -eq 0 ]] || usage
     printf '%s\n' "${APPS[@]}"
     exit 0
-    ;;
-  plan)
-    # A página não é verificação: não aprova nada.
-    plan_example='.claude/skills/verificar/scripts/verify.sh plan PROJ-1 PROJ-123 [<commit>]'
-    [[ $# -ge 1 && $# -le 3 ]] || usage
-    [[ $# -ge 2 ]] ||
-      abort "falta o <pai> no \`plan\`: o comando é \`plan <pai> <ticket> [<commit>]\`, e só um argumento foi passado." \
-        "passe a issue pai e o ticket, como em \`$plan_example\`."
-    # A ordem de antes do <pai> (`plan <ticket> [<commit>]`) cai aqui: o primeiro não é issue, ou o segundo não é ticket.
-    [[ "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ && "$2" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
-      abort "os argumentos de \`plan\` não são <pai> e <ticket>: o comando agora é \`plan <pai> <ticket> [<commit>]\`, com a issue pai antes do ticket." \
-        "passe a issue pai e o ticket, os dois no formato PREFIXO-N, como em \`$plan_example\`."
-    run_plan "$@"
-    exit $?
     ;;
   *) usage ;;
 esac

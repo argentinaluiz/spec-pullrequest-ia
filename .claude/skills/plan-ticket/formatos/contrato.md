@@ -40,4 +40,4 @@ O comando do contrato do projeto é chamado como `<comando> <de> <até>`, da rai
 
 ## Projeto sem contrato
 
-Quando o projeto não tem rotas nem tabelas para planejar, ele declara o comando do contrato como `nenhum`. A página então diz, nas abas Contrato e Schema, que o projeto não declara contrato. Como definir um contrato quando o projeto não declara nenhum está no `SKILL.md`, passo 0.
+Quando o projeto não tem rotas nem tabelas para planejar, o arquivo de configuração dele não declara o comando nem os arquivos do contrato. A página então diz, nas abas Contrato e Schema, que o projeto não declara contrato, e o passo de desenho do `SKILL.md` é pulado.

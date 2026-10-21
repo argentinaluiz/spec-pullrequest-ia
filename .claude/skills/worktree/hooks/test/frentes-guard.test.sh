@@ -7,8 +7,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 HOOK="$HERE/../frentes-guard.sh"
-# shellcheck source=../../scripts/test/helpers.sh
-source "$HERE/../../scripts/test/helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 HOOK_ARGS=()
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o hook e o teste dele precisam dele."; exit 2; }
@@ -26,17 +26,17 @@ command_input() {
 
 # O `remover` com a opção de abandono, no script de frentes, é só do usuário.
 expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualquer posição" \
-  "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
+  "$(command_input 'scripts/frentes.sh remover PROJ-186 --forcar')" "só o usuário abandona uma frente"
 expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
-  "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar LUI-186'")" "só o usuário abandona uma frente"
+  "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar PROJ-186'")" "só o usuário abandona uma frente"
 expect 2 "nega a opção pelo caminho completo do núcleo, seja qual for a pasta" \
-  "$(command_input '.claude/skills/worktree/scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
+  "$(command_input '.claude/skills/worktree/scripts/frentes.sh remover PROJ-186 --forcar')" "só o usuário abandona uma frente"
 expect 0 "libera o remover sem a opção, o novo e o listar" \
-  "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
+  "$(command_input 'scripts/frentes.sh remover PROJ-186 && scripts/frentes.sh novo PROJ-187 && scripts/frentes.sh listar')"
 
 # O `frentes.sh` com as variáveis do modo de teste trocaria o `gh` e contornaria o merge do `remover`.
 expect 2 "nega o frentes.sh com o gh trocado pelo modo de teste" \
-  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso scripts/frentes.sh remover LUI-186')" "modo de teste do harness"
+  "$(command_input 'HARNESS_TEST=1 FRENTES_GH=./gh-falso scripts/frentes.sh remover PROJ-186')" "modo de teste do harness"
 expect 2 "nega a variável do modo de teste depois do script e embrulhada no bash -c" \
   "$(command_input "bash -c 'scripts/frentes.sh listar; export FRENTES_DOCKER=./x'")" "modo de teste do harness"
 expect 2 "nega a entrada ilegível que cita o frentes.sh e a opção de abandono" \
@@ -44,7 +44,7 @@ expect 2 "nega a entrada ilegível que cita o frentes.sh e a opção de abandono
 expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" \
   "$(command_input 'HARNESS_TEST=1 bash scripts/test/frentes.test.sh')"
 expect 0 "libera o frentes.sh com uma variável que não é do modo de teste" \
-  "$(command_input 'LANG=C scripts/frentes.sh novo LUI-1')"
+  "$(command_input 'LANG=C scripts/frentes.sh novo PROJ-1')"
 expect 0 "libera um comando que só cita a palavra do abandono" "$(command_input 'git commit -m "documenta o abandono"')"
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
 

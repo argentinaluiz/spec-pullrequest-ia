@@ -2,7 +2,7 @@
 
 A skill de plano é a dona deste formato. O conferidor do aceite lê o mapa com o parser da skill (`scripts/plan.cjs`, `parseTestMap`), e a `tdd` e o procedimento da `SKILL.md` o gravam.
 
-Um teste de skill de uso geral não pode levar o ID de um critério do projeto na tag (a skill é copiada para outros projetos). O mapa de testes liga o critério a esse teste de fora, e o aceite continua congelado.
+Um teste de uma skill não pode levar o ID de um critério do projeto na tag (a skill vai com os testes para outros projetos). O mapa de testes liga o critério a esse teste de fora, e o aceite continua congelado.
 
 ## Onde
 

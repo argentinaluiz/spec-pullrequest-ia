@@ -9,8 +9,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPTS="$(cd "$HERE/.." && pwd)"
-# shellcheck source=helpers.sh
-source "$HERE/helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 for tool in git jq flock; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o teste do núcleo das frentes precisa dele."; exit 2; }
@@ -65,7 +65,7 @@ export HARNESS_BASE_REF=origin/main
 cat >"$work/pontos.conf" <<'CONF'
 [convergencia]
 	gerado = apps/api/openapi.json
-	migracoes = apps/api/prisma/migrations/*
+	migracoes = apps/api/prisma/migrations/**
 	registros = apps/api/src/app.module.ts
 	documentos = docs/lld.md
 	manual = apps/api/prisma/schema.prisma
@@ -164,37 +164,37 @@ slot_of_front() {
 
 # --- O núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas ---
 git_only() {
-  local front="$work/so-git-repo/principal-lui-1" line
+  local front="$work/so-git-repo/principal-proj-1" line
   fresh so-git-repo
   # Sem Docker e sem comando de ambiente: um PATH só com o Git e o que o núcleo usa. As recusas (ticket repetido, PR aberto,
   # pasta suja, principal, Git antigo) são dos casos próprios, abaixo.
-  PATH="$work/so-git" frentes "$repo" novo LUI-1
-  [[ $code -eq 0 && "$(git -C "$front" branch --show-current)" == feature/lui-1 ]] || return 1
+  PATH="$work/so-git" frentes "$repo" novo PROJ-1
+  [[ $code -eq 0 && "$(git -C "$front" branch --show-current)" == feature/proj-1 ]] || return 1
   contains "cd $front" && contains "claude" && [[ ! -e "$front/.env" ]] || return 1
   # O listar mostra o slot, a branch, o PR e os conflitos, e as portas como "-", porque não há comando de ambiente.
-  pr feature/lui-1 5 ABERTO
+  pr feature/proj-1 5 ABERTO
   PATH="$work/so-git" frentes "$repo" listar
   [[ $code -eq 0 ]] && contains "CONFLITA COM" || return 1
-  line="$(grep 'feature/lui-1 ' <<<"$out")"
+  line="$(grep 'feature/proj-1 ' <<<"$out")"
   [[ "$line" == *" 1 "* && "$line" == *"#5 aberto"* && "$line" == *" - "* ]] || return 1
   # O limite se ajusta pela opção.
   config limite=1
-  PATH="$work/so-git" frentes "$repo" novo LUI-2
+  PATH="$work/so-git" frentes "$repo" novo PROJ-2
   [[ $code -ne 0 ]] && contains "limite de 1 frentes" || return 1
   OPTS=()
   # O remover desmonta a frente de um PR mergeado com a pasta limpa.
-  pr feature/lui-1 5 MERGEADO
-  PATH="$work/so-git" frentes "$repo" remover LUI-1
-  [[ $code -eq 0 && ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+  pr feature/proj-1 5 MERGEADO
+  PATH="$work/so-git" frentes "$repo" remover PROJ-1
+  [[ $code -eq 0 && ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null
 }
 check "o núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas" git_only
 
 # --- O núcleo chama o comando de ambiente da frente para verificar, criar e derrubar, e lista as portas que ele informa ---
 environment_contract() {
-  local front="$work/contrato/principal-lui-1"
+  local front="$work/contrato/principal-proj-1"
   fresh contrato
   config ambiente="$AMBIENTE"
-  frentes "$repo" novo LUI-1
+  frentes "$repo" novo PROJ-1
   [[ $code -eq 0 ]] || return 1
   # O `verificar` vem com o slot antes de a pasta existir (só o principal está na lista), e o `criar` depois, com a pasta e o slot.
   [[ "$(<"$ENV_LOG")" == "verificar 1 worktrees=1"$'\n'"criar $front 1 pasta=existe" ]] || return 1
@@ -202,31 +202,31 @@ environment_contract() {
   # Recusado o slot, nada é criado e o `criar` não é chamado.
   : >"$ENV_LOG"
   : >"$ENV_REFUSE"
-  frentes "$repo" novo LUI-2
+  frentes "$repo" novo PROJ-2
   [[ $code -ne 0 ]] && contains "ocupado (de mentira)" && contains "nada foi criado" || return 1
-  [[ ! -e "$work/contrato/principal-lui-2" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-2 >/dev/null || return 1
+  [[ ! -e "$work/contrato/principal-proj-2" ]] && ! git -C "$repo" rev-parse --verify -q feature/proj-2 >/dev/null || return 1
   grep -q '^verificar 2' "$ENV_LOG" && ! grep -q '^criar' "$ENV_LOG" || return 1
   rm "$ENV_REFUSE"
 
   # O listar mostra as portas que o `portas` informa para o slot da frente.
-  pr feature/lui-1 5 ABERTO
+  pr feature/proj-1 5 ABERTO
   frentes "$repo" listar
-  [[ $code -eq 0 && "$(grep 'feature/lui-1 ' <<<"$out")" == *" 91/81 "* ]] || return 1
+  [[ $code -eq 0 && "$(grep 'feature/proj-1 ' <<<"$out")" == *" 91/81 "* ]] || return 1
 
   # O remover chama o `derrubar` com a pasta.
-  pr feature/lui-1 5 MERGEADO
+  pr feature/proj-1 5 MERGEADO
   : >"$ENV_LOG"
-  frentes "$repo" remover LUI-1
+  frentes "$repo" remover PROJ-1
   [[ $code -eq 0 ]] && grep -qxF "derrubar $front" "$ENV_LOG" && [[ ! -e "$front" ]]
 }
 check "o núcleo chama o comando de ambiente da frente para verificar, criar e derrubar, e lista as portas que ele informa" environment_contract
 
 # --- O número da frente fica nela, apagar a pasta o libera e duas criações ao mesmo tempo nunca pegam o mesmo ---
 slot_lives_in_the_front() {
-  local one="$work/numero/principal-lui-1" two="$work/numero/principal-lui-2" common
+  local one="$work/numero/principal-proj-1" two="$work/numero/principal-proj-2" common
   fresh numero
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
   # O menor número livre de 1 a 3, guardado no diretório privado do Git do worktree de cada uma.
   [[ "$(slot_of_front "$one")" == 1 && "$(slot_of_front "$two")" == 2 ]] || return 1
   # Nada na pasta da frente, nem no versionado nem fora dele, e nenhum registro central: a pasta das travas só tem a trava.
@@ -237,9 +237,9 @@ slot_lives_in_the_front() {
   # Apagar a pasta da primeira, sem o remover, libera o número dela para a próxima.
   rm -rf "$one"
   frentes "$repo" listar
-  [[ $code -eq 0 && "$out" != *principal-lui-1* ]] || return 1
-  frentes "$repo" novo LUI-3
-  [[ $code -eq 0 && "$(slot_of_front "$work/numero/principal-lui-3")" == 1 ]]
+  [[ $code -eq 0 && "$out" != *principal-proj-1* ]] || return 1
+  frentes "$repo" novo PROJ-3
+  [[ $code -eq 0 && "$(slot_of_front "$work/numero/principal-proj-3")" == 1 ]]
 }
 check "o número da frente fica nela, apagar a pasta o libera e duas criações ao mesmo tempo nunca pegam o mesmo" slot_lives_in_the_front
 
@@ -248,36 +248,36 @@ concurrent_creations() {
   local a b slots
   fresh simultaneas
   config ambiente="$AMBIENTE"
-  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo LUI-1 >"$work/simultaneas-a.out" 2>&1) &
+  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo PROJ-1 >"$work/simultaneas-a.out" 2>&1) &
   a=$!
-  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo LUI-2 >"$work/simultaneas-b.out" 2>&1) &
+  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo PROJ-2 >"$work/simultaneas-b.out" 2>&1) &
   b=$!
   wait "$a" "$b" || { cat "$work"/simultaneas-?.out; return 1; }
   # Slots diferentes: uma frente tem o 1 e a outra, o 2, em qualquer ordem.
-  slots="$(slot_of_front "$work/simultaneas/principal-lui-1")$(slot_of_front "$work/simultaneas/principal-lui-2")"
+  slots="$(slot_of_front "$work/simultaneas/principal-proj-1")$(slot_of_front "$work/simultaneas/principal-proj-2")"
   [[ "$slots" == 12 || "$slots" == 21 ]]
 }
 check "duas criações ao mesmo tempo recebem slots diferentes" concurrent_creations
 
 # --- O novo cria a pasta e a branch a partir da base buscada e escolhe o menor slot livre ---
 creation() {
-  local front="$work/criacao/principal-lui-186" second="$work/criacao/principal-lui-187"
+  local front="$work/criacao/principal-proj-186" second="$work/criacao/principal-proj-187"
   fresh criacao
   # A main do remoto anda depois do clone: a frente tem de nascer dela, e não da main do clone.
   change "$seed" chegou-depois.txt "chegou depois do clone"
   git -C "$seed" push -q origin main
-  frentes "$repo" novo LUI-186
+  frentes "$repo" novo PROJ-186
   [[ $code -eq 0 ]] || return 1
   # A pasta irmã, na branch do ticket, nascida da main que o remoto tem agora.
-  [[ "$(git -C "$front" branch --show-current)" == feature/lui-186 ]] || return 1
+  [[ "$(git -C "$front" branch --show-current)" == feature/proj-186 ]] || return 1
   [[ -f "$front/chegou-depois.txt" ]] || return 1
   [[ "$(slot_of_front "$front")" == 1 ]] || return 1
   contains "cd $front" && contains "claude" || return 1
 
   # Com o tipo dado, a branch leva o tipo; com o slot 1 ocupado, a frente seguinte pega o 2.
-  frentes "$repo" novo LUI-187 bugfix
+  frentes "$repo" novo PROJ-187 bugfix
   [[ $code -eq 0 ]] || return 1
-  [[ "$(git -C "$second" branch --show-current)" == bugfix/lui-187 ]] && [[ "$(slot_of_front "$second")" == 2 ]]
+  [[ "$(git -C "$second" branch --show-current)" == bugfix/proj-187 ]] && [[ "$(slot_of_front "$second")" == 2 ]]
 }
 check "o novo cria a pasta e a branch a partir da base buscada, escolhe o menor slot livre e imprime o comando de abrir a sessão" creation
 
@@ -287,17 +287,17 @@ listing() {
   fresh listagem
   config ambiente="$AMBIENTE"
   git -C "$repo" checkout -q -b feature/principal-da-vez
-  frentes "$repo" novo LUI-10 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-11 && [[ $code -eq 0 ]] || return 1
-  pr feature/lui-10 5 ABERTO
-  pr feature/lui-11 6 MERGEADO
+  frentes "$repo" novo PROJ-10 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-11 && [[ $code -eq 0 ]] || return 1
+  pr feature/proj-10 5 ABERTO
+  pr feature/proj-11 6 MERGEADO
 
   frentes "$repo" listar
   [[ $code -eq 0 ]] || return 1
   # Uma linha por frente: pasta, slot, branch, portas e o estado do PR.
-  line="$(grep 'feature/lui-10' <<<"$out")"
-  [[ "$line" == *principal-lui-10* && "$line" == *" 1 "* && "$line" == *91/81* && "$line" == *"#5 aberto"* ]] || return 1
-  line="$(grep 'feature/lui-11' <<<"$out")"
+  line="$(grep 'feature/proj-10' <<<"$out")"
+  [[ "$line" == *principal-proj-10* && "$line" == *" 1 "* && "$line" == *91/81* && "$line" == *"#5 aberto"* ]] || return 1
+  line="$(grep 'feature/proj-11' <<<"$out")"
   [[ "$line" == *" 2 "* && "$line" == *92/82* && "$line" == *"#6 mergeado"* ]] || return 1
   # O principal, numa branch que não é a main, é uma frente: slot 0, e a branch sem PR.
   line="$(grep 'feature/principal-da-vez' <<<"$out")"
@@ -306,7 +306,7 @@ listing() {
   # Com o principal na main, ele não é frente e não aparece.
   git -C "$repo" checkout -q main
   frentes "$repo" listar
-  [[ "$out" != *90/80* && "$out" == *feature/lui-10* ]]
+  [[ "$out" != *90/80* && "$out" == *feature/proj-10* ]]
 }
 check "o listar mostra slot, branch, portas e estado do PR de cada frente, com o principal quando ele é frente" listing
 
@@ -314,24 +314,24 @@ check "o listar mostra slot, branch, portas e estado do PR de cada frente, com o
 limit() {
   fresh limite
   git -C "$repo" checkout -q -b feature/principal-da-vez
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
 
   # O principal (fora da main) e as duas frentes são as três: a quarta é recusada, com a lista.
-  frentes "$repo" novo LUI-3
+  frentes "$repo" novo PROJ-3
   [[ $code -ne 0 ]] && contains "limite de 3 frentes" || return 1
-  contains "feature/principal-da-vez" && contains "feature/lui-1" && contains "feature/lui-2" || return 1
-  [[ ! -e "$work/limite/principal-lui-3" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-3 >/dev/null || return 1
+  contains "feature/principal-da-vez" && contains "feature/proj-1" && contains "feature/proj-2" || return 1
+  [[ ! -e "$work/limite/principal-proj-3" ]] && ! git -C "$repo" rev-parse --verify -q feature/proj-3 >/dev/null || return 1
 
   # Com o principal na main, as mesmas duas frentes deixam espaço para a terceira.
   git -C "$repo" checkout -q main
-  frentes "$repo" novo LUI-3 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-3 && [[ $code -eq 0 ]] || return 1
 
   # O limite se ajusta pela opção: com 1, a segunda frente é recusada.
   fresh limite-um
   config limite=1
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2
   [[ $code -ne 0 ]] && contains "limite de 1 frentes"
 }
 check "o novo recusa a quarta frente, contando o principal fora da main, e mostra as abertas" limit
@@ -341,42 +341,42 @@ removal() {
   local front
   fresh remocao
   config ambiente="$AMBIENTE"
-  front="$work/remocao/principal-lui-1"
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  front="$work/remocao/principal-proj-1"
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
   : >"$ENV_LOG"
 
   # PR aberto: recusa, dizendo o estado, e não mexe em nada.
-  pr feature/lui-1 5 ABERTO
-  frentes "$repo" remover LUI-1
+  pr feature/proj-1 5 ABERTO
+  frentes "$repo" remover PROJ-1
   [[ $code -ne 0 ]] && contains "#5 aberto" && [[ -d "$front" ]] && ! grep -q "derrubar" "$ENV_LOG" || return 1
 
   # PR mergeado e pasta com arquivo novo fora do .gitignore: recusa, dizendo o arquivo.
-  pr feature/lui-1 5 MERGEADO
+  pr feature/proj-1 5 MERGEADO
   echo x >"$front/sobrou.txt"
-  frentes "$repo" remover LUI-1
+  frentes "$repo" remover PROJ-1
   [[ $code -ne 0 ]] && contains "sobrou.txt" && [[ -d "$front" ]] && ! grep -q "derrubar" "$ENV_LOG" || return 1
   rm "$front/sobrou.txt"
   # E com uma mudança num arquivo versionado.
   echo mudou >>"$front/LEIAME.md"
-  frentes "$repo" remover LUI-1
+  frentes "$repo" remover PROJ-1
   [[ $code -ne 0 ]] && contains "LEIAME.md" && [[ -d "$front" ]] && ! grep -q "derrubar" "$ENV_LOG" &&
-    git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null || return 1
+    git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null || return 1
   git -C "$front" checkout -q -- LEIAME.md
 
   # O checkout principal numa branch de ticket, com o PR mergeado e a pasta limpa: nunca é removido.
-  git -C "$repo" checkout -q -b feature/lui-9-com-sufixo
-  pr feature/lui-9-com-sufixo 9 MERGEADO
-  frentes "$repo" remover LUI-9
+  git -C "$repo" checkout -q -b feature/proj-9-com-sufixo
+  pr feature/proj-9-com-sufixo 9 MERGEADO
+  frentes "$repo" remover PROJ-9
   [[ $code -ne 0 ]] && contains "principal" && [[ -d "$repo/.git" ]] || return 1
   git -C "$repo" checkout -q main
 
   # PR mergeado e pasta limpa: derruba o ambiente, tira o worktree e a branch.
-  frentes "$repo" remover LUI-1
+  frentes "$repo" remover PROJ-1
   [[ $code -eq 0 ]] || return 1
   grep -qxF "derrubar $front" "$ENV_LOG" &&
     [[ ! -e "$front" ]] &&
-    ! git -C "$repo" worktree list | grep -q lui-1 &&
-    ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+    ! git -C "$repo" worktree list | grep -q proj-1 &&
+    ! git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null
 }
 check "o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e remove a frente mergeada e limpa" removal
 
@@ -385,17 +385,17 @@ forced_removal() {
   local front
   fresh forcada
   config ambiente="$AMBIENTE"
-  front="$work/forcada/principal-lui-1"
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  front="$work/forcada/principal-proj-1"
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
   : >"$ENV_LOG"
   # Com o PR aberto e a pasta suja, a opção remove tudo.
-  pr feature/lui-1 5 ABERTO
+  pr feature/proj-1 5 ABERTO
   echo x >"$front/sobrou.txt"
-  frentes "$repo" remover --forcar LUI-1
+  frentes "$repo" remover --forcar PROJ-1
   [[ $code -eq 0 ]] || return 1
   grep -qxF "derrubar $front" "$ENV_LOG" &&
     [[ ! -e "$front" ]] &&
-    ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+    ! git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null
 }
 check "o remover --forcar remove a frente sem merge" forced_removal
 
@@ -403,33 +403,33 @@ check "o remover --forcar remove a frente sem merge" forced_removal
 old_git() {
   local invocation
   fresh git-antigo
-  for invocation in "novo LUI-1" listar "remover LUI-1"; do
+  for invocation in "novo PROJ-1" listar "remover PROJ-1"; do
     # shellcheck disable=SC2086
     out="$(cd "$repo" && FRENTES_GIT_VERSION=2.30.1 "$FRENTES" $invocation 2>&1)"
     [[ $? -ne 0 ]] && contains "2.38" && contains "2.30.1" && contains "Atualize o Git" || return 1
   done
   # Recusou antes de mexer em qualquer coisa.
-  [[ ! -e "$work/git-antigo/principal-lui-1" ]] || return 1
+  [[ ! -e "$work/git-antigo/principal-proj-1" ]] || return 1
   # Na versão mínima, segue.
-  out="$(cd "$repo" && FRENTES_GIT_VERSION=2.38.0 "$FRENTES" novo LUI-1 2>&1)"
-  [[ $? -eq 0 && -d "$work/git-antigo/principal-lui-1" ]]
+  out="$(cd "$repo" && FRENTES_GIT_VERSION=2.38.0 "$FRENTES" novo PROJ-1 2>&1)"
+  [[ $? -eq 0 && -d "$work/git-antigo/principal-proj-1" ]]
 }
 check "o núcleo recusa o Git abaixo da versão mínima, dizendo qual ela é" old_git
 
 # --- Um ticket com mais de uma frente não se remove às cegas, e não ganha uma segunda ---
 ticket_identity() {
   fresh ticket
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
   # Uma segunda frente do mesmo ticket é recusada, mesmo com outro tipo.
-  frentes "$repo" novo LUI-1 bugfix
+  frentes "$repo" novo PROJ-1 bugfix
   [[ $code -ne 0 ]] && contains "já tem frente" || return 1
-  # LUI-10 não é LUI-1: o número inteiro conta.
-  frentes "$repo" novo LUI-10 && [[ $code -eq 0 ]] || return 1
+  # PROJ-10 não é PROJ-1: o número inteiro conta.
+  frentes "$repo" novo PROJ-10 && [[ $code -eq 0 ]] || return 1
   # Duas branches do mesmo ticket (uma feita à mão, com sufixo): o remover recusa e não remove nenhuma.
-  git -C "$repo" worktree add -q -b bugfix/lui-1-a-mao "$work/ticket/a-mao" origin/main
-  pr feature/lui-1 5 MERGEADO
-  frentes "$repo" remover LUI-1
-  [[ $code -ne 0 ]] && contains "mais de uma frente" && [[ -d "$work/ticket/principal-lui-1" && -d "$work/ticket/a-mao" ]]
+  git -C "$repo" worktree add -q -b bugfix/proj-1-a-mao "$work/ticket/a-mao" origin/main
+  pr feature/proj-1 5 MERGEADO
+  frentes "$repo" remover PROJ-1
+  [[ $code -ne 0 ]] && contains "mais de uma frente" && [[ -d "$work/ticket/principal-proj-1" && -d "$work/ticket/a-mao" ]]
 }
 check "um ticket com mais de uma frente não se remove às cegas, e não ganha uma segunda" ticket_identity
 
@@ -437,8 +437,8 @@ check "um ticket com mais de uma frente não se remove às cegas, e não ganha u
 invalid_input() {
   fresh invalidas
   # O tipo da branch é um dos quatro da convenção.
-  frentes "$repo" novo LUI-1 feture
-  [[ $code -ne 0 ]] && contains "feature, bugfix, hotfix ou docs" && [[ ! -e "$work/invalidas/principal-lui-1" ]] || return 1
+  frentes "$repo" novo PROJ-1 feture
+  [[ $code -ne 0 ]] && contains "feature, bugfix, hotfix ou docs" && [[ ! -e "$work/invalidas/principal-proj-1" ]] || return 1
   # As opções do núcleo: uma que não existe, a --config sem valor, um arquivo que não existe e um limite que não é número.
   OPTS=(--nada)
   frentes "$repo" listar
@@ -455,22 +455,22 @@ invalid_input() {
   # Um comando de ambiente que não existe, e um ponto de convergência sem padrão, são recusados na leitura da configuração,
   # antes de criar qualquer coisa.
   config ambiente="$work/nao-existe"
-  frentes "$repo" novo LUI-1
-  [[ $code -ne 0 ]] && contains "frentes.ambiente" && contains "nao-existe" && [[ ! -e "$work/invalidas/principal-lui-1" ]] || return 1
+  frentes "$repo" novo PROJ-1
+  [[ $code -ne 0 ]] && contains "frentes.ambiente" && contains "nao-existe" && [[ ! -e "$work/invalidas/principal-proj-1" ]] || return 1
   printf '[convergencia]\n\tgerado\n' >"$work/sem-padrao.conf"
   OPTS=(--config "$work/sem-padrao.conf")
   frentes "$repo" listar
   [[ $code -ne 0 ]] && contains "convergencia.gerado" && contains "sem padrão" || return 1
   OPTS=()
   # O remover recusa um ticket a mais e uma opção que não conhece, em vez de escolher um deles.
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" remover LUI-1 LUI-2
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" remover PROJ-1 PROJ-2
   [[ $code -ne 0 ]] && contains "um ticket só" || return 1
-  frentes "$repo" remover LUI-1 --force
-  [[ $code -ne 0 ]] && contains "opção" && [[ -d "$work/invalidas/principal-lui-1" ]] || return 1
+  frentes "$repo" remover PROJ-1 --force
+  [[ $code -ne 0 ]] && contains "opção" && [[ -d "$work/invalidas/principal-proj-1" ]] || return 1
   # Uma branch feita à mão com o ticket em maiúsculas também é a frente do ticket.
-  git -C "$repo" worktree add -q -b feature/LUI-5-a-mao "$work/invalidas/a-mao" origin/main
-  frentes "$repo" novo LUI-5
+  git -C "$repo" worktree add -q -b feature/PROJ-5-a-mao "$work/invalidas/a-mao" origin/main
+  frentes "$repo" novo PROJ-5
   [[ $code -ne 0 ]] && contains "já tem frente" || return 1
   # Um checkout principal em HEAD solto é uma frente, e o listar não pergunta ao gh por uma branch vazia.
   git -C "$repo" checkout -q --detach
@@ -481,11 +481,11 @@ check "as entradas inválidas são recusadas, e a branch em maiúsculas e o HEAD
 
 # --- O listar mostra os conflitos entre as frentes e contra a main, sem mudar nada ---
 conflicts_column() {
-  local a="$work/conflitos/principal-lui-1" b="$work/conflitos/principal-lui-2" c="$work/conflitos/principal-lui-3" before after line
+  local a="$work/conflitos/principal-proj-1" b="$work/conflitos/principal-proj-2" c="$work/conflitos/principal-proj-3" before after line
   fresh conflitos
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-3 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-3 && [[ $code -eq 0 ]] || return 1
   # As frentes 1 e 2 mudam a mesma linha do mesmo arquivo, e a 3 mexe num arquivo que ninguém toca.
   change "$a" src/codigo.ts "valor = um"
   change "$b" src/codigo.ts "valor = dois"
@@ -500,24 +500,24 @@ conflicts_column() {
   [[ $code -eq 0 && "$before" == "$after" ]] || return 1
 
   # A coluna: a frente 1 conflita com a 2 e com a main; a 3 com ninguém.
-  line="$(grep 'feature/lui-1 ' <<<"$out" | head -n 1)"
-  [[ "$line" == *lui-2* && "$line" == *main* ]] || return 1
-  line="$(grep 'feature/lui-3 ' <<<"$out" | head -n 1)"
-  [[ "$line" != *lui-1* && "$line" != *lui-2* && "$line" != *"conflita"* ]] || return 1
+  line="$(grep 'feature/proj-1 ' <<<"$out" | head -n 1)"
+  [[ "$line" == *proj-2* && "$line" == *main* ]] || return 1
+  line="$(grep 'feature/proj-3 ' <<<"$out" | head -n 1)"
+  [[ "$line" != *proj-1* && "$line" != *proj-2* && "$line" != *"conflita"* ]] || return 1
   # A seção: o par 1 e 2, e cada uma contra a main, com o arquivo; o par 1 e 3 não aparece.
-  contains "feature/lui-1 × feature/lui-2" && contains "feature/lui-1 × main" && contains "feature/lui-2 × main" || return 1
+  contains "feature/proj-1 × feature/proj-2" && contains "feature/proj-1 × main" && contains "feature/proj-2 × main" || return 1
   contains "src/codigo.ts" || return 1
-  [[ "$out" != *"feature/lui-1 × feature/lui-3"* && "$out" != *"feature/lui-3 × main"* ]]
+  [[ "$out" != *"feature/proj-1 × feature/proj-3"* && "$out" != *"feature/proj-3 × main"* ]]
 }
 check "o listar mostra, para cada par de frentes e para cada frente contra a main, se há conflito e em quais arquivos, sem mudar nada" conflicts_column
 
 # --- O conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo ---
 convergence_split() {
-  local a="$work/pontos/principal-lui-1" b="$work/pontos/principal-lui-2" mechanical attention file
+  local a="$work/pontos/principal-proj-1" b="$work/pontos/principal-proj-2" mechanical attention file
   fresh pontos
   config pontos
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
   # As duas frentes mudam, cada uma do seu jeito, um arquivo de cada tipo e um de código.
   for file in apps/api/openapi.json apps/api/prisma/migrations/20260101000000_a/migration.sql apps/api/src/app.module.ts \
     apps/api/prisma/schema.prisma apps/api/.env.example docs/lld.md src/codigo.ts; do
@@ -555,25 +555,25 @@ default_config() {
   cp "$AMBIENTE" "$repo/bin/ambiente"
   # O caminho do comando de ambiente é relativo à raiz do checkout, e o limite e os pontos vêm do mesmo arquivo.
   printf '[frentes]\n\tlimite = 1\n\tambiente = bin/ambiente\n' >"$repo/.config/project"
-  frentes "$repo" novo LUI-1
+  frentes "$repo" novo PROJ-1
   [[ $code -eq 0 ]] && grep -q '^criar' "$ENV_LOG" || return 1
-  frentes "$repo" novo LUI-2
+  frentes "$repo" novo PROJ-2
   [[ $code -ne 0 ]] && contains "limite de 1 frentes" || return 1
   # A opção --config vale mais que o arquivo do checkout.
   config limite=3
-  frentes "$repo" novo LUI-2
+  frentes "$repo" novo PROJ-2
   [[ $code -eq 0 ]]
 }
 check "o núcleo lê o limite e o comando de ambiente de .config/project do checkout, com o caminho relativo à raiz dele, e a opção --config vale mais" default_config
 
 # --- Na classificação dos pontos vale o primeiro padrão que casa ---
 first_match_wins() {
-  local a="$work/ordem/principal-lui-1" b="$work/ordem/principal-lui-2"
+  local a="$work/ordem/principal-proj-1" b="$work/ordem/principal-proj-2"
   fresh ordem
   printf '[convergencia]\n\tdocumentos = docs/*\n\tmanual = docs/lld.md\n' >"$work/ordem.conf"
   OPTS=(--config "$work/ordem.conf")
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
   change "$a" docs/lld.md "versao do um"
   change "$b" docs/lld.md "versao do dois"
   frentes "$repo" listar
@@ -581,12 +581,30 @@ first_match_wins() {
 }
 check "na classificação dos pontos de convergência vale o primeiro padrão que casa, na ordem do arquivo" first_match_wins
 
+# --- O padrão de um ponto de convergência é o da lista de arquivos protegidos: o `*` fica num nível de pasta ---
+star_stays_in_one_level() {
+  local a="$work/nivel/principal-proj-1" b="$work/nivel/principal-proj-2"
+  fresh nivel
+  printf '[convergencia]\n\tdocumentos = docs/*\n\tmanual = docs/**/fundo.md\n' >"$work/nivel.conf"
+  OPTS=(--config "$work/nivel.conf")
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
+  change "$a" docs/sub/solto.md "versao do um"
+  change "$b" docs/sub/solto.md "versao do dois"
+  change "$a" docs/sub/fundo.md "versao do um"
+  change "$b" docs/sub/fundo.md "versao do dois"
+  frentes "$repo" listar
+  [[ $code -eq 0 ]] && contains "docs/sub/fundo.md (manual)" && [[ "$out" != *"docs/sub/solto.md (documentos)"* ]] &&
+    contains "docs/sub/solto.md"
+}
+check "o * de um ponto de convergência fica num nível de pasta, e o ** atravessa as barras" star_stays_in_one_level
+
 # --- Um erro ao calcular o merge é dito, e não passa por "sem conflito"; o nome com acento sai sem aspas ---
 conflict_errors() {
-  local a="$work/erro/principal-lui-1" b="$work/erro/principal-lui-2"
+  local a="$work/erro/principal-proj-1" b="$work/erro/principal-proj-2"
   fresh erro
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
   change "$a" "src/ação.ts" "versao do um"
   change "$b" "src/ação.ts" "versao do dois"
   # O nome com acento sai como é, sem as aspas e as barras do Git.
@@ -601,24 +619,24 @@ check "um erro ao calcular o merge é dito, e não passa por sem conflito, e o n
 # --- A branch da frente nasce sem upstream: o `git push` comum não tem a main como destino ---
 no_upstream() {
   fresh upstream
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  ! git -C "$work/upstream/principal-lui-1" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  ! git -C "$work/upstream/principal-proj-1" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1
 }
 check "o novo cria a branch sem upstream, para o git push comum não apontar para a main" no_upstream
 
 # --- A frente cuja pasta foi apagada à mão deixa de contar para o limite, e some do listar ---
 deleted_folder() {
   fresh apagada
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-3 && [[ $code -eq 0 ]] || return 1
-  frentes "$repo" novo LUI-4
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-2 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-3 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo PROJ-4
   [[ $code -ne 0 ]] && contains "Já há 3 frentes" || return 1
-  rm -rf "$work/apagada/principal-lui-1" "$work/apagada/principal-lui-2"
+  rm -rf "$work/apagada/principal-proj-1" "$work/apagada/principal-proj-2"
   frentes "$repo" listar
-  [[ $code -eq 0 ]] && ! contains "lui-1" && ! contains "lui-2" && contains "lui-3" || return 1
-  frentes "$repo" novo LUI-4
-  [[ $code -eq 0 && "$(slot_of_front "$work/apagada/principal-lui-4")" == 1 ]]
+  [[ $code -eq 0 ]] && ! contains "proj-1" && ! contains "proj-2" && contains "proj-3" || return 1
+  frentes "$repo" novo PROJ-4
+  [[ $code -eq 0 && "$(slot_of_front "$work/apagada/principal-proj-4")" == 1 ]]
 }
 check "a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre" deleted_folder
 
@@ -627,25 +645,25 @@ remove_tip() {
   local front tip
   fresh ponta
   config ambiente="$AMBIENTE"
-  front="$work/ponta/principal-lui-1"
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  front="$work/ponta/principal-proj-1"
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
   tip="$(git -C "$front" rev-parse HEAD)"
   # O PR mergeado tem a ponta da branch; depois do merge, um commit local novo: recusa, e nada sai.
-  pr feature/lui-1 5 MERGEADO "$tip"
+  pr feature/proj-1 5 MERGEADO "$tip"
   change "$front" "depois-do-merge.txt" "trabalho novo"
   : >"$ENV_LOG"
-  frentes "$repo" remover LUI-1
+  frentes "$repo" remover PROJ-1
   [[ $code -ne 0 ]] && contains "commits que o PR mergeado não tem" && [[ -d "$front" ]] &&
-    ! grep -q "derrubar" "$ENV_LOG" && git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null || return 1
+    ! grep -q "derrubar" "$ENV_LOG" && git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null || return 1
   # Um PR novo e aberto na mesma branch vale mais que o mergeado antigo: a frente está em uso.
   printf '[{"number":5,"state":"MERGED","headRefOid":"%s"},{"number":9,"state":"OPEN","headRefOid":"%s"}]\n' \
-    "$tip" "$(git -C "$front" rev-parse HEAD)" >"$GH_STATES/feature_lui-1"
-  frentes "$repo" remover LUI-1
+    "$tip" "$(git -C "$front" rev-parse HEAD)" >"$GH_STATES/feature_proj-1"
+  frentes "$repo" remover PROJ-1
   [[ $code -ne 0 ]] && contains "#9 aberto" && [[ -d "$front" ]] || return 1
   # Com a ponta do PR igual à da branch, remove.
-  pr feature/lui-1 9 MERGEADO "$(git -C "$front" rev-parse HEAD)"
-  frentes "$repo" remover LUI-1
-  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+  pr feature/proj-1 9 MERGEADO "$(git -C "$front" rev-parse HEAD)"
+  frentes "$repo" remover PROJ-1
+  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null
 }
 check "o remover recusa a branch com commits que o PR mergeado não tem e o PR novo aberto, e remove quando a ponta é a do PR" remove_tip
 
@@ -653,11 +671,11 @@ check "o remover recusa a branch com commits que o PR mergeado não tem e o PR n
 remove_from_inside() {
   local front
   fresh dentro
-  front="$work/dentro/principal-lui-1"
-  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
-  pr feature/lui-1 5 MERGEADO
-  frentes "$front" remover LUI-1
-  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/lui-1 >/dev/null
+  front="$work/dentro/principal-proj-1"
+  frentes "$repo" novo PROJ-1 && [[ $code -eq 0 ]] || return 1
+  pr feature/proj-1 5 MERGEADO
+  frentes "$front" remover PROJ-1
+  [[ $code -eq 0 ]] && [[ ! -e "$front" ]] && ! git -C "$repo" rev-parse --verify -q feature/proj-1 >/dev/null
 }
 check "o remover chamado de dentro da frente tira o worktree e apaga a branch" remove_from_inside
 

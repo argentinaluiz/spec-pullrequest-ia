@@ -14,12 +14,9 @@ API_SCHEMA=apps/api/prisma/schema.prisma
 CONTRACT_NODE=scripts/node-in-api.sh
 CONTRACT_RENDERER=scripts/contract-view.cjs
 
-# O `git diff` sem cor, sem diff externo, com os prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for
-# a configuração do Git de quem roda (`diff.noprefix`, `diff.mnemonicPrefix`, `core.quotePath`), como o da página do plano.
-# plain_diff <argumentos do git diff...>
-plain_diff() {
-  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
-}
+# O `git diff` que se lê (`plain_diff`), o mesmo da página do plano, é da skill de plano.
+# shellcheck source=../.claude/skills/plan-ticket/scripts/plan-git.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../.claude/skills/plan-ticket/scripts/plan-git.sh"
 
 # Os dois snapshots descrevem o mesmo contrato. Descrições, resumos e exemplos não contam: texto de documentação não muda o
 # contrato. Os caminhos são relativos à <pasta>, montada no contêiner.

@@ -6,4 +6,4 @@ LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.
 LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	recusa um insumo que o Git não ignoraria
 LUI-198-CA1	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	com o desvio que falha, o arquivo diz que ele não foi conferido
 LUI-198-CA2	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	roda num repositório de fora, com os padrões da base e do desvio
-LUI-198-CA2	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	a base e o comando do desvio dados por opção são os que o script usa
+LUI-198-CA2	.claude/skills/revisao-conformidade/scripts/test/review-inputs.test.sh	a base da HARNESS_BASE_REF e o comando do desvio do .config/project são os que o script usa

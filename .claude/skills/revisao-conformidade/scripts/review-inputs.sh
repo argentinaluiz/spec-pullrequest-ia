@@ -4,14 +4,17 @@
 # que o Git não ignora; a mensagem do commit de plano; o desvio do contrato; e, numa mudança sem ticket, os critérios que
 # ela precisa ter. Imprime os caminhos que a skill passa ao revisor. Roda de qualquer pasta do repositório: vai para a raiz.
 #
-#   review-inputs.sh [opções] <pai> <ticket>
-#   review-inputs.sh [opções] sem-ticket <nome>
+#   review-inputs.sh <pai> <ticket>
+#   review-inputs.sh sem-ticket <nome>
 #
-#   --tickets <pasta>   a pasta dos tickets, relativa à raiz do repositório (padrão: docs/tickets)
-#   --base <ref>        a base da comparação (padrão: o ramo principal do remoto de origem, origin/<ramo>, ou origin/main
-#                       se o remoto não diz qual é)
-#   --desvio <comando>  o comando do desvio do contrato, chamado como `<comando> <commit de plano> <para, ou vazio> <arquivo>`
-#                       (padrão: nenhum; o arquivo do desvio diz que nenhum foi declarado)
+# Os valores do projeto vêm do arquivo de configuração dele, `.config/project` na raiz, lido com `git config --file`:
+#
+#   [tickets] pasta = <pasta>      a pasta dos tickets, relativa à raiz (obrigatória)
+#   [contrato] desvio = <comando>  o comando do desvio do contrato, chamado como `<comando> <commit de plano> <para, ou
+#                                  vazio> <arquivo>` (sem ele, o arquivo do desvio diz que nenhum foi declarado)
+#
+# A base da comparação é a do harness-base.sh da skill worktree (a HARNESS_BASE_REF, ou o ramo principal do remoto de
+# origem), e o diff e o commit de plano, os do plan-git.sh da skill de plano.
 #
 # Com ticket, o plano é o commit da branch que criou o arquivo de aceite (<pasta>/<pai>/<ticket>/aceite.md), e um ticket sem
 # ele não foi planejado e não chega à revisão. Sem ticket, a pasta é <pasta>/sem-ticket/<nome>/ e precisa ter o criterios.md,
@@ -19,8 +22,8 @@
 # contract-drift.txt (com ticket, sempre: o que o comando do desvio disse, ou que ele não pôde ser conferido). Os insumos não
 # podem ir para um commit, então só grava se o `.gitignore` os ignora.
 #
-# Sai com 0 se preparou os insumos e com 2 se não deu (uso errado, base inexistente, ticket sem commit de plano, sem os critérios,
-# insumo que iria para um commit), dizendo como resolver.
+# Sai com 0 se preparou os insumos e com 2 se não deu (uso errado, configuração sem a pasta dos tickets, base inexistente,
+# ticket sem commit de plano, sem os critérios, insumo que iria para um commit), dizendo como resolver.
 
 set -uo pipefail
 
@@ -31,24 +34,7 @@ abort() {
 }
 
 self="${0##*/}"
-
-tickets=docs/tickets
-base=""
-drift_command=""
-while [[ "${1:-}" == --* ]]; do
-  case "$1" in
-    --tickets | --base | --desvio)
-      [[ $# -ge 2 ]] || abort "falta o valor de \`$1\`." "passe a opção com o valor, como em \`$1 <valor>\`."
-      case "$1" in
-        --tickets) tickets="${2%/}" ;;
-        --base) base="$2" ;;
-        --desvio) drift_command="$2" ;;
-      esac
-      shift 2
-      ;;
-    *) abort "a opção \`$1\` não existe." "as opções são --tickets, --base e --desvio." ;;
-  esac
-done
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [[ $# -eq 2 ]] ||
   abort "o comando recebe dois argumentos: \`<pai> <ticket>\`, ou \`sem-ticket <nome>\`." \
@@ -65,29 +51,23 @@ fi
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || abort "esta pasta não está num repositório do Git." "rode de dentro do repositório."
 
-# A base padrão: o ramo principal do remoto de origem.
-if [[ -z "$base" ]]; then
-  base="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)" || base=origin/main
-fi
+# A base (BASE_REF), da skill worktree, e o diff legível e o commit que criou um arquivo, da skill de plano.
+# shellcheck source=../../worktree/scripts/harness-base.sh
+source "$SCRIPT_DIR/../../worktree/scripts/harness-base.sh"
+# shellcheck source=../../plan-ticket/scripts/plan-git.sh
+source "$SCRIPT_DIR/../../plan-ticket/scripts/plan-git.sh"
+base="$BASE_REF"
 git rev-parse --verify --quiet "$base" >/dev/null ||
   abort "a base \`$base\` não existe neste clone." \
-    "rode \`git fetch origin\`, ou passe outra base com \`--base <ref>\`."
+    "rode \`git fetch origin\`, ou aponte outra base com a variável HARNESS_BASE_REF."
 
-# O `git diff` sem cor, sem diff externo, com os prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for a
-# configuração de quem roda. Uma skill de uso geral não carrega arquivo de projeto nem de outra skill, então esta e a `added_by` são
-# cópias deliberadas das da verificação do projeto.
-plain_diff() {
-  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
-}
-
-# O commit mais recente de <commits> (um intervalo ou um ponto, como no `git log`) que criou o <arquivo>. O `--follow` segue o
-# arquivo pelas renomeações: o commit que só o moveu não conta como o que o criou.
-# added_by <commits> <arquivo>
-added_by() {
-  local commits
-  commits="$(git log --follow --diff-filter=A --format=%H "$1" -- "$2")" || return 1
-  printf '%s' "${commits%%$'\n'*}"
-}
+# Os valores do projeto, do .config/project.
+tickets="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
+tickets="${tickets%/}"
+[[ -n "$tickets" ]] ||
+  abort "o .config/project não diz a pasta dos tickets (a chave tickets.pasta)." \
+    "acrescente ao .config/project a seção \`[tickets]\` com \`pasta = <pasta dos tickets>\` e rode de novo."
+drift_command="$(git config --file .config/project --get contrato.desvio 2>/dev/null)"
 
 # O diff que o revisor lê: tudo o que a branch mudou desde que saiu da base, até a pasta de trabalho, com os arquivos novos que o
 # Git não ignora. Compara com o ponto em que a branch saiu da base, e não com a ponta dela, para uma base que andou não trazer as
@@ -108,7 +88,7 @@ review_diff() {
   return $code
 }
 
-# O desvio do contrato desde o commit de plano, pelo comando que quem chama deu. O comando só grava o arquivo quando há desvio;
+# O desvio do contrato desde o commit de plano, pelo comando do .config/project. O comando só grava o arquivo quando há desvio;
 # o revisor recebe o arquivo sempre, então, sem desvio, ele leva o que o comando disse. Sem comando, ou se o comando falha, o
 # arquivo diz que o desvio não foi conferido, para o revisor não ler um vazio.
 # review_drift <commit de plano> <arquivo>
@@ -138,7 +118,7 @@ else
       "confira a issue pai e o ticket; se o ticket não foi planejado, planeje-o antes."
   plan="$(added_by "$base..HEAD" "$acceptance")" ||
     abort "não deu para ler o histórico da branch ($base..HEAD) com o \`git log\`." \
-      "confira se a base existe (\`git fetch origin\`, ou outra base com \`--base\`) e se o clone tem o histórico inteiro."
+      "confira se a base existe (\`git fetch origin\`, ou outra base com a variável HARNESS_BASE_REF) e se o clone tem o histórico inteiro."
   [[ -n "$plan" ]] ||
     abort "nenhum commit desta branch ($base..HEAD) criou o $acceptance: o ticket não tem commit de plano." \
       "planeje o ticket e faça o commit de plano antes da revisão."

@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/skills/plan-ticket/hooks/freeze-acceptance.sh docs/tickets",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/skills/plan-ticket/hooks/freeze-acceptance.sh",
             "timeout": 10
           }
         ]

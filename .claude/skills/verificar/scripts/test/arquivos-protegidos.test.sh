@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 #
-# Teste da lista de arquivos protegidos deste projeto (.config/arquivos-protegidos): a
-# Guarda da skill proteger-harness, chamada com a lista real, bloqueia o mecanismo de qualquer skill e a
-# própria lista, e deixa o texto das skills livre. Roda na máquina, num diretório temporário que faz as vezes
-# da `main`. O caso leva a tag do critério de aceite no nome.
+# Teste da lista de arquivos protegidos deste projeto (.config/arquivos-protegidos): a Guarda da skill
+# proteger-harness, chamada com a lista que o workflow monta (scripts/protected-list.sh: a lista real e os pontos de
+# convergência como aviso), bloqueia o mecanismo de qualquer skill e a própria lista, avisa dos pontos de convergência
+# e deixa o texto das skills livre. Roda na máquina, num diretório temporário que faz as vezes da `main`. O caso leva
+# a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
-LIST="$ROOT/.config/arquivos-protegidos"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }
 
 main="$(mktemp -d)"
 trap 'rm -rf "$main"' EXIT
+LIST="$main/.lista"
+(cd "$ROOT" && scripts/protected-list.sh) >"$LIST" || { echo "Não deu para montar a lista com o scripts/protected-list.sh."; exit 2; }
 
 # guard <caminhos...>: roda a Guarda com a lista real, e deixa a saída em $out e o código em $code.
 guard() {
@@ -53,7 +55,7 @@ for path in \
   .claude/settings.json \
   .github/workflows/ci.yml \
   .claude/skills/verificar/scripts/verify.sh \
-  .claude/skills/verificar/scripts/test/sh-helpers.sh; do
+  .claude/skills/plan-ticket/scripts/test/helpers.sh; do
   check "$name: bloqueia $path" blocked "$path"
 done
 

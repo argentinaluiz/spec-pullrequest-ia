@@ -22,15 +22,15 @@
 #                         (imprime as portas do slot, que o `listar` mostra). Sai com 0 se deu certo e com outro código,
 #                         dizendo por quê, se não.
 #   [convergencia] <tipo> = <padrão>  a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é
-#                         código). O tipo é a chave e o caminho, o valor, que aceita `*` (casa também as barras); vale o
-#                         primeiro padrão que casa, na ordem do arquivo. Os tipos que o núcleo conhece são `gerado`,
+#                         código). O tipo é a chave e o caminho, o valor, no padrão de caminho da skill proteger-harness
+#                         (`*` num nível de pasta, `**` atravessa as barras); vale o primeiro padrão que casa, na ordem do arquivo. Os tipos que o núcleo conhece são `gerado`,
 #                         `migracoes` e `registros` (o `listar` os mostra à parte, com regra mecânica) e `documentos` e
 #                         `manual` (pedem atenção, com o tipo ao lado); qualquer outro tipo vale como código.
 #
 # Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>, na
 # branch <tipo>/<ticket em minúsculas>, com o tipo feature (o padrão), bugfix, hotfix ou docs. O checkout principal
 # também é uma frente quando está numa branch que não é a principal (um HEAD solto conta). Uma frente do ticket é
-# qualquer worktree cuja branch termina no ticket, com ou sem sufixo (feature/lui-186-script-de-frentes). A base é a
+# qualquer worktree cuja branch termina no ticket, com ou sem sufixo (feature/proj-186-script-de-frentes). A base é a
 # HARNESS_BASE_REF, lida pelo harness-base.sh desta skill: o remoto é o que vem antes da barra, e a branch principal, o
 # que vem depois. O script roda em qualquer checkout do repositório e não fala com o gerenciador de issues.
 #
@@ -66,9 +66,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) vem do harness-base.sh, a definição única dela.
+# A base (BASE_REF, BASE_REMOTE e BASE_BRANCH) e a pasta das travas da máquina (harness_lock_dir) vêm do
+# harness-base.sh, a definição única delas.
 # shellcheck source=harness-base.sh
 source "$SCRIPT_DIR/harness-base.sh"
+# O padrão de caminho dos pontos de convergência (path_matches) é o da lista de arquivos protegidos, da skill
+# proteger-harness.
+# shellcheck source=../../proteger-harness/scripts/path-pattern.sh
+source "$SCRIPT_DIR/../../proteger-harness/scripts/path-pattern.sh"
 GIT_MIN=2.38
 # O arquivo do diretório privado do Git do worktree em que a frente guarda o slot.
 SLOT_FILE=frente-slot
@@ -131,7 +136,7 @@ load_config() {
   done
 }
 
-# O ticket PREFIXO-N em minúsculas (lui-186), no TICKET_KEY. Sai com o uso se o formato não vale.
+# O ticket PREFIXO-N em minúsculas (proj-186), no TICKET_KEY. Sai com o uso se o formato não vale.
 # parse_ticket <ticket> <uso>
 parse_ticket() {
   [[ "$1" =~ ^([A-Za-z][A-Za-z0-9]*)-([0-9]+)$ ]] || die "Uso: $2, com o ticket no formato PREFIXO-N (PROJ-186)."
@@ -255,8 +260,7 @@ convergence_type() {
   local line key pattern
   for line in "${CONVERGENCE[@]}"; do
     read -r key pattern <<<"$line"
-    # shellcheck disable=SC2053
-    [[ "$1" == $pattern ]] && { echo "${key#convergencia.}"; return 0; }
+    path_matches "$pattern" "$1" && { echo "${key#convergencia.}"; return 0; }
   done
   return 0
 }
@@ -344,16 +348,11 @@ flush_conflict() {
   [[ -z "$3" ]] || printf '  pede atenção:\n%s' "$3"
 }
 
-# A pasta das travas da máquina: a `harness` do diretório comum do Git, a mesma onde a verificação completa põe a dela.
-lock_dir() {
-  echo "$(git rev-parse --path-format=absolute --git-common-dir)/harness"
-}
-
 # A trava dos slots: duas criações ao mesmo tempo nunca pegam o mesmo slot. Espera quem chegou depois, e sai
 # com o processo.
 lock_slots() {
   local dir
-  dir="$(lock_dir)" && mkdir -p "$dir" || die "Não deu para abrir a pasta das travas da máquina."
+  dir="$(harness_lock_dir)" && mkdir -p "$dir" || die "Não deu para abrir a pasta das travas da máquina."
   command -v flock >/dev/null || die "Falta o \`flock\` na máquina (o pacote util-linux), e o script trava os slots com ele."
   exec {SLOTS_LOCK_FD}>>"$dir/frentes.lock" && flock "$SLOTS_LOCK_FD" || die "Não deu para pegar a trava dos slots."
 }

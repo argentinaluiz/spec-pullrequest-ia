@@ -7,14 +7,17 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
 mkdir -p "$tmp/bin" "$repo/scripts" "$repo/apps/api/prisma"
 cp "$ROOT"/scripts/contract-*.sh "$ROOT/scripts/contract-view.cjs" "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
+# O diff legível que o contract-lib.sh carrega, da skill de plano.
+mkdir -p "$repo/.claude/skills/plan-ticket/scripts"
+cp "$ROOT/.claude/skills/plan-ticket/scripts/plan-git.sh" "$repo/.claude/skills/plan-ticket/scripts/"
 
 # O `docker` falso: o oasdiff (`run`) responde o changelog; o Node no contêiner (`compose ... exec ... node`) grava a entrada
 # que recebeu e imprime o Markdown de mentira; `exec api true` diz se o contêiner está no ar (FAKE_UP).

@@ -10,8 +10,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$HERE/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o teste dos mapas precisa dele."; exit 2; }
 
@@ -45,13 +45,16 @@ links_are_real() {
   done <"$links"
 }
 
-# Um teste de skill de uso geral não traz o ID de um critério deste projeto: os IDs de fixture (PROJ-*) valem.
+# Um teste de uma skill do kit (todas menos a verificar, que é deste projeto) não traz o ID de um critério deste
+# projeto: os IDs de fixture (PROJ-*) valem.
 skill_tests_have_no_project_ids() {
-  local found
-  found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' .claude/skills/plan-ticket/scripts/test .claude/skills/plan-ticket/hooks/test \
-    .claude/skills/worktree/scripts/test .claude/skills/worktree/hooks/test |
-    grep -v '^@PROJ-' || true)"
-  [[ -z "$found" ]] || { echo "ID deste projeto em teste da skill: $found"; return 1; }
+  local found dir dirs
+  dirs=()
+  for dir in .claude/skills/*/scripts/test .claude/skills/*/hooks/test; do
+    [[ "$dir" == .claude/skills/verificar/* ]] || dirs+=("$dir")
+  done
+  found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' "${dirs[@]}" | grep -v '^@PROJ-' || true)"
+  [[ -z "$found" ]] || { echo "ID deste projeto em teste de skill do kit: $found"; return 1; }
 }
 
 # O relatório montado das linhas dos mapas, no formato do Vitest, sem nenhuma tag: o conferidor tem de cobrir
@@ -74,7 +77,7 @@ covered_by_the_maps() {
 
 name="os critérios provados pelos testes do conferidor continuam cobertos pelo mapa, sem ID deste projeto nos testes da skill @LUI-196-CA7 @LUI-199-CA7"
 check "$name: os mapas existem e cada linha liga um critério a um caso que está no arquivo" links_are_real
-check "$name: nenhum teste da skill de plano nem da skill worktree traz o ID de um critério deste projeto" skill_tests_have_no_project_ids
+check "$name: nenhum teste de uma skill do kit traz o ID de um critério deste projeto" skill_tests_have_no_project_ids
 check "$name: o conferidor cobre cada critério ligado só pelo mapa" covered_by_the_maps
 
 finish "dos mapas de testes"

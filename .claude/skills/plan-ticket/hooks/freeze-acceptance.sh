@@ -6,10 +6,10 @@
 # de aceite novo e editar qualquer outro arquivo, inclusive os outros da pasta do ticket (o mapa de testes é
 # um deles), continuam liberados.
 #
-#   freeze-acceptance.sh [<pasta dos tickets>]
+#   freeze-acceptance.sh
 #
-# A pasta dos tickets, relativa à raiz do projeto, é do projeto, e chega pela linha de comando do hook; sem ela, vale
-# `docs/tickets`, o padrão da skill de plano.
+# A pasta dos tickets, relativa à raiz do projeto, é do projeto: o hook a lê do arquivo de configuração dele, a chave
+# tickets.pasta do `.config/project`. Sem a chave, o projeto não tem aceite a congelar, e o hook libera tudo.
 #
 # Sai com 0 para deixar a edição rodar e com 2 para negá-la. No 2, o que foi escrito na saída de
 # erro volta para o agente.
@@ -18,9 +18,10 @@ set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
 
 # A pasta dos tickets na forma do caminho que o `realpath` devolve abaixo: relativa à raiz do projeto, sem `./`,
-# sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. Sem forks: o hook
-# roda a cada edição.
-tickets="${1:-docs/tickets}"
+# sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. Fora a leitura da
+# chave, sem forks: o hook roda a cada edição.
+tickets="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
+[[ -n "$tickets" ]] || exit 0
 tickets="${tickets#"$PWD"/}"
 tickets="${tickets//\/.\//\/}"
 tickets="${tickets#./}"

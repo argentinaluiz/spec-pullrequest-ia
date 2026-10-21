@@ -1,18 +1,8 @@
-# Os valores deste projeto para as skills do kit, na sintaxe de `git config`: um arquivo só, com uma seção por
-# assunto, e cada skill lê as seções de que precisa. É o dono único destes valores. Quem lê o quê:
-#
-#   tickets, node, plano   /plan-ticket (a pasta dos tickets é também da /revisao-conformidade e da /implement)
-#   contrato               /plan-ticket (o comando e os arquivos) e /revisao-conformidade (o desvio)
-#   revisao                /revisao-conformidade e /implement
-#   verificacao            /implement e /worktree
-#   frentes, convergencia, sincronizar, gerado   /worktree (o núcleo lê `frentes` e `convergencia`; o agente lê o resto)
-#
-# O que não está aqui vale o padrão da skill: os status do Linear, o tipo da branch e o revisor. Uma chave com o valor
-# `nenhum` na skill (a pasta dos documentos, o contrato) fica de fora quando o projeto não a tem.
+# Os valores deste projeto que as skills e os scripts leem, na sintaxe de `git config`: um arquivo só, com uma seção por
+# assunto. É o dono único destes valores; cada skill diz, no passo 0 dela, as chaves que lê, e cada script, no cabeçalho.
 
 # A pasta dos tickets (nela o Git versiona só o aceite e o mapa de testes de cada ticket; a revisão e a página do plano
-# ficam fora do Git) e a dos documentos do projeto, cujas mudanças a página do plano destaca. O hook de congelamento
-# recebe a pasta dos tickets na linha de comando dele, no .claude/settings.json.
+# ficam fora do Git) e a dos documentos do projeto, cujas mudanças a página do plano destaca.
 [tickets]
 	pasta = docs/tickets
 	documentos = docs
@@ -29,24 +19,28 @@
 	arquivos = apps/api/openapi.json apps/api/prisma/schema.prisma
 	desvio = scripts/contract-drift.sh
 
-# O atalho que chama o script da página do plano com os valores de cima: `<atalho> <issue pai> <ticket> [<commit de plano>]`.
-[plano]
-	atalho = .claude/skills/verificar/scripts/verify.sh plan
-
-# A revisão de conformidade. A base é a HARNESS_BASE_REF, com `origin/main` por padrão (o agente expande a expressão e a
-# passa ao script dos insumos, que não lê a variável). O código que pede revisão: toda mudança que casa com `sempre`
-# (`**` atravessa as barras), com ou sem ticket, e a que casa com `com-aceite` só num ticket com aceite. Uma mudança só
-# de documento não pede revisão. O revisor vale o padrão da skill, `revisor-conformidade`, instalado em
+# A revisão de conformidade. O código que pede revisão: toda mudança que casa com `sempre`, com ou sem ticket, e, num
+# ticket com aceite, também a que casa com os `bloqueado` da lista de arquivos protegidos (o harness). Uma mudança só de
+# documento não pede revisão. O revisor vale o padrão da skill, `revisor-conformidade`, instalado em
 # .claude/agents/revisor-conformidade.md (a cópia do modelo da skill; um teste confere que ela é o modelo).
 [revisao]
-	base = ${HARNESS_BASE_REF:-origin/main}
 	sempre = apps/**
-	com-aceite = .claude/hooks/**
-	com-aceite = .github/**
-	com-aceite = .config/**
-	com-aceite = scripts/**
-	com-aceite = .claude/skills/*/scripts/**
-	com-aceite = .claude/skills/*/hooks/**
+
+# A lista de arquivos protegidos do harness, que a Guarda lê (o formato é o da skill /proteger-harness) e cujos
+# `bloqueado` são o harness deste projeto.
+[protegidos]
+	lista = .config/arquivos-protegidos
+
+# Os status do gerenciador de issues pelos quais as skills sabem se um ticket começou, está em revisão ou terminou.
+[status]
+	em-andamento = In Progress
+	em-revisao = In Review
+	concluido = Done
+
+# O tipo da branch de um ticket: o do bug, pela label de tipo `Bug`, e o de qualquer outro.
+[branch]
+	tipo-do-bug = bugfix
+	tipo-padrao = feature
 
 # O limite de frentes ao todo, contando o checkout principal quando ele não está na main, e o comando de ambiente de
 # cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O limite é também o teto do ambiente
@@ -56,9 +50,10 @@
 	ambiente = scripts/frente-ambiente.sh
 
 # Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. O tipo é a
-# chave e o caminho é o valor, que aceita `*` (casa também as barras). Vale o primeiro padrão que casa, na ordem
-# daqui; um arquivo que nenhum casa é código e pede atenção. O núcleo usa a classificação para separar os conflitos do
-# `listar`, e o modo sincronizar usa para saber o que resolver por regra (a regra de cada tipo é desse modo).
+# chave e o caminho é o valor, no padrão de caminho da lista de arquivos protegidos (`*` num nível de pasta, `**`
+# atravessa as barras). Vale o primeiro padrão que casa, na ordem daqui; um arquivo que nenhum casa é código e pede
+# atenção. O núcleo usa a classificação para separar os conflitos do `listar`, o modo sincronizar, para saber o que
+# resolver por regra (a regra de cada tipo é desse modo), e a Guarda do harness, para avisar no PR que muda um deles.
 #
 #   gerado       o snapshot da OpenAPI, regenerado a partir do código mergeado
 #   migracoes    a pasta de migrações, cuja pasta atrasada se recria com nome novo
@@ -68,7 +63,7 @@
 [convergencia]
 	gerado = apps/api/openapi.json
 
-	migracoes = apps/api/prisma/migrations/*
+	migracoes = apps/api/prisma/migrations/**
 
 	registros = apps/api/src/app.module.ts
 	registros = apps/api/src/config/env.schema.ts
