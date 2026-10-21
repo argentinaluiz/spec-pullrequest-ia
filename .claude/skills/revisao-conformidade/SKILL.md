@@ -9,13 +9,13 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
 ## Steps
 
-0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill with `git config --file .config/project --get <key>` (`--get-all` for a list of patterns). Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill in one call, `git config --file .config/project --get-regexp '^(tickets|contrato|revisao)\.'`, which prints a line per value. Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
    | Value | Key | Default | Used in |
    | --- | --- | --- | --- |
    | Tickets folder | `tickets.pasta` | `docs/tickets` | the review folder of each ticket (`--tickets` of the script) |
    | Base | `revisao.base` | the main branch of the origin remote, `origin/<branch>` | the diff and the plan commit (`--base` of the script); the value may be a shell expression, which you expand before passing it |
-   | Code that asks for a review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | when to run the review at all: a change that matches `sempre` asks for it, and one that matches `com-aceite` asks only on a ticket with an acceptance file (patterns where `**` crosses the slashes) |
+   | Code that asks for a review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | when to run the review at all: a change that matches `sempre` asks for it, and one that matches `com-aceite` asks only on a ticket with an acceptance file |
    | Reviewer | `revisao.revisor` | `revisor-conformidade` | step 3: the subagent to call |
    | Contract drift | `contrato.desvio` | `nenhum` | step 2: the command that tells the drift since the plan commit (`--desvio` of the script) |
 

@@ -14,7 +14,7 @@ The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash
 
 ## Steps
 
-0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill with `git config --file .config/project --get <key>`. Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill in one call, `git config --file .config/project --get-regexp '^(tickets|node|contrato|plano)\.'`, which prints a line per value. Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
    | Value | Key | Default | Used in |
    | --- | --- | --- | --- |

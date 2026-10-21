@@ -8,12 +8,12 @@ Implement one ticket, in this session and in this checkout (the front of the tic
 
 ## Step 0: the project values
 
-The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill with `git config --file .config/project --get <key>` (`--get-all` for a list of patterns). Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill in one call, `git config --file .config/project --get-regexp '^(tickets|revisao|verificacao)\.'`, which prints a line per value. Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
 | Value | Key | Default | Used in |
 | --- | --- | --- | --- |
 | Tickets folder | `tickets.pasta` | `docs/tickets` | step 2: where the acceptance file of the ticket lives |
-| Code that asks for a conformance review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | step 7: when to call the conformance review (a change that matches `com-aceite` counts on a ticket with an acceptance file, and one that matches `sempre` always; patterns where `**` crosses the slashes) |
+| Code that asks for a conformance review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | step 7: when to call the conformance review (the same keys as the review skill) |
 | Full verification | `verificacao.completa` | none: ask | step 8: the command that runs the complete verification |
 
 Say in the chat, in one line, which values came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and once agreed, propose the entry for the file. If the full verification command receives the body of the pull request, save the body first, with its acceptance section, and pass it as the command says.
