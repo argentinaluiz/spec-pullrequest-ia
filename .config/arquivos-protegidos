@@ -4,7 +4,8 @@
 # nenhum casa é código e passa. Atenção: o formato lembra o da seção `convergencia` de .config/project, mas lá o `*`
 # casa também as barras; aqui ele fica num nível de pasta.
 #
-# O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request. A própria lista é bloqueada.
+# O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request. Ela mora em .config/, que é
+# bloqueado: a própria lista é protegida sem uma linha dela.
 # O texto de uma skill (o SKILL.md, os formatos, o modelo do revisor) é livre: só os scripts e os hooks dela
 # são protegidos.
 
@@ -15,10 +16,9 @@ bloqueado	.claude/hooks/**
 bloqueado	.claude/agents/**
 bloqueado	.claude/skills/*/scripts/**
 bloqueado	.claude/skills/*/hooks/**
-bloqueado	.claude/skills/verificar/arquivos-protegidos.txt
 bloqueado	scripts/**
-# A configuração do projeto para as skills (o .config/project): ela nomeia o comando que o núcleo das frentes
-# executa e a classificação que o modo sincronizar segue.
+# A configuração do projeto: o .config/project nomeia os comandos que as skills executam, e esta lista é a que a
+# Guarda lê.
 bloqueado	.config/**
 
 # Aceite congelado: um arquivo de aceite que já existe na `main` foi alterado, renomeado ou apagado. Descongelar

@@ -21,8 +21,8 @@ What belongs to other skills, and the verification calls from there: the checker
 
 ## The list of protected files
 
-`arquivos-protegidos.txt`, in this folder, is the list that the guard of `/proteger-harness` reads (the format and the types are in that skill). The workflow `Guarda do harness` passes the copy from the checked-out `main`, never the one of the pull request.
+`.config/arquivos-protegidos`, at the root of the repository, is the list that the guard of `/proteger-harness` reads (the format and the types are in that skill). The workflow `Guarda do harness` passes the copy from the checked-out `main`, never the one of the pull request.
 
-The list is the only place that says which file has which type, with a comment on each group. Two rules are worth knowing before reading it: the scripts and hooks of **any** skill, and the list itself, are blocked, while the text of a skill (the `SKILL.md`, the formats, the model of the reviewer) stays free, because the root `AGENTS.md` is worth more than any skill.
+The list is the only place that says which file has which type, with a comment on each group. Two rules are worth knowing before reading it: the scripts and hooks of **any** skill, and everything under `.config/` (the list among it), are blocked, while the text of a skill (the `SKILL.md`, the formats, the model of the reviewer) stays free, because the root `AGENTS.md` is worth more than any skill.
 
 When a path no pattern matches, it is code and passes. To protect a new file, add a line there; the pull request that does it is a harness change and enters by an override of the admin.

@@ -52,7 +52,7 @@ jobs:
                 -H "Accept: application/vnd.github.raw" > "$HEAD_DIR/$path" || rm -f "$HEAD_DIR/$path"
             done
 
-          # A Guarda é da skill proteger-harness, e a lista de arquivos protegidos, da skill verificar: as duas
+          # A Guarda é da skill proteger-harness, e a lista de arquivos protegidos mora em `.config/`: as duas
           # são as da `main`, que o checkout trouxe, e nunca as do pull request.
           .claude/skills/proteger-harness/scripts/harness-guard.sh \
-            .claude/skills/verificar/arquivos-protegidos.txt "$CHANGED_FILES" < "$RUNNER_TEMP/changed-files.txt"
+            .config/arquivos-protegidos "$CHANGED_FILES" < "$RUNNER_TEMP/changed-files.txt"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Teste da lista de arquivos protegidos deste projeto (arquivos-protegidos.txt, da skill verificar): a
+# Teste da lista de arquivos protegidos deste projeto (.config/arquivos-protegidos): a
 # Guarda da skill proteger-harness, chamada com a lista real, bloqueia o mecanismo de qualquer skill e a
 # própria lista, e deixa o texto das skills livre. Roda na máquina, num diretório temporário que faz as vezes
 # da `main`. O caso leva a tag do critério de aceite no nome.
@@ -9,7 +9,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
-LIST="$ROOT/.claude/skills/verificar/arquivos-protegidos.txt"
+LIST="$ROOT/.config/arquivos-protegidos"
 # shellcheck source=sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
@@ -46,7 +46,7 @@ for path in \
   .claude/skills/qualquer-skill-nova/scripts/test/x.test.sh \
   .claude/skills/proteger-harness/hooks/state-guard.sh \
   .claude/skills/qualquer-skill-nova/hooks/test/y.test.sh \
-  .claude/skills/verificar/arquivos-protegidos.txt \
+  .config/arquivos-protegidos \
   .config/project \
   .claude/agents/revisor-conformidade.md \
   .claude/skills/verificar/hooks/push-verify.sh \
