@@ -9,7 +9,8 @@
 #   freeze-acceptance.sh
 #
 # A pasta dos tickets, relativa à raiz do projeto, é do projeto: o hook a lê do arquivo de configuração dele, a chave
-# tickets.pasta do `.config/project`. Sem a chave, o projeto não tem aceite a congelar, e o hook libera tudo.
+# tickets.pasta do `.config/project`. Sem a chave, o hook não sabe onde ficam os aceites e congela todo `aceite.md` já
+# em commit, em qualquer pasta: uma chave que falta, ou escrita errada, não desliga o congelamento.
 #
 # Sai com 0 para deixar a edição rodar e com 2 para negá-la. No 2, o que foi escrito na saída de
 # erro volta para o agente.
@@ -25,7 +26,6 @@ input="$(cat)"
 # sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. A normalização não
 # cria processos: o hook roda a cada edição.
 tickets="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
-[[ -n "$tickets" ]] || exit 0
 tickets="${tickets#"$PWD"/}"
 tickets="${tickets//\/.\//\/}"
 tickets="${tickets#./}"
@@ -41,6 +41,7 @@ OLD_ACCEPTANCE='^[^/]+/aceite\.md$'
 # o hook não consegue ler. O `sed` escapa a pasta dos tickets como texto literal da expressão, e só roda aqui, no
 # caso raro.
 mentions_acceptance() {
+  [[ -n "$tickets" ]] || { [[ "$1" == *aceite.md* ]]; return; }
   local literal
   literal="$(printf '%s' "$tickets" | sed 's/[][\.*^$+?(){}|/]/\\&/g')"
   [[ "$1" =~ $literal/[^/[:space:]\"]+/[^/[:space:]\"]+/aceite\.md || "$1" =~ $literal/[^/[:space:]\"]+/aceite\.md ]]
@@ -69,6 +70,13 @@ relative="$(realpath -m --relative-to="$PWD" -- "$file" 2>/dev/null)" || {
   mentions_acceptance "$file" && deny "o arquivo de aceite citado na entrada"
   exit 0
 }
+# Sem a pasta dos tickets, todo aceite em commit está congelado.
+if [[ -z "$tickets" ]]; then
+  [[ "$relative" == aceite.md || "$relative" == */aceite.md ]] || exit 0
+  git cat-file -e "HEAD:$relative" 2>/dev/null &&
+    deny "$relative (o .config/project não diz a pasta dos tickets, e todo aceite em commit fica congelado)"
+  exit 0
+fi
 # Fora da pasta dos tickets, o hook não tem o que congelar.
 inside="${relative#"$tickets"/}"
 [[ "$inside" != "$relative" ]] || exit 0

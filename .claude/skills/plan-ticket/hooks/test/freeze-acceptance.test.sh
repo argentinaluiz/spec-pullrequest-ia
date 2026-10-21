@@ -114,9 +114,16 @@ check "nega editar o aceite em commit, libera o mapa de testes e respeita a past
 
 no_folder_case() {
   rm -f "$project/.config/project"
-  jq -n --arg file "$project/$t/aceite.md" '{tool_input: {file_path: $file}}' | "$HOOK" >/dev/null 2>&1
+  want_raw() {
+    local got
+    jq -n --arg file "$project/$2" '{tool_input: {file_path: $file}}' | "$HOOK" >/dev/null 2>&1
+    got=$?
+    [[ "$got" == "$1" ]] || { echo "  $2 sem a pasta na configuração: saiu $got, esperava $1" >&2; return 1; }
+  }
+  want_raw 2 "$t/aceite.md" && want_raw 2 "$other/aceite.md" && want_raw 0 "$t/mapa-de-testes.txt" &&
+    want_raw 0 docs/tickets/PROJ-100/PROJ-9/aceite.md
 }
-check "sem a pasta dos tickets na configuração, não há aceite a congelar e o hook libera" no_folder_case
+check "sem a pasta dos tickets na configuração, congela todo aceite em commit, em qualquer pasta, e libera o resto" no_folder_case
 
 # A pasta dos tickets pode chegar escrita de outros jeitos, e o aceite segue congelado: com `./`, barra no fim,
 # barras repetidas ou o caminho absoluto dentro do projeto.

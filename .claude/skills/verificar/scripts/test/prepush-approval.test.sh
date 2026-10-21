@@ -32,6 +32,9 @@ mkdir -p "$repo/scripts" "$repo/$SK" "$repo/.claude/skills/proteger-harness/scri
 cp -R "$ROOT/$SK/scripts" "$repo/$SK/"
 rm -rf "$repo/$SK/scripts/test"
 mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
+mkdir -p "$repo/.claude/skills/plan-ticket/scripts" && cp "$ROOT/.claude/skills/plan-ticket/scripts/plan-git.sh" "$repo/.claude/skills/plan-ticket/scripts/"
+# A configuração do projeto, com a pasta dos tickets, que a verificação exige.
+mkdir -p "$repo/.config" && printf '[tickets]\n\tpasta = docs/tickets\n' >"$repo/.config/project"
 cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$ROOT/.claude/skills/proteger-harness/scripts/harness-state-guard.sh" \
   "$repo/.claude/skills/proteger-harness/scripts/"
 git -C "$repo" init -q -b main

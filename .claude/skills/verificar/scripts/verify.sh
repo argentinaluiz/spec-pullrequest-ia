@@ -69,13 +69,14 @@ CONTRACT_DRIFT=scripts/contract-drift.sh
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
-# O valor de uma chave do .config/project (o dono dos valores que o harness usa), ou o padrão quando ela falta.
-# config_value <chave> [<padrão>]
-config_value() {
-  git config --file .config/project --get "$1" 2>/dev/null || printf '%s' "${2:-}"
-}
-# A pasta dos tickets.
-TICKETS_DIR="$(config_value tickets.pasta docs/tickets)"
+# A pasta dos tickets, do .config/project (o dono dos valores que o harness usa). É obrigatória: sem ela, não há
+# aceite a conferir nem aprovação que se saiba invalidar.
+TICKETS_DIR="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
+if [[ -z "$TICKETS_DIR" ]]; then
+  printf '\nNÃO VERIFICADO: o .config/project não diz a pasta dos tickets (a chave tickets.pasta).\n' >&2
+  printf 'Como resolver: acrescente ao .config/project a seção `[tickets]` com `pasta = <pasta dos tickets>` e rode de novo.\n' >&2
+  exit 2
+fi
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo
 # deles, que a verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
