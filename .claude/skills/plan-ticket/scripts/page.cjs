@@ -1,6 +1,16 @@
 // Monta a página de revisão do plano de um ticket: um HTML estático, com uma aba por parte do plano
 // (Aceite, Contrato, Schema, Documentos, Arquivos e interfaces e Decisões), para o humano aprovar o
-// plano antes do commit de plano. O que cada aba mostra está no SKILL.md da skill de plano.
+// plano antes do commit de plano. O que cada aba mostra:
+//
+//   Aceite                 o arquivo de aceite: a introdução e uma linha por ID, com a marca e o cenário, e o
+//                          teste previsto numa parte expansível
+//   Contrato e Schema      as seções `# Contrato` e `# Schema` do Markdown do comando do contrato, ou que o
+//                          projeto não declara contrato
+//   Documentos             o diff, por arquivo, de tudo o que o plano muda fora do próprio aceite e dos arquivos
+//                          do contrato, inclusive o aceite congelado de outro ticket
+//   Arquivos e interfaces  os blocos `Files and interfaces the implementation will touch:`, `Existing tests whose
+//                          behavior changes:` e `Data changes:` da mensagem
+//   Decisões               os blocos `Decision:` da mensagem, e a mensagem inteira numa parte expansível
 //
 // O construtor (`build`) não lê nada sozinho: recebe as fontes e devolve o HTML. Todo texto das fontes
 // é escapado, e a página não carrega nenhum recurso externo nem tem script: as abas são de CSS. As

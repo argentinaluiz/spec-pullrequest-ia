@@ -6,29 +6,11 @@ license: MIT
 
 # Product Requirements Document (PRD)
 
-## Overview
-
-Design comprehensive, production-grade Product Requirements Documents (PRDs) that bridge the gap between business vision and technical execution. This skill works for modern software systems, ensuring that requirements are clearly defined.
-
-## When to Use
-
-Use this skill when:
-
-- Starting a new product or feature development cycle
-- Translating a vague idea into a concrete technical specification
-- Defining requirements for AI-powered features
-- Stakeholders need a unified "source of truth" for project scope
-- User asks to "write a PRD", "document requirements", or "plan a feature"
-
----
-
-## Operational Workflow
-
 The issue tracker and triage label vocabulary should have been provided to you. If not, ask the user where the PRD should be published before starting.
 
-### Phase 1: Discovery (The Interview)
+## Phase 1: Discovery (The Interview)
 
-Before writing a single line of the PRD, you **MUST** interrogate the user to fill knowledge gaps. Do not assume context.
+Before writing a single line of the PRD, you **MUST** interrogate the user to fill knowledge gaps, with at least two clarifying questions. Do not assume context: if the user didn't specify a constraint such as the tech stack, ask, or label it as `TBD`.
 
 **Ask about:**
 
@@ -36,28 +18,26 @@ Before writing a single line of the PRD, you **MUST** interrogate the user to fi
 - **Success Metrics**: How do we know it worked?
 - **Constraints**: Budget, tech stack, or deadline?
 
-### Phase 2: Analysis & Scoping
+## Phase 2: Analysis & Scoping
 
 Synthesize the user's input. Identify dependencies and hidden complexities.
 
 - Map out the **User Flow**.
 - Define **Non-Goals** to protect the timeline.
 
-### Phase 3: Technical Drafting
+## Phase 3: Technical Drafting
 
-Generate the document using the **Strict PRD Schema** below. Use the project's domain glossary vocabulary throughout the PRD.
+Generate the document using the **Strict PRD Schema** below. Use the project's domain glossary vocabulary throughout the PRD. For AI systems, specify how to test and validate output quality. Present the draft and ask for feedback on specific sections.
 
-### Phase 4: Publishing
+## Phase 4: Publishing
 
-Once the user approves the draft, publish the PRD to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+Once the user approves the draft, publish the PRD to the project issue tracker instead of leaving it only in the conversation or in a file. Apply the `ready-for-agent` triage label - no need for additional triage.
 
 Do NOT include specific file paths or code snippets in the published PRD. They may end up being outdated very quickly.
 
 ---
 
-## PRD Quality Standards
-
-### Requirements Quality
+## Requirements Quality
 
 Use concrete, measurable criteria. Avoid "fast", "easy", or "intuitive".
 
@@ -106,47 +86,3 @@ You **MUST** follow this exact structure for the output:
 
 - **Phased Rollout**: MVP -> v1.1 -> v2.0.
 - **Technical Risks**: Latency, cost, or dependency failures.
-
----
-
-## Implementation Guidelines
-
-### DO (Always)
-
-- **Define Testing**: For AI systems, specify how to test and validate output quality.
-- **Iterate**: Present a draft and ask for feedback on specific sections.
-- **Publish**: Once the draft is approved, publish the PRD to the project issue tracker instead of leaving it only in the conversation or in a file.
-
-### DON'T (Avoid)
-
-- **Skip Discovery**: Never write a PRD without asking at least 2 clarifying questions first.
-- **Hallucinate Constraints**: If the user didn't specify a tech stack, ask or label it as `TBD`.
-
----
-
-## Example: Intelligent Search System
-
-### 1. Executive Summary
-
-**Problem**: Users struggle to find specific documentation snippets in massive repositories.
-**Solution**: An intelligent search system that provides direct answers with source citations.
-**Success**:
-
-- Reduce search time by 50%.
-- Citation accuracy >= 95%.
-
-### 2. User Stories
-
-- **Story**: As a developer, I want to ask natural language questions so I don't have to guess keywords.
-- **AC**:
-  - Supports multi-turn clarification.
-  - Returns code blocks with "Copy" button.
-
-### 3. AI System Architecture
-
-- **Tools Required**: `codesearch`, `grep`, `webfetch`.
-
-### 4. Evaluation
-
-- **Benchmark**: Test with 50 common developer questions.
-- **Pass Rate**: 90% must match expected citations.

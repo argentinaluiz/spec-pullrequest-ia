@@ -364,7 +364,8 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
     if (statuses.length === 0) {
       error(
         `${criterion.id} (${criterion.file}) não tem nenhum teste. ` +
-          `Escreva o teste e ponha a tag @${criterion.id} nele. Se um teste foi apagado, restaure-o.`,
+          `Escreva o teste e ponha a tag @${criterion.id} nele. Se um teste foi apagado, restaure-o. ` +
+          'Se o teste é de uma skill, ligue-o pelo mapa de testes do ticket (formatos/mapa-de-testes.md, da skill de plano, "Quando o conferidor reclama").',
       );
     } else if (statuses.some((status) => status !== 'passed')) {
       const state = statuses.includes('failed') ? 'falhou' : 'foi pulado';

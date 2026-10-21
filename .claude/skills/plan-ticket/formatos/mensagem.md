@@ -1,6 +1,6 @@
 # Formato da mensagem do commit de plano
 
-A skill de plano é a dona deste formato. A página do plano lê da mensagem as abas "Arquivos e interfaces" e "Decisões", com o parser da skill (`scripts/plan.cjs`), então ela segue estes blocos. A lista de arquivos e interfaces, que é o que mais envelhece, fica só aqui, e a mudança de dados (seed, backfill) também: ela não cabe no contrato.
+A página do plano monta as abas "Arquivos e interfaces" e "Decisões" a partir destes blocos da mensagem, então ela os segue. A lista de arquivos e interfaces, que é o que mais envelhece, fica só aqui, e a mudança de dados (seed, backfill) também: ela não cabe no contrato.
 
 ```text
 docs: plan <o que o ticket entrega> (<ticket>)

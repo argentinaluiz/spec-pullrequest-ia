@@ -42,7 +42,7 @@ Give each ticket its **blocking edges**: the other tickets that must complete be
 - move it into an **earlier ticket** that blocks the ones that use it (the earlier ticket decides it once, and the others consume the decision), or
 - **chain** the tickets, when moving it out is not worth a ticket of its own.
 
-The criterion of parallelism is the decision, not the area. Two tickets that touch the same file or module, with no decision in common, can still run in parallel: the textual conflict is solved at integration. Do not give a ticket owned or forbidden file paths; the writing rule already keeps paths out of tickets.
+The criterion of parallelism is the decision, not the area. Two tickets that touch the same file or module, with no decision in common, can still run in parallel: the textual conflict is solved at integration. Do not give a ticket owned or forbidden file paths.
 
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
 
@@ -74,8 +74,6 @@ Publish the approved tickets. **How** depends on the tracker the project uses; t
 
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below: one ticket per file, never a single combined file.
 - **The project's issue tracker** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. If the source was an existing issue, make each ticket its sub-issue (tracker doc's operation). Apply the `ready-for-agent` triage label unless instructed otherwise; the tickets are agent-grabbable by construction.
-
-Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
 Do NOT close or modify any parent issue.
 
@@ -121,6 +119,6 @@ Optional. The decisions this ticket consumes without taking, and the ticket that
 
 </issue-template>
 
-In a criterion, `CA<n>` is its stable ID and `(check)` is how it is verified. The ID rules and the checks are owned by the `plan-ticket` skill, in `formatos/aceite.md`; follow them. The definition of done is not a criterion.
+In a criterion, `CA<n>` is its stable ID and `(check)` is how it is verified. The ID rules and the checks are in `formatos/aceite.md` of the `plan-ticket` skill; follow them. The definition of done is not a criterion.
 
 In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.

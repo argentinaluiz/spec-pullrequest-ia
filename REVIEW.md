@@ -14,7 +14,7 @@ O que toda revisão deste repositório confere além dos defeitos de código: se
 2. **Cada teste prova o cenário.** O teste de um critério com marca de teste traz a tag `@<ticket>-CA<n>`. A CI já prova que ele existe e passou; leia as asserções contra o Dado, Quando, Então. Um teste que passaria com o comportamento quebrado é achado: asserção mais fraca que o cenário, só o caminho feliz, ou que repete a implementação em vez de conferir o resultado.
 3. **O contrato e o schema batem com o pedido.** Uma rota, um campo ou um erro que o aceite não pede, ou que falta, é achado. Um contrato quebrado sem pedido (rota removida, campo obrigatório novo) é achado grave. Uma rota ou tabela nova que não traz um item do formato do LLD também é achado.
 4. **O documento dono mudou junto.** Se o diff muda uma decisão registrada em `docs/` (LLD, HLD, design system) ou no `AGENTS.md` de um projeto, o documento mudou no mesmo PR? Cada informação tem um dono só: um texto que repete o de outro documento, em vez de apontar para ele, é achado.
-5. **O aceite congelado não mudou.** Um `aceite.md` que já existia antes do PR só muda quando o usuário o descongela. A mudança é achado para o humano confirmar.
+5. **O aceite congelado não mudou.** O `aceite.md` de um ticket (`docs/tickets/<issue>/<ticket>/aceite.md`) que já existia antes do PR só muda quando o usuário o descongela. A mudança é achado para o humano confirmar.
 
 ## Severidade
 
