@@ -2,23 +2,30 @@
 #
 # Frentes paralelas, o núcleo: cada ticket pode correr num checkout próprio (um worktree do Git), com a própria
 # branch, a própria sessão do agente e o próprio PR. Este script só precisa do Git (e do `gh` para o estado do PR):
-# o que é de um projeto, como um ambiente por frente, entra por opção, e o que não for dado é pulado.
+# o que é de um projeto, como um ambiente por frente, vem do arquivo de configuração dele, e o que não for dado é pulado.
 #
-#   frentes.sh [opções] novo <ticket> [tipo]         cria a frente do ticket (PREFIXO-N)
-#   frentes.sh [opções] listar                        as frentes abertas, com slot, branch, portas, PR e conflitos
-#   frentes.sh [opções] remover <ticket> [--forcar]   desmonta a frente do ticket
+#   frentes.sh [--config <arquivo>] novo <ticket> [tipo]         cria a frente do ticket (PREFIXO-N)
+#   frentes.sh [--config <arquivo>] listar                        as frentes abertas, com slot, branch, portas, PR e conflitos
+#   frentes.sh [--config <arquivo>] remover <ticket> [--forcar]   desmonta a frente do ticket
 #
-# As opções vêm antes do subcomando, e quem chama o núcleo (o atalho de um projeto) as passa:
+# Os valores de um projeto vêm do arquivo de configuração dele, `.config/worktree` na raiz do checkout onde o núcleo
+# roda (a pasta da frente, quando é dentro dela), lido com `git config --file`: sem o arquivo, valem os padrões, e o
+# núcleo trabalha só com o Git. A opção `--config <arquivo>`, antes do subcomando, troca o arquivo (os testes a usam; um
+# arquivo que não existe, nesse caso, é um erro). O núcleo lê três coisas dele; as outras seções são do modo `sincronizar`, que o agente
+# lê:
 #
-#   --limite <n>          o máximo de frentes ao todo, contando o principal quando ele é uma (padrão 3)
-#   --ambiente <comando>  o comando de ambiente da frente (padrão: nenhum, e o núcleo trabalha só com o Git). O núcleo
-#                         o chama como `<comando> verificar <slot>` (recusa o slot que não está livre, antes de criar
-#                         qualquer coisa), `<comando> criar <pasta> <slot>` (prepara e sobe o ambiente da pasta),
-#                         `<comando> derrubar <pasta>` (derruba o ambiente) e `<comando> portas <slot>` (imprime as
-#                         portas do slot, que o `listar` mostra). Sai com 0 se deu certo e com outro código, dizendo
-#                         por quê, se não.
-#   --pontos <arquivo>    a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é código). O
-#                         formato é o de um arquivo de linhas `tipo<TAB>padrão`, com `#` nos comentários.
+#   [frentes] limite = <n>        o máximo de frentes ao todo, contando o principal quando ele é uma (padrão 3)
+#   [frentes] ambiente = <caminho>  o comando de ambiente da frente (padrão: nenhum). O caminho, relativo à raiz do
+#                         checkout, é chamado como `<comando> verificar <slot>` (recusa o slot que não está livre,
+#                         antes de criar qualquer coisa), `<comando> criar <pasta> <slot>` (prepara e sobe o ambiente
+#                         da pasta), `<comando> derrubar <pasta>` (derruba o ambiente) e `<comando> portas <slot>`
+#                         (imprime as portas do slot, que o `listar` mostra). Sai com 0 se deu certo e com outro código,
+#                         dizendo por quê, se não.
+#   [convergencia] <tipo> = <padrão>  a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é
+#                         código). O tipo é a chave e o caminho, o valor, que aceita `*` (casa também as barras); vale o
+#                         primeiro padrão que casa, na ordem do arquivo. Os tipos que o núcleo conhece são `gerado`,
+#                         `migracoes` e `registros` (o `listar` os mostra à parte, com regra mecânica) e `documentos` e
+#                         `manual` (pedem atenção, com o tipo ao lado); qualquer outro tipo vale como código.
 #
 # Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>, na
 # branch <tipo>/<ticket em minúsculas>, com o tipo feature (o padrão), bugfix, hotfix ou docs. O checkout principal
@@ -66,10 +73,12 @@ GIT_MIN=2.38
 # O arquivo do diretório privado do Git do worktree em que a frente guarda o slot.
 SLOT_FILE=frente-slot
 
-# Os valores que o chamador dá por opção, com os padrões.
+# Os valores do projeto, com os padrões; load_config os troca pelos do arquivo de configuração.
+CONFIG=""
 LIMITE=3
 AMBIENTE=""
-PONTOS=""
+# As linhas `convergencia.<tipo> <padrão>` do arquivo, na ordem dele.
+CONVERGENCE=()
 
 # Os substitutos do modo de teste do harness: só com HARNESS_TEST=1, e nada mais pode trocá-los.
 GH=gh
@@ -90,6 +99,36 @@ require_git_version() {
   [[ "$(printf '%s\n%s\n' "$GIT_MIN" "$found" | sort -V | head -n 1)" == "$GIT_MIN" ]] ||
     die "O Git $found é mais antigo do que o script de frentes aceita: a versão mínima é a $GIT_MIN." \
       "Atualize o Git e rode de novo."
+}
+
+# Lê o arquivo de configuração do projeto (ver o cabeçalho) e troca os padrões pelos valores dele.
+load_config() {
+  local root file value
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if [[ -n "$CONFIG" ]]; then
+    [[ -f "$CONFIG" ]] || die "O arquivo de configuração \`$CONFIG\` não existe."
+    file="$CONFIG"
+  else
+    file="$root/.config/worktree"
+    [[ -f "$file" ]] || return 0
+  fi
+  git config --file "$file" --list >/dev/null 2>&1 || die "O arquivo \`$file\` não se lê como arquivo de configuração do Git."
+
+  value="$(git config --file "$file" --get frentes.limite)"
+  if [[ -n "$value" ]]; then
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] || die "A chave frentes.limite de \`$file\` pede um número inteiro maior que zero, e veio \`$value\`."
+    LIMITE="$value"
+  fi
+  value="$(git config --file "$file" --get frentes.ambiente)"
+  if [[ -n "$value" ]]; then
+    [[ "$value" == /* ]] || value="$root/$value"
+    [[ -x "$value" && -f "$value" ]] || die "O comando de ambiente \`$value\` (frentes.ambiente de \`$file\`) não existe ou não é executável."
+    AMBIENTE="$value"
+  fi
+  mapfile -t CONVERGENCE < <(git config --file "$file" --get-regexp '^convergencia\.')
+  for value in "${CONVERGENCE[@]}"; do
+    [[ "$value" == *" "* ]] || die "A chave \`$value\` de \`$file\` está sem padrão: a linha é \`<tipo> = <padrão>\`."
+  done
 }
 
 # O ticket PREFIXO-N em minúsculas (lui-186), no TICKET_KEY. Sai com o uso se o formato não vale.
@@ -209,17 +248,16 @@ pr_label() {
 # O marcador de um par cujo merge não deu para calcular, no lugar do arquivo.
 COMPUTE_ERROR="@@erro"
 
-# O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação do
-# arquivo dos pontos; nada, se o arquivo é código ou se não há arquivo dos pontos.
+# O tipo de um ponto de convergência (gerado, migracoes, registros, documentos ou manual), pela classificação da
+# seção convergencia do arquivo de configuração; nada, se o arquivo é código ou se não há classificação.
 # convergence_type <arquivo>
 convergence_type() {
-  local type pattern
-  [[ -n "$PONTOS" ]] || return 0
-  while IFS=$'\t' read -r type pattern; do
-    [[ -z "$type" || "$type" == \#* ]] && continue
+  local line key pattern
+  for line in "${CONVERGENCE[@]}"; do
+    read -r key pattern <<<"$line"
     # shellcheck disable=SC2053
-    [[ "$1" == $pattern ]] && { echo "$type"; return 0; }
-  done <"$PONTOS"
+    [[ "$1" == $pattern ]] && { echo "${key#convergencia.}"; return 0; }
+  done
   return 0
 }
 
@@ -342,7 +380,7 @@ cmd_novo() {
     die "O ticket $1 já tem frente: $(ticket_worktrees "$TICKET_KEY" | cut -f 1 | paste -sd ' ')"
   fi
   if [[ "$(fronts | wc -l)" -ge "$LIMITE" ]]; then
-    die "Já há $LIMITE frentes abertas, o limite de $LIMITE frentes ao todo (--limite), e o principal conta quando não está na $BASE_BRANCH." \
+    die "Já há $LIMITE frentes abertas, o limite de $LIMITE frentes ao todo (frentes.limite), e o principal conta quando não está na $BASE_BRANCH." \
       "As abertas:" "$(cmd_listar)"
   fi
   slot="$(free_slot)" || die "Não há slot livre (1 a $LIMITE)."
@@ -395,34 +433,24 @@ cmd_remover() {
   echo "Frente do $ticket removida: $dir e a branch $branch."
 }
 
-# As opções do chamador, antes do subcomando.
+# A opção do chamador, antes do subcomando.
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --limite)
+    --config)
       [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
-      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "A opção --limite pede um número inteiro maior que zero, e veio \`$2\`."
-      LIMITE="$2"
+      CONFIG="$2"
       shift 2
       ;;
-    --ambiente)
-      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
-      AMBIENTE="$2"
-      shift 2
-      ;;
-    --pontos)
-      [[ $# -ge 2 ]] || die "A opção $1 pede um valor."
-      PONTOS="$2"
-      shift 2
-      ;;
-    -*) die "A opção \`$1\` não existe: as opções são --limite, --ambiente e --pontos, antes do subcomando." ;;
+    -*) die "A opção \`$1\` não existe: a única opção é --config, antes do subcomando." ;;
     *) break ;;
   esac
 done
 
 require_git_version
+load_config
 case "${1:-}" in
   novo) shift; cmd_novo "$@" ;;
   listar) cmd_listar ;;
   remover) shift; cmd_remover "$@" ;;
-  *) die "Uso: frentes.sh [--limite <n>] [--ambiente <comando>] [--pontos <arquivo>] novo <ticket> [tipo] | listar | remover <ticket> [--forcar]" ;;
+  *) die "Uso: frentes.sh [--config <arquivo>] novo <ticket> [tipo] | listar | remover <ticket> [--forcar]" ;;
 esac

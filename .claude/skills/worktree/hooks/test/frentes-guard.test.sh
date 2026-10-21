@@ -29,8 +29,8 @@ expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualque
   "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
 expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
   "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar LUI-186'")" "só o usuário abandona uma frente"
-expect 2 "nega a opção no atalho do projeto, que também se chama frentes.sh" \
-  "$(command_input '.claude/skills/ambiente/scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
+expect 2 "nega a opção pelo caminho completo do núcleo, seja qual for a pasta" \
+  "$(command_input '.claude/skills/worktree/scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
 expect 0 "libera o remover sem a opção, o novo e o listar" \
   "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
 
@@ -43,8 +43,8 @@ expect 2 "nega a entrada ilegível que cita o frentes.sh e a opção de abandono
   "isto não é json frentes.sh remover x --forcar" "só o usuário abandona uma frente"
 expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" \
   "$(command_input 'HARNESS_TEST=1 bash scripts/test/frentes.test.sh')"
-expect 0 "libera o frentes.sh com uma variável que não é do modo de teste, como o limite" \
-  "$(command_input 'FRENTES_LIMITE=1 scripts/frentes.sh novo LUI-1')"
+expect 0 "libera o frentes.sh com uma variável que não é do modo de teste" \
+  "$(command_input 'LANG=C scripts/frentes.sh novo LUI-1')"
 expect 0 "libera um comando que só cita a palavra do abandono" "$(command_input 'git commit -m "documenta o abandono"')"
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
 

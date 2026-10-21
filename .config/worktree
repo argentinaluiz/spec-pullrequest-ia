@@ -1,0 +1,69 @@
+# Os valores deste projeto para a skill /worktree, na sintaxe de `git config` (um arquivo por skill genérica, com o nome
+# dela, nesta pasta). É o dono único destes valores: o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh) lê
+# as seções `frentes` e `convergencia`, e o agente lê o resto ao seguir os modos da skill (cada seção diz qual). O que
+# não está aqui vale o padrão da skill: a base (a HARNESS_BASE_REF), os status do Linear, o tipo da branch e a pasta
+# dos tickets.
+
+# O limite de frentes ao todo, contando o checkout principal quando ele não está na main, e o comando de ambiente de
+# cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O limite é também o teto do ambiente
+# por slot: o frente-ambiente.sh aceita os slots de 0 a 3 (docs/lld.md, seção 6), então subir daqui de 3 pede mudar lá.
+[frentes]
+	limite = 3
+	ambiente = .claude/skills/ambiente/scripts/frente-ambiente.sh
+
+# Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. O tipo é a
+# chave e o caminho é o valor, que aceita `*` (casa também as barras). Vale o primeiro padrão que casa, na ordem
+# daqui; um arquivo que nenhum casa é código e pede atenção. O núcleo usa a classificação para separar os conflitos do
+# `listar`, e o modo sincronizar usa para saber o que resolver por regra (a regra de cada tipo é desse modo).
+#
+#   gerado       o snapshot da OpenAPI, regenerado a partir do código mergeado
+#   migracoes    a pasta de migrações, cuja pasta atrasada se recria com nome novo
+#   registros    as listas em que cada frente acrescenta um item, em ordem alfabética
+#   documentos   os documentos do projeto, que a pessoa junta à mão
+#   manual       o schema do Prisma e o arquivo de exemplo de variáveis, que se juntam à mão, como código
+[convergencia]
+	gerado = apps/api/openapi.json
+
+	migracoes = apps/api/prisma/migrations/*
+
+	registros = apps/api/src/app.module.ts
+	registros = apps/api/src/config/env.schema.ts
+	registros = apps/web/lib/api/types.ts
+
+	documentos = docs/lld.md
+	documentos = AGENTS.md
+	documentos = apps/api/AGENTS.md
+	documentos = apps/web/AGENTS.md
+	documentos = GLOSSARY.md
+	documentos = docs/design-system.md
+
+	manual = apps/api/prisma/schema.prisma
+	manual = apps/api/.env.example
+
+# Os comandos do passo de ambiente do modo sincronizar, na ordem em que rodam, cada um na pasta da frente (o Compose
+# dela é só dela). Uma chave repetida é uma lista de comandos em sequência. O que cada passo faz e quando roda é do
+# modo; aqui só está o comando.
+#
+#   atualizar-ambiente  as dependências, as variáveis novas do .env.example, o cliente do Prisma e as migrações
+#   recriar-banco       derruba o banco com o volume e sobe de novo, depois que uma migração foi renomeada ou apagada
+#   gerar-migracao      gera de novo a migração apagada no sync (o <nome> é o da migração)
+#   subir-aplicacoes    sobe a API e a web em segundo plano; a verificação completa aborta se elas estão fora do ar
+[sincronizar]
+	atualizar-ambiente = docker compose -f compose.dev.yaml exec api pnpm install
+	atualizar-ambiente = docker compose -f compose.dev.yaml exec web pnpm install
+	atualizar-ambiente = docker compose -f compose.dev.yaml exec api pnpm setup:dev
+	recriar-banco = docker compose -f compose.dev.yaml down -v
+	recriar-banco = docker compose -f compose.dev.yaml up -d --wait
+	gerar-migracao = docker compose -f compose.dev.yaml exec api pnpm exec prisma migrate dev --name <nome>
+	subir-aplicacoes = docker compose -f compose.dev.yaml exec -d api pnpm start:dev
+	subir-aplicacoes = docker compose -f compose.dev.yaml exec -d web pnpm dev --hostname 0.0.0.0
+
+# O comando que regenera cada arquivo gerado (do tipo `gerado`), pelo caminho dele. Roda depois de subir as aplicações
+# e com o código já mesclado. Um arquivo gerado em conflito sem comando aqui faz o agente perguntar.
+[gerado "apps/api/openapi.json"]
+	regenerar = docker compose -f compose.dev.yaml exec api pnpm openapi:generate openapi.json
+
+# O comando da verificação completa, que roda uma vez, em segundo plano. O <arquivo> é o corpo do pull request, com a
+# seção `## Aceite`: o comando o recebe quando a branch altera `apps/`.
+[verificacao]
+	completa = ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full

@@ -20,7 +20,7 @@ LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo 
 LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo das frentes não lê a variável da base nem define o padrão por conta própria
 LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega ao agente o remover com a opção de abandono, com ela em qualquer posição
 LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a opção antes do ticket e embrulhada no bash -c
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a opção no atalho do projeto, que também se chama frentes.sh
+LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a opção pelo caminho completo do núcleo, seja qual for a pasta
 LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera o remover sem a opção, o novo e o listar
 LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega o frentes.sh com o gh trocado pelo modo de teste
 LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a variável do modo de teste depois do script e embrulhada no bash -c
