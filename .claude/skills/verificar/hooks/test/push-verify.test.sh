@@ -10,8 +10,8 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 HOOK="$ROOT/.claude/skills/verificar/hooks/push-verify.sh"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o hook e o teste dele precisam dele."; exit 2; }
 

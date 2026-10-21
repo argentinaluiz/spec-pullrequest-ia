@@ -9,8 +9,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const CHECKER = path.join(__dirname, '..', 'check-acceptance.cjs');
-const SKILL_PARSER = path.join(__dirname, '..', 'plan.cjs');
+const CHECKER = path.join(__dirname, '..', '..', 'plan-ticket', 'scripts', 'check-acceptance.cjs');
+const SKILL_PARSER = path.join(__dirname, '..', '..', 'plan-ticket', 'scripts', 'plan.cjs');
 const { parseAcceptanceFile } = require(CHECKER);
 const { parseMessage } = require(SKILL_PARSER);
 

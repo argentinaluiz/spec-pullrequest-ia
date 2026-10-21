@@ -1,5 +1,5 @@
 # Ligações do LUI-175: os testes do conferidor do aceite e o da página do plano moram na skill plan-ticket e não levam o ID na tag.
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-175-CA2	.claude/skills/plan-ticket/scripts/test/page-aceite.test.cjs	monta a aba Contrato do Markdown recebido, ou diz que o projeto não declara contrato
-LUI-175-CA1	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	lê o aceite e a mensagem como o parser do conferidor, que o importa da skill
-LUI-175-CA1	.claude/skills/plan-ticket/scripts/test/check-acceptance.test.cjs	o conferidor importa o parser da pasta da skill de plano: aprova o critério cujo teste passou e reprova sem o teste
+LUI-175-CA2	.claude/skills/__tests__/plan-ticket/page-aceite.test.cjs	monta a aba Contrato do Markdown recebido, ou diz que o projeto não declara contrato
+LUI-175-CA1	.claude/skills/__tests__/plan-ticket/check-acceptance.test.cjs	lê o aceite e a mensagem como o parser do conferidor, que o importa da skill
+LUI-175-CA1	.claude/skills/__tests__/plan-ticket/check-acceptance.test.cjs	o conferidor importa o parser da pasta da skill de plano: aprova o critério cujo teste passou e reprova sem o teste

@@ -6,9 +6,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-HOOK="$HERE/../frentes-guard.sh"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+HOOK="$HERE/../../worktree/hooks/frentes-guard.sh"
+# shellcheck source=../helpers.sh
+source "$HERE/../helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o hook e o teste dele precisam dele."; exit 2; }
 

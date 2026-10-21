@@ -10,8 +10,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }
 
@@ -55,7 +55,8 @@ for path in \
   .claude/settings.json \
   .github/workflows/ci.yml \
   .claude/skills/verificar/scripts/verify.sh \
-  .claude/skills/plan-ticket/scripts/test/helpers.sh; do
+  .claude/skills/__tests__/helpers.sh \
+  .claude/skills/__tests__/worktree/frentes.test.sh; do
   check "$name: bloqueia $path" blocked "$path"
 done
 

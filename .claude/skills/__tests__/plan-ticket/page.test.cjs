@@ -9,7 +9,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
-const { build } = require('../page.cjs');
+const { build } = require('../../plan-ticket/scripts/page.cjs');
 const { panel, text } = require('./helpers.cjs');
 
 const ORIGIN = 'Montada da pasta de trabalho.';
@@ -239,7 +239,7 @@ test('tira do título só a sequência de fechamento com um espaço antes', () =
 
 test('a linha de comando lê as fontes em pares terminados por NUL na entrada padrão, com `-`, e imprime a página', () => {
   const cli = (args, input) =>
-    spawnSync(process.execPath, [path.join(__dirname, '..', 'page.cjs'), ...args], { input, encoding: 'utf8' });
+    spawnSync(process.execPath, [path.join(__dirname, '..', '..', 'plan-ticket', 'scripts', 'page.cjs'), ...args], { input, encoding: 'utf8' });
   // Como o `printf '%s\0' <nome> <valor>...` do plan-page.sh: só as fontes que existem, sem o contrato.
   const pairs = (sources) => Object.entries(sources).flat().map((part) => `${part}\0`).join('');
   const sources = {

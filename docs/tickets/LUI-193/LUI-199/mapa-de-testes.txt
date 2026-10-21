@@ -1,30 +1,30 @@
 # Ligações do LUI-199: os testes do núcleo das frentes, da base e do hook moram na skill worktree e não levam o ID na tag.
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o novo cria a pasta e a branch a partir da base buscada, escolhe o menor slot livre e imprime o comando de abrir a sessão
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o listar mostra slot, branch, portas e estado do PR de cada frente, com o principal quando ele é frente
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o novo recusa a quarta frente, contando o principal fora da main, e mostra as abertas
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e remove a frente mergeada e limpa
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover --forcar remove a frente sem merge
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o núcleo recusa o Git abaixo da versão mínima, dizendo qual ela é
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	um ticket com mais de uma frente não se remove às cegas, e não ganha uma segunda
-LUI-199-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o listar mostra, para cada par de frentes e para cada frente contra a main, se há conflito e em quais arquivos, sem mudar nada
-LUI-199-CA2	.claude/skills/worktree/scripts/test/frentes.test.sh	o núcleo chama o comando de ambiente da frente para verificar, criar e derrubar, e lista as portas que ele informa
-LUI-199-CA3	.claude/skills/worktree/scripts/test/frentes.test.sh	o número da frente fica nela, apagar a pasta o libera e duas criações ao mesmo tempo nunca pegam o mesmo
-LUI-199-CA3	.claude/skills/worktree/scripts/test/frentes.test.sh	duas criações ao mesmo tempo recebem slots diferentes
-LUI-199-CA3	.claude/skills/worktree/scripts/test/frentes.test.sh	a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre
-LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	sem HARNESS_BASE_REF, a base é origin/main, com o remoto origin e a branch main
-LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	com HARNESS_BASE_REF=test/main, o remoto é test e a branch é main
-LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	numa branch com barra, o remoto é o que vem antes da primeira barra
-LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo das frentes carrega o arquivo da base
-LUI-199-CA4	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo das frentes não lê a variável da base nem define o padrão por conta própria
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega ao agente o remover com a opção de abandono, com ela em qualquer posição
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a opção antes do ticket e embrulhada no bash -c
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a opção pelo caminho completo do núcleo, seja qual for a pasta
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera o remover sem a opção, o novo e o listar
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega o frentes.sh com o gh trocado pelo modo de teste
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a variável do modo de teste depois do script e embrulhada no bash -c
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega a entrada ilegível que cita o frentes.sh e a opção de abandono
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera o HARNESS_TEST em outro comando, como o dos testes do harness
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera um comando que só cita a palavra do abandono
-LUI-199-CA5	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera um comando qualquer
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o núcleo cria, lista e remove frentes num repositório só com o Git, com o limite e as recusas
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o novo cria a pasta e a branch a partir da base buscada, escolhe o menor slot livre e imprime o comando de abrir a sessão
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o listar mostra slot, branch, portas e estado do PR de cada frente, com o principal quando ele é frente
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o novo recusa a quarta frente, contando o principal fora da main, e mostra as abertas
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e remove a frente mergeada e limpa
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o remover --forcar remove a frente sem merge
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o núcleo recusa o Git abaixo da versão mínima, dizendo qual ela é
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	um ticket com mais de uma frente não se remove às cegas, e não ganha uma segunda
+LUI-199-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o listar mostra, para cada par de frentes e para cada frente contra a main, se há conflito e em quais arquivos, sem mudar nada
+LUI-199-CA2	.claude/skills/__tests__/worktree/frentes.test.sh	o núcleo chama o comando de ambiente da frente para verificar, criar e derrubar, e lista as portas que ele informa
+LUI-199-CA3	.claude/skills/__tests__/worktree/frentes.test.sh	o número da frente fica nela, apagar a pasta o libera e duas criações ao mesmo tempo nunca pegam o mesmo
+LUI-199-CA3	.claude/skills/__tests__/worktree/frentes.test.sh	duas criações ao mesmo tempo recebem slots diferentes
+LUI-199-CA3	.claude/skills/__tests__/worktree/frentes.test.sh	a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre
+LUI-199-CA4	.claude/skills/__tests__/worktree/harness-base.test.sh	sem HARNESS_BASE_REF, a base é origin/main, com o remoto origin e a branch main
+LUI-199-CA4	.claude/skills/__tests__/worktree/harness-base.test.sh	com HARNESS_BASE_REF=test/main, o remoto é test e a branch é main
+LUI-199-CA4	.claude/skills/__tests__/worktree/harness-base.test.sh	numa branch com barra, o remoto é o que vem antes da primeira barra
+LUI-199-CA4	.claude/skills/__tests__/worktree/harness-base.test.sh	o núcleo das frentes carrega o arquivo da base
+LUI-199-CA4	.claude/skills/__tests__/worktree/harness-base.test.sh	o núcleo das frentes não lê a variável da base nem define o padrão por conta própria
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega ao agente o remover com a opção de abandono, com ela em qualquer posição
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega a opção antes do ticket e embrulhada no bash -c
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega a opção pelo caminho completo do núcleo, seja qual for a pasta
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	libera o remover sem a opção, o novo e o listar
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega o frentes.sh com o gh trocado pelo modo de teste
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega a variável do modo de teste depois do script e embrulhada no bash -c
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega a entrada ilegível que cita o frentes.sh e a opção de abandono
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	libera o HARNESS_TEST em outro comando, como o dos testes do harness
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	libera um comando que só cita a palavra do abandono
+LUI-199-CA5	.claude/skills/__tests__/worktree/frentes-guard.test.sh	libera um comando qualquer

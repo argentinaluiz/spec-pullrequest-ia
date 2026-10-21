@@ -1,8 +1,8 @@
 # Ligações do LUI-192: os testes da base e dos pontos de convergência moram na skill worktree e não levam o ID na tag.
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-192-CA1	.claude/skills/worktree/scripts/test/harness-base.test.sh	sem HARNESS_BASE_REF, a base é origin/main, com o remoto origin e a branch main
-LUI-192-CA1	.claude/skills/worktree/scripts/test/harness-base.test.sh	com HARNESS_BASE_REF=test/main, o remoto é test e a branch é main
-LUI-192-CA1	.claude/skills/worktree/scripts/test/harness-base.test.sh	numa branch com barra, o remoto é o que vem antes da primeira barra
-LUI-192-CA1	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo das frentes carrega o arquivo da base
-LUI-192-CA1	.claude/skills/worktree/scripts/test/harness-base.test.sh	o núcleo das frentes não lê a variável da base nem define o padrão por conta própria
-LUI-192-CA2	.claude/skills/worktree/scripts/test/frentes.test.sh	o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção
+LUI-192-CA1	.claude/skills/__tests__/worktree/harness-base.test.sh	sem HARNESS_BASE_REF, a base é origin/main, com o remoto origin e a branch main
+LUI-192-CA1	.claude/skills/__tests__/worktree/harness-base.test.sh	com HARNESS_BASE_REF=test/main, o remoto é test e a branch é main
+LUI-192-CA1	.claude/skills/__tests__/worktree/harness-base.test.sh	numa branch com barra, o remoto é o que vem antes da primeira barra
+LUI-192-CA1	.claude/skills/__tests__/worktree/harness-base.test.sh	o núcleo das frentes carrega o arquivo da base
+LUI-192-CA1	.claude/skills/__tests__/worktree/harness-base.test.sh	o núcleo das frentes não lê a variável da base nem define o padrão por conta própria
+LUI-192-CA2	.claude/skills/__tests__/worktree/frentes.test.sh	o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção

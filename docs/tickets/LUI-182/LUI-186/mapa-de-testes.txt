@@ -1,16 +1,16 @@
 # Ligações do LUI-186: os testes do núcleo das frentes e do hook moram na skill worktree e não levam o ID na tag (o ambiente por slot, no .env e nas portas, leva a tag no teste da skill ambiente).
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-186-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o novo cria a pasta e a branch a partir da base buscada, escolhe o menor slot livre e imprime o comando de abrir a sessão
-LUI-186-CA1	.claude/skills/worktree/scripts/test/frentes.test.sh	o novo cria a branch sem upstream, para o git push comum não apontar para a main
-LUI-186-CA2	.claude/skills/worktree/scripts/test/frentes.test.sh	o novo recusa a quarta frente, contando o principal fora da main, e mostra as abertas
-LUI-186-CA2	.claude/skills/worktree/scripts/test/frentes.test.sh	a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre
-LUI-186-CA3	.claude/skills/worktree/scripts/test/frentes.test.sh	duas criações ao mesmo tempo recebem slots diferentes
-LUI-186-CA5	.claude/skills/worktree/scripts/test/frentes.test.sh	o listar mostra slot, branch, portas e estado do PR de cada frente, com o principal quando ele é frente
-LUI-186-CA6	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e remove a frente mergeada e limpa
-LUI-186-CA6	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover recusa a branch com commits que o PR mergeado não tem e o PR novo aberto, e remove quando a ponta é a do PR
-LUI-186-CA6	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover chamado de dentro da frente tira o worktree e apaga a branch
-LUI-186-CA7	.claude/skills/worktree/scripts/test/frentes.test.sh	o remover --forcar remove a frente sem merge
-LUI-186-CA7	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega ao agente o remover com a opção de abandono, com ela em qualquer posição
-LUI-186-CA7	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	libera o remover sem a opção, o novo e o listar
-LUI-186-CA7	.claude/skills/worktree/hooks/test/frentes-guard.test.sh	nega o frentes.sh com o gh trocado pelo modo de teste
-LUI-186-CA8	.claude/skills/worktree/scripts/test/frentes.test.sh	o núcleo recusa o Git abaixo da versão mínima, dizendo qual ela é
+LUI-186-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o novo cria a pasta e a branch a partir da base buscada, escolhe o menor slot livre e imprime o comando de abrir a sessão
+LUI-186-CA1	.claude/skills/__tests__/worktree/frentes.test.sh	o novo cria a branch sem upstream, para o git push comum não apontar para a main
+LUI-186-CA2	.claude/skills/__tests__/worktree/frentes.test.sh	o novo recusa a quarta frente, contando o principal fora da main, e mostra as abertas
+LUI-186-CA2	.claude/skills/__tests__/worktree/frentes.test.sh	a frente com a pasta apagada à mão não conta para o limite de três, e o slot dela fica livre
+LUI-186-CA3	.claude/skills/__tests__/worktree/frentes.test.sh	duas criações ao mesmo tempo recebem slots diferentes
+LUI-186-CA5	.claude/skills/__tests__/worktree/frentes.test.sh	o listar mostra slot, branch, portas e estado do PR de cada frente, com o principal quando ele é frente
+LUI-186-CA6	.claude/skills/__tests__/worktree/frentes.test.sh	o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e remove a frente mergeada e limpa
+LUI-186-CA6	.claude/skills/__tests__/worktree/frentes.test.sh	o remover recusa a branch com commits que o PR mergeado não tem e o PR novo aberto, e remove quando a ponta é a do PR
+LUI-186-CA6	.claude/skills/__tests__/worktree/frentes.test.sh	o remover chamado de dentro da frente tira o worktree e apaga a branch
+LUI-186-CA7	.claude/skills/__tests__/worktree/frentes.test.sh	o remover --forcar remove a frente sem merge
+LUI-186-CA7	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega ao agente o remover com a opção de abandono, com ela em qualquer posição
+LUI-186-CA7	.claude/skills/__tests__/worktree/frentes-guard.test.sh	libera o remover sem a opção, o novo e o listar
+LUI-186-CA7	.claude/skills/__tests__/worktree/frentes-guard.test.sh	nega o frentes.sh com o gh trocado pelo modo de teste
+LUI-186-CA8	.claude/skills/__tests__/worktree/frentes.test.sh	o núcleo recusa o Git abaixo da versão mínima, dizendo qual ela é

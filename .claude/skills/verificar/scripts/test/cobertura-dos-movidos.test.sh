@@ -10,8 +10,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$HERE/../../../__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor dos testes em shell precisa dele."; exit 2; }
 
@@ -44,7 +44,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 cat >"$tmp/suite.test.sh" <<SUITE
 #!/usr/bin/env bash
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+source "$HERE/../../../__tests__/helpers.sh"
 pass_case "um caso de aceite @PROJ-1-CA1 e outro @PROJ-1-CA2"
 finish "da suíte"
 SUITE

@@ -7,9 +7,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPTS="$(cd "$HERE/.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+SCRIPTS="$(cd "$HERE/../../worktree/scripts" && pwd)"
+# shellcheck source=../helpers.sh
+source "$HERE/../helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

@@ -6,8 +6,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
-source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 CONFIG="$ROOT/.config/project"
 

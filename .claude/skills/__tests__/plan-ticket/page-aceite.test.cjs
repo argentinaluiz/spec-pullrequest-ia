@@ -6,8 +6,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { build } = require('../page.cjs');
-const { parseAcceptanceFile } = require('../plan.cjs');
+const { build } = require('../../plan-ticket/scripts/page.cjs');
+const { parseAcceptanceFile } = require('../../plan-ticket/scripts/plan.cjs');
 const { panel, text } = require('./helpers.cjs');
 
 const ORIGIN = 'Montada da pasta de trabalho.';

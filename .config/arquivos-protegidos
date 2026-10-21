@@ -7,8 +7,8 @@
 # (scripts/protected-list.sh os junta). Descongelar um aceite é legítimo quando um ticket muda um comportamento já
 # entregue, e o humano que faz o merge decide. A lista mora em .config/, que é bloqueado: ela é protegida sem uma linha
 # dela.
-# O texto de uma skill (o SKILL.md, os formatos, o modelo do revisor) é livre: só os scripts e os hooks dela
-# são protegidos.
+# O texto de uma skill (o SKILL.md, os formatos, o modelo do revisor) é livre: só os scripts e os hooks dela, e os
+# testes das skills do kit, são protegidos.
 
 # O que decide o veredito ou o que o agente pode fazer. Só muda por override do admin.
 bloqueado	.github/**
@@ -17,6 +17,7 @@ bloqueado	.claude/hooks/**
 bloqueado	.claude/agents/**
 bloqueado	.claude/skills/*/scripts/**
 bloqueado	.claude/skills/*/hooks/**
+bloqueado	.claude/skills/__tests__/**
 bloqueado	scripts/**
 # A configuração do projeto: o .config/project nomeia os comandos que as skills executam, e esta lista é a que a
 # Guarda lê.

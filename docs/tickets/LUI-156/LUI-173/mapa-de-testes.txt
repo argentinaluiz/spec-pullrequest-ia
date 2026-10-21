@@ -1,4 +1,4 @@
 # Ligações do LUI-173: o teste da página do plano mora na skill plan-ticket e não leva o ID na tag.
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-173-CA1	.claude/skills/plan-ticket/scripts/test/page-aceite.test.cjs	monta a página com as seis abas, cada uma com o conteúdo da sua fonte
-LUI-173-CA3	.claude/skills/plan-ticket/scripts/test/page-aceite.test.cjs	mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, lidos pelo parser do conferidor
+LUI-173-CA1	.claude/skills/__tests__/plan-ticket/page-aceite.test.cjs	monta a página com as seis abas, cada uma com o conteúdo da sua fonte
+LUI-173-CA3	.claude/skills/__tests__/plan-ticket/page-aceite.test.cjs	mostra cada ID com a marca e o cenário, e o teste previsto ao expandir, lidos pelo parser do conferidor
