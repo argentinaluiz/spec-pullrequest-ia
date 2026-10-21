@@ -195,11 +195,11 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - **Time:** Luiz Carlos (`LUI`).
 - **Projeto:** gerenciador de arquivos.
 - **Labels de tipo:** `Feature`, `Bug` e `Improvement`.
-- **Label de triagem:** `ready-for-agent`, para a issue já especificada, que um agente pode pegar sem triagem adicional.
+- **Label de triagem:** `ready-for-agent`, para a issue já especificada, que um agente pode pegar sem triagem adicional. A spec e os tickets levam essa label e uma de tipo.
 
 **Da funcionalidade ao ticket**
 
-1. **Planejamento:** as decisões são fechadas com o usuário e registradas no documento dono delas: as de produto em `docs/` (LLD e, se houver termo novo, `GLOSSARY.md`), e as de prática de código no `AGENTS.md` do projeto.
+1. **Planejamento:** as decisões são fechadas com o usuário e registradas no documento dono delas (ver "Onde cada informação mora"), antes da spec.
 2. **Spec:** uma issue por funcionalidade, com o problema, a solução, as histórias de usuário, as decisões de implementação e de teste e o que fica fora de escopo.
 3. **Tickets:** sub-issues da spec. Cada ticket é uma fatia vertical, que atravessa banco, API, interface e testes e pode ser verificada sozinha. Tickets de preparação (ambiente, base de componentes) são a exceção e vêm primeiro. Um ticket de acabamento de uma spec já concluída também nasce como sub-issue dela: não há ticket sem pai.
 4. **Bloqueios:** as dependências entre tickets são a relação nativa do Linear ("blocked by"), e não texto na descrição.
@@ -209,16 +209,14 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 - Specs e tickets são escritos em português, com o vocabulário do `GLOSSARY.md`.
 - Não cite caminhos de arquivo nem trechos de código: eles envelhecem rápido. Cite documentos e módulos pelo nome.
 - Todo ticket traz critérios de aceite verificáveis. Cada critério leva um ID `CA<n>` e uma marca de conferência, como descrito em [Plano do ticket](#plano-do-ticket).
-- A spec e os tickets levam `ready-for-agent` e uma label de tipo.
 
 **Ao trabalhar em um ticket**
 
 - Pegue só tickets cujos bloqueios já foram concluídos.
 - Leia o ticket e a spec pai antes de começar. O contrato e as regras completas estão no LLD.
-- Planeje o ticket com a `/plan-ticket` e só implemente depois do commit de plano, como descrito em [Plano do ticket](#plano-do-ticket).
 - Use o identificador da issue no nome da branch.
-- Mova a issue para "In Progress" ao começar o planejamento: a `/plan-ticket` faz isso, e a `/implement` confere. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
-- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". O PR só abre com o `full` aprovado, então abrir já é esperar a revisão do usuário; um PR em rascunho só existe se o usuário o abrir à mão (o hook de push exige o `full` aprovado antes de qualquer push), e então a issue fica em "In Progress". O vínculo depende de o app do Linear ter acesso ao repositório do PR; um PR sem arquivo alterado não entra, porque a Guarda do harness o reprova. Os tickets sem PR, como os de design, ficam com o "Done" manual.
+- Mova a issue para "In Progress" ao começar o planejamento. Ela só é concluída quando todos os critérios de aceite e a [definição de pronto](#definição-de-pronto) passam.
+- **O "Done" vem do merge.** A integração do Linear com o GitHub vincula o PR à issue pelo identificador na branch ou no título, marca "In Review" quando o PR abre e "Done" no merge: "concluído" significa "está na `main`". Um PR em rascunho, que só o usuário abre à mão, deixa a issue em "In Progress". Os tickets sem PR, como os de design, ficam com o "Done" manual.
 - Não feche nem edite a spec pai ao concluir um ticket.
 - Se a implementação mudar uma decisão, atualize o documento dono dela (o LLD ou o `AGENTS.md` do projeto) e o ticket na mesma tarefa. O ID e a marca de um critério nunca mudam; o texto dele só é corrigido, se ficou factualmente desatualizado, com a aprovação do usuário no plano.
 - **Pare e pergunte** diante de uma decisão que não está no ticket nem no plano e que outro ticket em andamento também tomaria, ou diante de mudar algo que outro ticket em andamento usa. Decidir sozinho é como dois tickets paralelos passam nos próprios testes e quebram na integração. As decisões que o ticket consome de outros, e o dono de cada uma, estão na seção "Decisões de outros tickets" dele.
