@@ -61,7 +61,7 @@
 # tipo ao lado do nome. Sem o arquivo dos pontos, todo arquivo em conflito pede atenção.
 #
 # Todo comando começa conferindo o Git: a versão mínima é a 2.38, a do `git merge-tree --write-tree`. Os testes
-# (test/frentes.test.sh) rodam com HARNESS_TEST=1, que deixa trocar o gh e a versão do Git (FRENTES_GH e
+# (.claude/skills/__tests__/worktree/frentes.test.sh) rodam com HARNESS_TEST=1, que deixa trocar o gh e a versão do Git (FRENTES_GH e
 # FRENTES_GIT_VERSION); sem ele essas variáveis são ignoradas.
 
 set -uo pipefail

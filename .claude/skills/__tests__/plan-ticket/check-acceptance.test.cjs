@@ -1,6 +1,6 @@
-// Testes do conferidor de aceite, pela mesma interface que o .claude/skills/verificar/scripts/verify.sh usa: o corpo do PR,
+// Testes do conferidor de aceite, pela interface que a verificação do projeto usa: o corpo do PR,
 // os arquivos de aceite e os relatórios das suítes na entrada; o código de saída e as mensagens
-// na saída. Rodam com o runner nativo do Node, dentro do contêiner `api`.
+// na saída. Rodam com o runner nativo do Node.
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -58,7 +58,7 @@ const PARENT = 'PROJ-100';
 
 /**
  * Grava a pasta dos tickets: cada ticket numa pasta com o nome dele, dentro da pasta da issue pai,
- * com o arquivo de aceite em `aceite.md`, como o `verify.sh` a entrega.
+ * com o arquivo de aceite em `aceite.md`, como a verificação do projeto a entrega.
  */
 function writeTickets(ticketsDir, files) {
   fs.mkdirSync(ticketsDir, { recursive: true });
@@ -71,7 +71,7 @@ function writeTickets(ticketsDir, files) {
 
 /**
  * Monta uma pasta de trabalho e roda o conferidor nela, com a pasta dos tickets relativa a ela e o
- * corpo do PR na entrada padrão (`-`), como o `verify.sh` os entrega.
+ * corpo do PR na entrada padrão (`-`), como a verificação do projeto os entrega.
  */
 function check({
   mode = '--required',
