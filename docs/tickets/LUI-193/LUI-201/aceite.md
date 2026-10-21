@@ -10,30 +10,6 @@ Decisões que os cenários supõem:
 - Uma referência de arquivo a outra skill é o caminho `skills/<outra>/` ou `../<outra>/` no texto de uma skill genérica, onde `<outra>` é qualquer outra pasta de skill. Chamar outra skill pelo nome (`/tdd`, "worktree") não é referência de arquivo.
 - Os testes da página do plano que ainda moram na pasta de scripts da raiz vão para a `/plan-ticket` (que é a dona da página) e perdem o ID da tag; os critérios congelados que eles provavam (LUI-173, LUI-174, LUI-175 e LUI-196) são ligados pelos mapas de testes. O auxiliar de teste do contrato vai para a `/contrato`.
 
-## LUI-201-CA1
-
-**Marca:** teste de unidade
-
-**Cenário:** Dado uma skill genérica de mentira com um arquivo de texto e um script que trazem, cada um, um padrão da lista do projeto, quando a suíte roda, então sai com erro e diz, para cada achado, a skill, o arquivo (com a linha) e o padrão; e uma skill genérica sem nenhum padrão, e uma skill do projeto que traz o padrão, não são reprovadas.
-
-**Teste previsto:** testes dos scripts da skill `verificar`, `genericity.test.sh`, "a suíte reprova uma skill genérica que traz um padrão da lista do projeto, dizendo a skill, o arquivo e o padrão @LUI-201-CA1".
-
-## LUI-201-CA2
-
-**Marca:** teste de unidade
-
-**Cenário:** Dado uma skill genérica que cita o caminho de um arquivo de outra skill genérica e outra que cita o de um arquivo de uma skill do projeto, quando a suíte roda, então reprova as duas, dizendo a skill, o arquivo e a skill referida; e uma skill genérica que só chama outra pelo nome, e uma que cita o caminho de um arquivo da própria pasta, passam.
-
-**Teste previsto:** testes dos scripts da skill `verificar`, `genericity.test.sh`, "a suíte reprova uma skill genérica que carrega arquivo de outra skill genérica ou de uma skill do projeto, e libera a que chama outra pelo nome @LUI-201-CA2".
-
-## LUI-201-CA3
-
-**Marca:** teste de integração
-
-**Cenário:** Dado o kit deste projeto (as skills genéricas da lista, com o texto, os scripts e os hooks) e a lista de padrões do projeto, quando a suíte roda sobre a pasta das skills de verdade, então o kit passa sem nenhum achado; e a suíte roda na verificação completa, porque o teste que a chama é um dos que a verificação acha nas skills.
-
-**Teste previsto:** testes dos scripts da skill `verificar`, `genericity.test.sh`, "o kit deste projeto passa na suíte de genericidade, que roda na verificação completa @LUI-201-CA3".
-
 ## LUI-201-CA4
 
 **Marca:** documento
