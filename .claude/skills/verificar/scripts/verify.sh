@@ -69,18 +69,14 @@ CONTRACT_DRIFT="$(git config --file .config/project --get contrato.desvio 2>/dev
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
-# A pasta dos tickets, do .config/project (o dono dos valores que o harness usa). É obrigatória: sem ela, não há
-# aceite a conferir nem aprovação que se saiba invalidar.
+# A pasta dos tickets, do .config/project (o dono dos valores que o harness usa). O modo completo e o de antes do push a
+# exigem (`require_tickets_dir`): sem ela, não há aceite a conferir nem aprovação que se saiba invalidar.
 TICKETS_DIR="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
-if [[ -z "$TICKETS_DIR" ]]; then
-  printf '\nNÃO VERIFICADO: o .config/project não diz a pasta dos tickets (a chave tickets.pasta).\n' >&2
-  printf 'Como resolver: acrescente ao .config/project a seção `[tickets]` com `pasta = <pasta dos tickets>` e rode de novo.\n' >&2
-  exit 2
-fi
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
-# pastas fixas, entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo
-# deles, que a verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
-VERIFIED_PATHS=(apps compose.dev.yaml "$TICKETS_DIR")
+# pastas fixas (a configuração do projeto entre elas, que escolhe a pasta dos tickets e os comandos que a verificação
+# chama), entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo deles, que a
+# verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
+VERIFIED_PATHS=(apps compose.dev.yaml .config ${TICKETS_DIR:+"$TICKETS_DIR"})
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
 done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
@@ -141,6 +137,13 @@ require_state() {
   [[ -n "$HARNESS_DIR" ]] ||
     abort "não foi possível definir a pasta de estado do harness: a raiz do checkout não é uma pasta que se alcança." \
       "rode o .claude/skills/verificar/scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
+}
+
+# Aborta se o .config/project não diz a pasta dos tickets. Só o modo completo e o de antes do push a pedem.
+require_tickets_dir() {
+  [[ -n "$TICKETS_DIR" ]] ||
+    abort "o .config/project não diz a pasta dos tickets (a chave tickets.pasta)." \
+      "acrescente ao .config/project a seção \`[tickets]\` com \`pasta = <pasta dos tickets>\` e rode de novo."
 }
 
 # Um comando que não verifica falhou: o erro e o que fazer, e devolve 1.
@@ -483,6 +486,7 @@ case "$mode" in
       # A trava vale só aqui, e fora da CI. Travado, recusa antes de tudo: rodar de novo não traz
       # informação nova.
       require_state
+      require_tickets_dir
       full_lock_enabled && lock=yes
       [[ $lock == yes ]] && full_lock_active &&
         abort "o modo completo está travado: reprovou $FULL_LOCK_LIMIT vezes seguidas nos mesmos passos." "$FULL_LOCK_ASK"
@@ -497,6 +501,7 @@ case "$mode" in
   prepush)
     [[ $# -eq 0 ]] || usage
     require_state
+    require_tickets_dir
     run_prepush
     ;;
   unlock)

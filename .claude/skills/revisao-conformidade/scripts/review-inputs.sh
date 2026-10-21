@@ -60,17 +60,13 @@ fi
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || abort "esta pasta não está num repositório do Git." "rode de dentro do repositório."
 
-# A base (BASE_REF), da skill worktree, e o diff legível e o commit que criou um arquivo, da skill de plano.
-# shellcheck source=../../worktree/scripts/harness-base.sh
-source "$SCRIPT_DIR/../../worktree/scripts/harness-base.sh" ||
-  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
-# shellcheck source=../../plan-ticket/scripts/plan-git.sh
-source "$SCRIPT_DIR/../../plan-ticket/scripts/plan-git.sh" ||
-  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
-# O padrão de caminho dos padrões de revisão, da skill proteger-harness.
-# shellcheck source=../../proteger-harness/scripts/path-pattern.sh
-source "$SCRIPT_DIR/../../proteger-harness/scripts/path-pattern.sh" ||
-  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
+# O que este script carrega de outras skills do kit: a base (BASE_REF), da worktree; o diff legível e o commit que criou um
+# arquivo, da skill de plano; e o padrão de caminho dos padrões de revisão, da proteger-harness.
+for lib in worktree/scripts/harness-base.sh plan-ticket/scripts/plan-git.sh proteger-harness/scripts/path-pattern.sh; do
+  # shellcheck source=/dev/null
+  source "$SCRIPT_DIR/../../$lib" ||
+    abort "falta o $lib, de outra skill do kit, que este script carrega." "instale o kit inteiro, com as skills que ele carrega."
+done
 git rev-parse --verify --quiet "$BASE_REF" >/dev/null ||
   abort "a base \`$BASE_REF\` não existe neste clone." \
     "rode \`git fetch origin\`, ou aponte outra base com a variável HARNESS_BASE_REF."
@@ -82,6 +78,16 @@ tickets="${tickets%/}"
   abort "o .config/project não diz a pasta dos tickets (a chave tickets.pasta)." \
     "acrescente ao .config/project a seção \`[tickets]\` com \`pasta = <pasta dos tickets>\` e rode de novo."
 drift_command="$(git config --file .config/project --get contrato.desvio 2>/dev/null)"
+# O código que pede revisão: `revisao.sempre` é obrigatória (sem ela, toda mudança passaria por "não pede revisão"), e a
+# lista de arquivos protegidos, quando declarada, tem de se ler.
+always="$(git config --file .config/project --get-all revisao.sempre 2>/dev/null)"
+[[ -n "$always" ]] ||
+  abort "o .config/project não diz o código que pede revisão (a chave revisao.sempre)." \
+    "acrescente ao .config/project a seção \`[revisao]\` com \`sempre = <padrão>\`, um por linha, e rode de novo."
+protected="$(git config --file .config/project --get protegidos.lista 2>/dev/null)"
+[[ -z "$protected" || -r "$protected" ]] ||
+  abort "a lista de arquivos protegidos, $protected (protegidos.lista do .config/project), não existe ou não se lê." \
+    "corrija o caminho no .config/project, ou tire a chave se o projeto não tem lista, e rode de novo."
 
 # O que a branch tem até a pasta de trabalho, num índice temporário: o HEAD mais as mudanças e os arquivos novos que o Git
 # não ignora, sem mexer no índice de quem trabalha. A comparação é com o ponto em que a branch saiu da base, e não com a
@@ -103,16 +109,15 @@ branch_diff() {
 # `bloqueado` da lista de arquivos protegidos. Não imprime nada quando nenhum casa.
 # review_reason <com ticket: sim|nao>
 review_reason() {
-  local key pattern list type file i
+  local pattern type file i
   local -a origins=() patterns=() regexes=()
   while IFS= read -r pattern; do
     [[ -n "$pattern" ]] && origins+=(revisao.sempre) && patterns+=("$pattern")
-  done < <(git config --file .config/project --get-all revisao.sempre 2>/dev/null)
-  list="$(git config --file .config/project --get protegidos.lista 2>/dev/null)"
-  if [[ "$1" == sim && -n "$list" && -r "$list" ]]; then
+  done <<<"$always"
+  if [[ "$1" == sim && -n "$protected" ]]; then
     while IFS=$'\t' read -r type pattern; do
-      [[ "$type" == bloqueado && -n "$pattern" ]] && origins+=("bloqueado de $list") && patterns+=("$pattern")
-    done <"$list"
+      [[ "$type" == bloqueado && -n "$pattern" ]] && origins+=("bloqueado de $protected") && patterns+=("$pattern")
+    done <"$protected"
   fi
   for pattern in "${patterns[@]}"; do
     regexes+=("$(pattern_regex "$pattern")")
@@ -124,7 +129,8 @@ review_reason() {
         return 0
       fi
     done
-  done < <(branch_diff --name-only)
+  # Sem a detecção de renomeação: o arquivo que sai de um caminho que pede revisão conta pelo nome antigo também.
+  done < <(branch_diff --name-only --no-renames)
 }
 
 # O desvio do contrato desde o commit de plano, pelo comando do .config/project. O comando só grava o arquivo quando há desvio;

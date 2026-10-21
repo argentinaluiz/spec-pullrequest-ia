@@ -65,7 +65,7 @@ prepush() {
 head_state() {
   (
     cd "$repo" || exit 1
-    local -a paths=(apps compose.dev.yaml docs/tickets)
+    local -a paths=(apps compose.dev.yaml .config docs/tickets)
     local dir path
     while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs .claude/skills scripts)
     for path in "${paths[@]}"; do

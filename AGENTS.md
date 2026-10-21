@@ -153,7 +153,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 
 Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. A aprovação vale para o que foi verificado, e o push envia o que está em commit, então faça o commit de tudo antes do `full`. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`, e rode o `full` com `ACCEPTANCE_BODY_FILE=<arquivo>` na frente; sem a variável, o `full` registra o aceite como pulado e o hook recusa a aprovação.
 
-- **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, os scripts e os hooks do harness e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, a configuração do projeto (`.config/`), os scripts e os hooks do harness e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**

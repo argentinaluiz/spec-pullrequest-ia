@@ -2,9 +2,11 @@
 # tipos estão no SKILL.md dela). Uma linha por padrão: o tipo, uma tabulação e o caminho, relativo à raiz. Vale o
 # primeiro padrão que casa; o arquivo que nenhum casa é código e passa.
 #
-# O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request, seguida dos pontos de
-# convergência do .config/project como `aviso` (scripts/protected-list.sh as junta). Ela mora em .config/, que é
-# bloqueado: a própria lista é protegida sem uma linha dela.
+# O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request, seguida dos arquivos de aceite da
+# pasta dos tickets como `congelado`, dos mapas de testes e dos pontos de convergência do .config/project como `aviso`
+# (scripts/protected-list.sh os junta). Descongelar um aceite é legítimo quando um ticket muda um comportamento já
+# entregue, e o humano que faz o merge decide. A lista mora em .config/, que é bloqueado: ela é protegida sem uma linha
+# dela.
 # O texto de uma skill (o SKILL.md, os formatos, o modelo do revisor) é livre: só os scripts e os hooks dela
 # são protegidos.
 
@@ -20,15 +22,8 @@ bloqueado	scripts/**
 # Guarda lê.
 bloqueado	.config/**
 
-# Aceite congelado: um arquivo de aceite que já existe na `main` foi alterado, renomeado ou apagado. Descongelar
-# é legítimo quando um ticket muda um comportamento já entregue, e o humano que faz o merge decide.
-congelado	docs/tickets/*/*/aceite.md
-
 # Mudança de dependência é tarefa normal e só avisa. Mudança nos comandos bloqueia.
 comandos	apps/*/package.json
-
-# O mapa de testes de cada ticket.
-aviso	docs/tickets/*/*/mapa-de-testes.*
 
 # O que define o que a verificação roda, mas muda em tarefas normais: a configuração de lint e de teste e o
 # ambiente dos contêineres.

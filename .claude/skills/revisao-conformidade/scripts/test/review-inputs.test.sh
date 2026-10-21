@@ -366,4 +366,34 @@ need_case() {
 }
 check "pede revisão pelo revisao.sempre com ou sem ticket e pelo bloqueado da lista só com ticket, e sem nenhum sai com 3 sem gravar nada" need_case
 
+missing_patterns_case() {
+  local result=0
+  printf '[tickets]\n\tpasta = docs/tickets\n' >"$outside/.config/project"
+  outside_run EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *"revisao.sempre"* ]] || result=1
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n[protegidos]\n\tlista = .config/nao-existe\n' \
+    >"$outside/.config/project"
+  outside_run EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *".config/nao-existe"* ]] || result=1
+  outside_config
+  return $result
+}
+check "sem o código que pede revisão, ou com a lista de protegidos que não se lê, recusa com 2 e diz o que falta" missing_patterns_case
+
+renamed_out_case() {
+  # O arquivo existe na base: a main de origem o ganha, e a branch a traz antes de tirá-lo de apps/ (o último caso, porque
+  # muda a base do repositório de fora).
+  git -C "$outside" switch -q main
+  mkdir -p "$outside/apps"
+  printf 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n' >"$outside/apps/movido.ts"
+  git -C "$outside" add apps/movido.ts && git -C "$outside" commit -q -m 'arquivo em apps'
+  git -C "$outside" push -q origin main && git -C "$outside" fetch -q origin
+  git -C "$outside" switch -q trabalho && git -C "$outside" merge -q --no-edit origin/main >/dev/null
+  git -C "$outside" mv apps/movido.ts movido.ts && git -C "$outside" commit -q -m 'move para fora de apps'
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n' >"$outside/.config/project"
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
+  [[ $code -eq 0 && "$out" == *'apps/movido.ts casa com `apps/**`'* ]]
+}
+check "o arquivo que a branch tira de um caminho que pede revisão, renomeando-o, pede revisão pelo nome antigo" renamed_out_case
+
 finish "do script dos insumos da revisão"
