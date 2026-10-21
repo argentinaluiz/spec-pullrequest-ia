@@ -366,7 +366,9 @@ describe('Mover Itens', () => {
           items.move(b, accessToken, a),
         ]);
 
-        expect([intoB.status, intoA.status].sort()).toEqual([200, 400]);
+        expect([intoB.status, intoA.status].sort((a, b) => a - b)).toEqual([
+          200, 400,
+        ]);
         const rejected = intoB.status === 400 ? intoB : intoA;
         expectProblem(rejected, INVALID_MOVE);
         for (const id of [a, b]) {

@@ -1,20 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
+import { rowOf } from "./support/rows";
 import { signIn } from "./support/account";
 import {
   seedFilesIn,
   seedFolder,
   seedFolderChain,
-  seedFoldersIn,
   seedRootFiles,
 } from "./support/items";
 import { uniqueEmail } from "./support/mailpit";
-
-/** As linhas da lista, sem a do cabeçalho. */
-const rowsOf = (page: Page) =>
-  page.getByRole("table").getByRole("row").filter({ has: page.getByRole("cell") });
-
-/** A linha do item de nome `name`. */
-const rowOf = (page: Page, name: string) => rowsOf(page).filter({ hasText: name });
 
 /** Abre o diálogo de mover a partir do menu "Mais ações" da linha. */
 async function openMove(page: Page, name: string) {
@@ -85,11 +78,9 @@ test(
     await signIn(page, email);
     const [a] = await seedFolderChain(email, ["A"]);
     const [b] = await seedFolderChain(email, ["B"], a);
-    await seedFoldersIn(
-      email,
-      b,
-      Array.from({ length: 51 }, (_, index) => `pasta-${String(index + 1).padStart(3, "0")}`),
-    );
+    for (let index = 1; index <= 51; index++) {
+      await seedFolder(email, `pasta-${String(index).padStart(3, "0")}`, b);
+    }
     await seedFilesIn(email, a, [{ name: "arquivo.txt" }]);
     await page.goto(`/pasta/${a}`);
 

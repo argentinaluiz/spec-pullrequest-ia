@@ -20,7 +20,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   upload_incomplete: "O arquivo ainda não chegou inteiro. Tente de novo.",
   max_depth_exceeded:
     "As pastas podem ter no máximo 50 níveis. Escolha outro lugar.",
-  invalid_move: "Não dá para mover uma pasta para dentro dela mesma.",
+  invalid_move: "Este item não pode ser movido para lá.",
   internal_error: "Algo deu errado. Tente de novo em instantes.",
 };
 

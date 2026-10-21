@@ -174,20 +174,23 @@ export class ItemsService {
     parentId: string,
     name?: string,
   ): Promise<Item> {
+    const [itemId, destinationId] = await Promise.all([
+      this.folderIdOf(ownerId, id),
+      this.folderIdOf(ownerId, parentId),
+    ]);
     const result = await this.items.moveActive(ownerId, {
-      id: await this.folderIdOf(ownerId, id),
-      parentId: await this.folderIdOf(ownerId, parentId),
+      id: itemId,
+      parentId: destinationId,
       name,
     });
     switch (result.status) {
       case 'moved':
         return result.item;
-      case 'cycle':
+      case 'invalid':
         throw new InvalidMoveError();
       case 'too_deep':
         throw new MaxDepthExceededError();
-      case 'item_not_found':
-      case 'destination_not_found':
+      case 'not_found':
         throw new ItemNotFoundError();
     }
   }

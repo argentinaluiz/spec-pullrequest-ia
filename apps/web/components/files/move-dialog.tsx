@@ -3,6 +3,7 @@
 import { ChevronRight, CircleAlert, Folder } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import type { ItemTrailEntry } from "@/lib/api/types";
 import type { MoveItemResult, MoveLevelResult } from "@/app/(drive)/actions";
 import { useResetLoadedPages } from "@/components/files/load-more";
 import { ButtonPrimary } from "@/components/ui/button-primary";
@@ -11,10 +12,12 @@ import { ButtonUtility } from "@/components/ui/button-utility";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 
-type Folder = { id: string; name: string };
-
 /** O nível aberto no seletor: o caminho do topo até ele, as pastas dele que já chegaram e o cursor da próxima página. */
-type Level = { trail: Folder[]; folders: Folder[]; nextCursor: string | null };
+type Level = {
+  trail: ItemTrailEntry[];
+  folders: ItemTrailEntry[];
+  nextCursor: string | null;
+};
 
 type MoveDialogProps = {
   /** O id do Item movido, pasta ou arquivo: ele aparece desabilitado no seletor, se for uma pasta. */
@@ -41,7 +44,6 @@ export function MoveDialog({ id, loadLevel, move, onClose }: MoveDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [navigating, startNavigation] = useTransition();
   const [moving, startMoving] = useTransition();
-  const started = useRef(false);
   const list = useRef<HTMLUListElement>(null);
 
   /** Abre o nível `folderId`, trocando o que o seletor mostra. */
@@ -99,12 +101,24 @@ export function MoveDialog({ id, loadLevel, move, onClose }: MoveDialogProps) {
   }
 
   useEffect(() => {
-    // O Strict Mode monta o efeito duas vezes: o primeiro nível só se pede uma.
-    if (started.current) return;
-    started.current = true;
-    open("root");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Cancelável, porque o Strict Mode monta o efeito duas vezes: só a última resposta vale.
+    let cancelled = false;
+    void loadLevel("root").then((result) => {
+      if (cancelled) return;
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setLevel({
+        trail: result.trail ?? [],
+        folders: result.folders,
+        nextCursor: result.nextCursor,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadLevel]);
 
   const current = level?.trail.at(-1);
   const currentId = current?.id;

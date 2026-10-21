@@ -224,44 +224,44 @@ export class ItemsRepository {
   ): Promise<MoveResult> {
     return this.prisma.$transaction(async (tx) => {
       await this.lockTree(ownerId, tx);
+      const current = await tx.item.findFirst({
+        where: { id: move.id, ownerId, status: 'active' },
+        select: { ...ITEM_FIELDS, parentId: true },
+      });
+      if (!current) {
+        return { status: 'not_found' };
+      }
+      // A Pasta raiz, a única sem pai, não se move.
+      if (current.parentId === null) {
+        return { status: 'invalid' };
+      }
       const path = await this.folderPath(ownerId, move.parentId, tx);
       if (path.length === 0) {
-        return { status: 'destination_not_found' };
+        return { status: 'not_found' };
       }
       // O caminho do destino traz o próprio destino: o Item nele é um ciclo.
       if (path.some((entry) => entry.id === move.id)) {
-        return { status: 'cycle' };
+        return { status: 'invalid' };
+      }
+      // Mover para onde já está não grava nada, nem renova o `updatedAt`.
+      if (current.parentId === move.parentId && move.name === undefined) {
+        const { parentId: _parentId, ...fields } = current;
+        return { status: 'moved', item: toItem(fields) };
       }
       // O caminho do destino traz a raiz, que não conta como nível.
       const height = await this.subtreeHeight(ownerId, move.id, tx);
       if (path.length - 1 + height > MAX_FOLDER_DEPTH) {
         return { status: 'too_deep' };
       }
-      // Mover para onde já está não grava nada, nem renova o `updatedAt`.
-      const current = await tx.item.findFirst({
-        where: { id: move.id, ownerId, status: 'active' },
-        select: { ...ITEM_FIELDS, parentId: true },
-      });
-      if (current?.parentId === move.parentId && move.name === undefined) {
-        const { parentId: _parentId, ...fields } = current;
-        return { status: 'moved', item: toItem(fields) };
-      }
-      const [row] = await tx.item.updateManyAndReturn({
-        where: {
-          id: move.id,
-          ownerId,
-          status: 'active',
-          parentId: { not: null },
-        },
+      const row = await tx.item.update({
+        where: { id: move.id },
         data: {
           parentId: move.parentId,
-          ...(move.name && { name: move.name }),
+          ...(move.name !== undefined && { name: move.name }),
         },
         select: ITEM_FIELDS,
       });
-      return row
-        ? { status: 'moved', item: toItem(row) }
-        : { status: 'item_not_found' };
+      return { status: 'moved', item: toItem(row) };
     });
   }
 
