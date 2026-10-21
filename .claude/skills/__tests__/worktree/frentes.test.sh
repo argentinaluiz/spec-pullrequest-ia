@@ -8,9 +8,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-SCRIPTS="$(cd "$HERE/.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+SCRIPTS="$(cd "$HERE/../../worktree/scripts" && pwd)"
+# shellcheck source=../helpers.sh
+source "$HERE/../helpers.sh"
 
 for tool in git jq flock; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o teste do núcleo das frentes precisa dele."; exit 2; }

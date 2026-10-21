@@ -19,7 +19,7 @@ In this folder:
 - `hooks/`: the hook of the end of the turn (`stop-verify.sh`), the one that records the touched files (`record-touched.sh`) and the one before the command (`push-verify.sh`), configured in `.claude/settings.json`.
 - The tests of each piece, in `scripts/test/` and `hooks/test/`.
 
-In other skills: the acceptance checker, the plan commit (`plan-git.sh`) and the helpers of the shell tests (`/plan-ticket`); the base and the lock folder of the machine (`harness-base.sh`, `/worktree`); the state folder (`harness-dir.sh`, `/proteger-harness`).
+In other skills: the acceptance checker and the plan commit (`plan-git.sh`) (`/plan-ticket`); the base and the lock folder of the machine (`harness-base.sh`, `/worktree`); the state folder (`harness-dir.sh`, `/proteger-harness`). The tests of the kit skills and the helpers of the shell tests are in `.claude/skills/__tests__/`.
 
 In the root `scripts/` folder: the Node in the container, the commands of the contract and the list the guard reads (`protected-list.sh`).
 

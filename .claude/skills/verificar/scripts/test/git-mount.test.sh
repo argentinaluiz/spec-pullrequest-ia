@@ -8,8 +8,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$ROOT/.claude/skills/__tests__/helpers.sh"
 # shellcheck source=../git-mount.sh
 source "$ROOT/.claude/skills/verificar/scripts/git-mount.sh"
 

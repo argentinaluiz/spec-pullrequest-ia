@@ -3,15 +3,15 @@
 # Teste dos mapas de testes do repositório (docs/tickets/<pai>/<ticket>/mapa-de-testes.txt, formato da skill
 # plan-ticket): cada linha liga um critério a um caso de um teste de skill, que não pode levar ID de critério deste
 # projeto. O teste confere que cada linha de cada mapa tem o ID num arquivo de aceite e o nome do caso no arquivo
-# de teste dela; que nenhum teste da skill de plano nem da skill worktree traz um ID deste projeto; e que o conferidor do aceite, com um
+# de teste dela; que nenhum teste das skills do kit traz um ID deste projeto; e que o conferidor do aceite, com um
 # relatório montado das linhas dos mapas, cobre cada critério ligado, sem tag nenhuma no relatório. Roda na máquina,
 # como o executor, e chama o conferidor no contêiner `api`. O caso leva a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$HERE/../../../__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o teste dos mapas precisa dele."; exit 2; }
 
@@ -45,12 +45,12 @@ links_are_real() {
   done <"$links"
 }
 
-# Um teste de uma skill do kit (todas menos a verificar, que é deste projeto) não traz o ID de um critério deste
-# projeto: os IDs de fixture (PROJ-*) valem.
+# Um teste de uma skill do kit (os da pasta __tests__ e os de qualquer outra skill, menos a verificar, que é deste
+# projeto) não traz o ID de um critério deste projeto: os IDs de fixture (PROJ-*) valem.
 skill_tests_have_no_project_ids() {
   local found dir dirs
   dirs=()
-  for dir in .claude/skills/*/scripts/test .claude/skills/*/hooks/test; do
+  for dir in .claude/skills/__tests__ .claude/skills/*/scripts/test .claude/skills/*/hooks/test; do
     [[ "$dir" == .claude/skills/verificar/* ]] || dirs+=("$dir")
   done
   found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' "${dirs[@]}" | grep -v '^@PROJ-' || true)"

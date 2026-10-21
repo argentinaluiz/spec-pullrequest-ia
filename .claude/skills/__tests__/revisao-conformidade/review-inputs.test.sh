@@ -11,8 +11,8 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../helpers.sh
+source "$HERE/../helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -27,7 +27,7 @@ contains() {
 }
 
 # install_kit <repositório>: copia para o repositório o script e os arquivos das skills que ele carrega, nos caminhos delas.
-SKILLS="$(cd "$HERE/../../.." && pwd)"
+SKILLS="$(cd "$HERE/../.." && pwd)"
 install_kit() {
   local file
   for file in revisao-conformidade/scripts/review-inputs.sh worktree/scripts/harness-base.sh plan-ticket/scripts/plan-git.sh \

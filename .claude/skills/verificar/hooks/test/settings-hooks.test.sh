@@ -9,8 +9,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+# shellcheck source=../../../__tests__/helpers.sh
+source "$HERE/../../../__tests__/helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: os hooks e o teste deles precisam dele."; exit 2; }

@@ -1,3 +1,3 @@
 # Ligações do LUI-197: o teste da classificação dos pontos de convergência mora no núcleo das frentes, na skill worktree, e não leva o ID na tag.
 # ID, arquivo do teste e nome do caso, separados por tabulação.
-LUI-197-CA4	.claude/skills/worktree/scripts/test/frentes.test.sh	o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção
+LUI-197-CA4	.claude/skills/__tests__/worktree/frentes.test.sh	o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção

@@ -1,14 +1,19 @@
 # Auxiliares dos testes em shell: o contador de casos que falharam e a saída `ok:` ou `FALHOU:` de cada um. São os
 # únicos: os testes das skills e os do projeto os carregam desta pasta com `source`.
 #
+# Os testes das skills do kit moram fora delas, nesta pasta: uma subpasta por skill (`__tests__/<skill>/`), que
+# carrega os scripts da skill pelo caminho dela (`../../<skill>/scripts/...`) e este arquivo como `../helpers.sh`.
+# Assim a pasta de uma skill leva só o que roda, e nenhum teste fica preso a outra skill.
+#
 # O relatório: quando o executor dos testes em shell do projeto define o SH_TEST_LOG, cada caso entra nele, uma linha
 # por caso, `<suíte>`, `<passed|failed>` e `<nome>`, separados por TAB, com a suíte do SH_TEST_SUITE (ou o nome do
 # script, se a suíte roda sozinha); sem a variável, o teste só imprime. O executor transforma esse log no relatório
-# que o conferidor do aceite (scripts/check-acceptance.cjs) lê, e um caso que não rodou agora não cobre critério nenhum.
+# que o conferidor do aceite (plan-ticket/scripts/check-acceptance.cjs) lê, e um caso que não rodou agora não cobre
+# critério nenhum.
 #
 # O teste de uma skill não leva o ID de um critério do projeto, porque vai com a skill para outros projetos: a ligação
-# dele com o critério fica no mapa de testes do ticket (formatos/mapa-de-testes.md). Como o caso de um teste do próprio
-# projeto leva o ID é do executor do projeto.
+# dele com o critério fica no mapa de testes do ticket (formatos/mapa-de-testes.md, da skill de plano). Como o caso de
+# um teste do próprio projeto leva o ID é do executor do projeto.
 #
 # Uma suíte com asserção própria dá o veredito pelo `pass_case` e pelo `fail_case`, que imprimem, registram e contam
 # o caso.

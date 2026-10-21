@@ -6,9 +6,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-GUARD="$HERE/../harness-guard.sh"
-# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
-source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
+GUARD="$HERE/../../proteger-harness/scripts/harness-guard.sh"
+# shellcheck source=../helpers.sh
+source "$HERE/../helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }
 
@@ -72,7 +72,7 @@ check "o * não atravessa a barra, e o caminho fundo passa" exits 0
 
 outside="$tmp/fora"
 mkdir -p "$outside"
-cp "$GUARD" "$HERE/../path-pattern.sh" "$outside/"
+cp "$GUARD" "$HERE/../../proteger-harness/scripts/path-pattern.sh" "$outside/"
 printf 'bloqueado\tsecreto/**\naviso\tnotas.txt\n' >"$outside/lista.txt"
 run_outside() {
   out="$(cd "$outside" && printf '%s\n' "$@" | env -u HEAD_DIR ./harness-guard.sh "${LIST:-lista.txt}" ${DECLARED:+"$DECLARED"} 2>&1)"

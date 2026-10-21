@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseAcceptanceFile, parseMessage, parseTestMap, CHECKS, TEST_MAP_NAME } = require('../plan.cjs');
+const { parseAcceptanceFile, parseMessage, parseTestMap, CHECKS, TEST_MAP_NAME } = require('../../plan-ticket/scripts/plan.cjs');
 
 test('lê a introdução e os critérios do aceite, com o subtítulo dentro do critério e sem teste previsto no de documento', () => {
   const acceptance = [
