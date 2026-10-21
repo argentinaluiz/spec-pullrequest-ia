@@ -1,9 +1,8 @@
 // Auxiliares dos testes do renderizador do contrato: o snapshot de exemplo da OpenAPI e a leitura de um
 // painel da página de revisão (esta, da skill de plano). Não termina em `.test.cjs`, então o `node --test` não o roda como teste.
 
-// A leitura de um painel da página é a da skill de plano, que o renderizador do contrato usa (uma skill do projeto
-// pode carregar uma genérica).
-const { panel } = require('../../../plan-ticket/scripts/test/helpers.cjs');
+// A leitura de um painel da página é a da skill de plano, que o renderizador do contrato reusa.
+const { panel } = require('../../.claude/skills/plan-ticket/scripts/test/helpers.cjs');
 
 /** Um snapshot da OpenAPI com as rotas dadas, o esquema `bearer`, o problema e o `MeDto`. */
 function snapshot(paths, schemas = {}) {

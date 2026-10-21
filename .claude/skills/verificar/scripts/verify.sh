@@ -65,10 +65,10 @@ source .claude/skills/worktree/scripts/harness-base.sh
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
 # A página do plano, que o atalho `plan` monta, é da skill de plano, e o desvio do contrato, o único dono da comparação com o
-# commit de plano, é um comando da skill contrato: acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
+# commit de plano, é um comando da pasta de scripts da raiz: acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
 # No contêiner `api`, os scripts das skills ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
-CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
+CONTRACT_DRIFT=scripts/contract-drift.sh
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
@@ -108,10 +108,10 @@ usage() {
   exit 2
 }
 
-# Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node, da skill contrato, que o grupo da API
+# Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node (`scripts/node-in-api.sh`), que o grupo da API
 # também carrega.
-# shellcheck source=../../contrato/scripts/contract-lib.sh
-source .claude/skills/contrato/scripts/contract-lib.sh
+# shellcheck source=../../../scripts/contract-lib.sh
+source scripts/contract-lib.sh
 
 for app in "${APPS[@]}"; do
   # shellcheck source=/dev/null
@@ -287,7 +287,7 @@ plan_commit() {
   added_by "$BASE_REF..${HEAD_REF:-HEAD}" "$1"
 }
 
-# O desvio do plano, pelo comando do /contrato, que acrescenta a visão ao contract-drift.txt da pasta do ticket, que o `run_full`
+# O desvio do plano, pelo comando da raiz (contract-drift.sh), que acrescenta a visão ao contract-drift.txt da pasta do ticket, que o `run_full`
 # apaga no começo. Só avisa: nunca falha.
 contract_drift() {
   local file plan drift
@@ -466,7 +466,7 @@ run_full() {
 run_plan() {
   local args=(
     --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node "$CONTRACT_NODE" --contrato .claude/skills/contrato/scripts/contract-view.sh
+    --node "$CONTRACT_NODE" --contrato scripts/contract-view.sh
     --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
   )
   [[ -n "${3:-}" ]] && args+=(--commit "$3")

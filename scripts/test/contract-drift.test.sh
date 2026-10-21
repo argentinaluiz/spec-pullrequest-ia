@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
 #
-# Teste do comando do desvio do contrato (.claude/skills/contrato/scripts/contract-drift.sh): o desvio desde o commit de plano, que só avisa. O
-# comando roda numa cópia da skill num repositório temporário, com o `docker` trocado por um falso (o oasdiff compara os
+# Teste do comando do desvio do contrato (scripts/contract-drift.sh): o desvio desde o commit de plano, que só avisa. O
+# comando roda numa cópia dos scripts num repositório temporário, com o `docker` trocado por um falso (o oasdiff compara os
 # snapshots como o caso combinou, e o Node no contêiner devolve o Markdown de mentira), então nenhum contêiner entra no
 # caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
-mkdir -p "$tmp/bin" "$repo/scripts" "$repo/.claude/skills" "$repo/apps/api/prisma"
-cp -R "$ROOT/.claude/skills/contrato" "$repo/.claude/skills/"
-rm -rf "$repo/.claude/skills/contrato/scripts/test"
-cp "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
+mkdir -p "$tmp/bin" "$repo/scripts" "$repo/apps/api/prisma"
+cp "$ROOT"/scripts/contract-*.sh "$ROOT/scripts/contract-view.cjs" "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
 
 # O `docker` falso: `diff` (a comparação do contrato) sai com FAKE_DIFF, 0 se os snapshots são iguais e 1 se diferem; o
 # `changelog` falha com FAKE_CHANGELOG_FAIL; o Node no contêiner devolve o Markdown de mentira; `exec api true` está no ar.
@@ -53,7 +51,7 @@ drift="$repo/docs/tickets/PROJ-1/PROJ-2/contract-drift.txt"
 # drift <alvo, ou vazio>: roda o comando contra a pasta de trabalho; deixa a saída em $out e o código em $code.
 drift() {
   rm -f "$drift"
-  out="$(cd "$repo" && .claude/skills/contrato/scripts/contract-drift.sh "$plan" "$1" "$drift" 2>&1)"
+  out="$(cd "$repo" && scripts/contract-drift.sh "$plan" "$1" "$drift" 2>&1)"
   code=$?
 }
 

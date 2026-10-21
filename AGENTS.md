@@ -252,16 +252,16 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 - **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
 - **Pasta dos documentos:** `docs`.
 - **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
-- **Comando do contrato:** `.claude/skills/contrato/scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
+- **Comando do contrato:** `scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
 Os valores da `/revisao-conformidade`:
 
 - **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
 - **Base:** a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`). O script dos insumos, `.claude/skills/revisao-conformidade/scripts/review-inputs.sh`, não lê a variável: passe `--base "${HARNESS_BASE_REF:-origin/main}"`.
-- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`.claude/hooks/`, `.github/`, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
+- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`.claude/hooks/`, `.github/`, `.config/`, a pasta `scripts/` da raiz, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
-- **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
+- **Desvio do contrato:** `scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
 Os valores do `/worktree` moram em `.config/worktree`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`: a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`); os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
 
@@ -289,13 +289,13 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
 
 - **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
-- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar` e `/contrato` (a visão e o desvio do contrato).
+- **Skills do projeto**, que guardam o que depende da stack daqui: a `/verificar`.
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
 **Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. O valor de uma skill mora no arquivo dela quando ele existe (hoje, só o `.config/worktree`) e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
-**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). O script que várias skills compartilham, ou que não é de skill nenhuma, mora na pasta `scripts/` da raiz, com os testes em `scripts/test/`. Uma skill existe quando o agente a carrega sob demanda para seguir um procedimento, ou quando é dona de um mecanismo próprio; um procedimento raro fica neste arquivo. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
+**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`), ou quando ela é genérica, do kit, e vai ser copiada para outros projetos; um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
 
 **Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
 

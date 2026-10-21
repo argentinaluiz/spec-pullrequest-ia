@@ -18,7 +18,7 @@
 
 const fs = require('node:fs');
 
-const { readSources } = require('../../plan-ticket/scripts/page.cjs');
+const { readSources } = require('../.claude/skills/plan-ticket/scripts/page.cjs');
 
 // As frases e os títulos de seção da visão.
 const PHRASES = {
