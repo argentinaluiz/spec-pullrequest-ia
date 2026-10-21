@@ -9,8 +9,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 AMBIENTE="$ROOT/scripts/frente-ambiente.sh"
 work="$(cd "$(mktemp -d)" && pwd -P)"

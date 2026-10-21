@@ -6,20 +6,21 @@
 # Versão fixa, para o mesmo contrato dar sempre o mesmo resultado.
 OASDIFF_IMAGE=tufin/oasdiff:v1.33.0
 
-# O snapshot da OpenAPI e o schema do Prisma, que a visão do contrato e o desvio do plano comparam.
-API_SNAPSHOT=apps/api/openapi.json
-API_SCHEMA=apps/api/prisma/schema.prisma
-
-# O Node no contêiner, que roda o renderizador, e o renderizador: o comando do Node deste projeto é o `scripts/node-in-api.sh` da raiz.
-CONTRACT_NODE=scripts/node-in-api.sh
+# O snapshot da OpenAPI e o schema do Prisma, que a visão do contrato e o desvio do plano comparam, e o comando do Node que
+# roda o renderizador vêm do .config/project, o dono deles: `contrato.arquivos` traz o snapshot e o schema, nessa ordem, e
+# `node.comando`, o Node no contêiner. Sem eles, quem carrega este arquivo para, dizendo o que falta.
+read -r API_SNAPSHOT API_SCHEMA _ <<<"$(git config --file .config/project --get contrato.arquivos 2>/dev/null)"
+CONTRACT_NODE="$(git config --file .config/project --get node.comando 2>/dev/null)"
+if [[ -z "$API_SCHEMA" || -z "$CONTRACT_NODE" ]]; then
+  printf 'O .config/project não diz os arquivos do contrato (contrato.arquivos: o snapshot e o schema) ou o comando do Node (node.comando).\n' >&2
+  printf 'Como corrigir: declare as duas chaves no .config/project e rode de novo.\n' >&2
+  exit 2
+fi
 CONTRACT_RENDERER=scripts/contract-view.cjs
 
-# O `git diff` sem cor, sem diff externo, com os prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for
-# a configuração do Git de quem roda (`diff.noprefix`, `diff.mnemonicPrefix`, `core.quotePath`), como o da página do plano.
-# plain_diff <argumentos do git diff...>
-plain_diff() {
-  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
-}
+# O `git diff` que se lê (`plain_diff`), o mesmo da página do plano, é da skill de plano.
+# shellcheck source=../.claude/skills/plan-ticket/scripts/plan-git.sh
+source "${BASH_SOURCE[0]%/*}/../.claude/skills/plan-ticket/scripts/plan-git.sh"
 
 # Os dois snapshots descrevem o mesmo contrato. Descrições, resumos e exemplos não contam: texto de documentação não muda o
 # contrato. Os caminhos são relativos à <pasta>, montada no contêiner.

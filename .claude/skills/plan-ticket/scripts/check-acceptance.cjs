@@ -6,7 +6,7 @@
 // do corpo do pull request. O formato do arquivo de aceite está na skill de plano (formatos/aceite.md).
 //
 // O mapa de testes de um ticket (`mapa-de-testes.txt`, ao lado do aceite) liga um critério a um caso que não pode
-// levar o ID dele na tag, como o teste de uma skill de uso geral: cada linha (ID, arquivo e nome do caso) vale
+// levar o ID dele na tag, como o teste de uma skill: cada linha (ID, arquivo e nome do caso) vale
 // como a tag desse caso. Reprova a linha cujo ID não está em nenhum aceite, a mal formada e a que liga um caso
 // que não aparece nos relatórios. O formato é o de formatos/mapa-de-testes.md, da skill de plano.
 //
@@ -293,11 +293,11 @@ function main([mode, body, ticketsDir, ...reportSpecs]) {
   if (section === null) {
     if (mode === '--required') {
       error(
-        'o pull request altera código em apps/ e não tem a seção "Aceite". ' +
+        'o pull request altera o código que exige a seção "Aceite" e não a tem. ' +
           'Acrescente "## Aceite" ao corpo do PR, citando o arquivo de aceite do ticket ou "nenhum" com o motivo.',
       );
     } else {
-      console.log('Aceite: seção não exigida, porque o pull request não altera nada em apps/.');
+      console.log('Aceite: seção não exigida, porque o pull request não altera o código que a exige.');
     }
   } else {
     checkSection(section, files, tickets);

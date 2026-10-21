@@ -9,8 +9,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 for tool in git flock; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o teste do semáforo precisa dele."; exit 2; }

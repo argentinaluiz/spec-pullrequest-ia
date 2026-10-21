@@ -14,18 +14,17 @@
 # espera consulta a trava a cada `FULL_SEMAPHORE_POLL` segundos (1 por padrão) em vez de ficar bloqueada
 # num `flock`, para um `full` interrompido na espera não deixar processo para trás.
 
-# A pasta das travas da máquina: a `harness` do diretório comum do Git. O núcleo das frentes (skill worktree) trava os
-# slots na mesma pasta, e define o caminho por conta própria, porque uma skill genérica não carrega arquivo do projeto.
-full_semaphore_dir() {
-  echo "$(git rev-parse --path-format=absolute --git-common-dir)/harness"
-}
+# A pasta das travas da máquina (`harness_lock_dir`), a mesma em que o núcleo das frentes trava a numeração delas, é
+# definida com a base, na skill worktree.
+# shellcheck source=../../worktree/scripts/harness-base.sh
+source "${BASH_SOURCE[0]%/*}/../../worktree/scripts/harness-base.sh"
 
 # full_semaphore_acquire <raiz do checkout> <branch>: espera a vez e pega a trava, dizendo de quem
 # espera, e grava o dono. Sai com 2 se não há `flock` ou se a trava não pôde ser aberta ou consultada.
 full_semaphore_acquire() {
   local root="$1" branch="$2" dir waited=no code
   command -v flock >/dev/null || return 2
-  dir="$(full_semaphore_dir)" && mkdir -p "$dir" || return 2
+  dir="$(harness_lock_dir)" && mkdir -p "$dir" || return 2
   exec {FULL_SEMAPHORE_FD}>>"$dir/full.lock" || return 2
   while true; do
     flock -n -E 200 "$FULL_SEMAPHORE_FD"

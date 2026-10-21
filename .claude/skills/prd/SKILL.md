@@ -69,7 +69,7 @@ Use concrete, measurable criteria. Avoid "fast", "easy", or "intuitive".
 # Concrete (GOOD)
 + The search must return results within 200ms for a 10k record dataset.
 + The search algorithm must achieve >= 85% Precision@10 in benchmark evals.
-+ The UI must follow the 'Vercel/Next.js' design system and achieve 100% Lighthouse Accessibility score.
++ The UI must follow the project's design system and achieve 100% Lighthouse Accessibility score.
 ```
 
 ---

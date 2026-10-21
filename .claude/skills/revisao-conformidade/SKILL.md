@@ -9,30 +9,27 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
 ## Steps
 
-0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill in one call, `git config --file .config/project --get-regexp '^(tickets|contrato|revisao)\.'`, which prints a line per value. Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+0. **Project values.** Read the keys of this skill from the project's configuration file, with `git config --file .config/project --get-regexp '^(tickets|revisao)\.'`. If a key a step needs is missing, ask the person and propose the line for the file, in the syntax of `git config`.
 
-   | Value | Key | Default | Used in |
-   | --- | --- | --- | --- |
-   | Tickets folder | `tickets.pasta` | `docs/tickets` | the review folder of each ticket (`--tickets` of the script) |
-   | Base | `revisao.base` | the main branch of the origin remote, `origin/<branch>` | the diff and the plan commit (`--base` of the script); the value may be a shell expression, which you expand before passing it |
-   | Code that asks for a review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | when to run the review at all: a change that matches `sempre` asks for it, and one that matches `com-aceite` asks only on a ticket with an acceptance file |
-   | Reviewer | `revisao.revisor` | `revisor-conformidade` | step 3: the subagent to call |
-   | Contract drift | `contrato.desvio` | `nenhum` | step 2: the command that tells the drift since the plan commit (`--desvio` of the script) |
+   | Value | Key | Used in |
+   | --- | --- | --- |
+   | Tickets folder | `tickets.pasta` | step 1: the review folder of each ticket |
+   | Reviewer | `revisao.revisor`; without it, `revisor-conformidade` | step 3: the subagent to call |
 
-   Say in the chat which values came from the default, in one line. A value that is `nenhum` skips the step that uses it (no drift command: the drift file says none was declared). If the change does not touch the code that asks for a review, say so and stop: there is nothing to review. The drift command is called as `<command> <plan commit> <to, or empty> <drift file>`: it appends the view of the drift to the file and only warns.
+   The script of step 2 reads its own values (the tickets folder, the code that asks for a review, the command of the contract drift and the base) and decides whether the change asks for a review at all; its header says which keys and how.
 
 ## Review
 
-1. **Folder.** With a ticket, the review lives in the ticket's folder, `<tickets folder>/<pai>/<ticket>/`, next to its acceptance file. Without a ticket, it lives in `<tickets folder>/sem-ticket/<nome>/`, with a short lowercase name you choose (letters, digits and hyphens). Without a ticket, first write the acceptance criteria of the change in `criterios.md` in that folder, one numbered criterion per line, from what was asked and not from what was done. The script refuses to run without it.
+1. **Folder.** With a ticket, the review lives in the ticket's folder, `<tickets folder>/<pai>/<ticket>/`, next to its acceptance file. Without a ticket, it lives in `<tickets folder>/sem-ticket/<nome>/`, with a short lowercase name you choose (letters, digits and hyphens). Without a ticket, first write the acceptance criteria of the change in `criterios.md` in that folder, one numbered criterion per line, from what was asked and not from what was done. The script refuses to run without it, unless the change asks for no review.
 
-2. **Inputs.** Run the script of this skill, from anywhere in the repository, with the values of step 0:
+2. **Inputs.** Run the script of this skill, from anywhere in the repository:
 
    ```bash
-   <skill folder>/scripts/review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] <pai> <ticket>    # with a ticket
-   <skill folder>/scripts/review-inputs.sh [--tickets <folder>] [--base <ref>] [--desvio <command>] sem-ticket <nome>  # without one
+   <skill folder>/scripts/review-inputs.sh <pai> <ticket>    # with a ticket
+   <skill folder>/scripts/review-inputs.sh sem-ticket <nome>  # without one
    ```
 
-   It writes, in the review folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written; a drift command that fails leaves there that the drift was not checked). It fails, and says what to do, when the ticket has no plan commit, when `criterios.md` is missing, when the base does not exist, or when the inputs would not be ignored by Git. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.
+   It says first whether the change asks for a review, and why (which file matched which pattern). If it does not (exit 3), say so and stop: there is nothing to review. Otherwise it writes, in the review folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written; a drift command that fails leaves there that the drift was not checked). It fails, and says what to do, when the configuration has no tickets folder, when the ticket has no plan commit, when `criterios.md` is missing, when the base does not exist, or when the inputs would not be ignored by Git. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.
 
 3. **Call the reviewer.** Call the reviewer subagent of step 0 with only the input lines the script printed: the path of the diff, the ticket identifier and the paths of the plan message and the contract drift, or, without a ticket, the path of `criterios.md` and the notice that there is no plan commit. Do not add your summary of the change, your opinion of it or what you think deserves attention: the value of the review is that it does not start from your conclusions. Run it in the branch checkout, because it reads the branch's acceptance file and test map. The project installs the subagent among its agents, as a copy of `revisor.md` with the agent header and the tracker tool; that copy is the one that runs, so a change to the model must be copied to it.
 
@@ -45,7 +42,7 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
    When the review runs inside the implementation flow, the session fixes the findings of the code review and the ones accepted here. The commit after the fixes does not go through the reviewer again: the full verification checks it.
 
-6. **Go on** to the full verification. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
+6. **Go on** to the full verification, as the step "Verify" of `/implement` says. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
 
 ## Publish
 

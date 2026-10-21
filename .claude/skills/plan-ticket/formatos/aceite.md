@@ -43,7 +43,7 @@ O arquivo de aceite não muda depois do commit de plano. Descongelar é do usuá
 
 Cada teste de aceite leva o ID do critério numa tag, `@<ticket>-CA<n>`, com o `@`, como `@PROJ-123-CA3`, e não no título. O nome e o arquivo do teste podem mudar durante a implementação, porque a ligação com o critério é o ID. Um teste que prova mais de um critério leva uma tag por critério. O token no título não vale como ID.
 
-Um teste de skill de uso geral não leva o ID de um critério do projeto. A ligação dele com o critério vai para o mapa de testes do ticket, ao lado do arquivo de aceite (`formatos/mapa-de-testes.md`).
+Um teste de uma skill não leva o ID de um critério do projeto, porque vai com a skill para outros projetos. A ligação dele com o critério vai para o mapa de testes do ticket, ao lado do arquivo de aceite (`formatos/mapa-de-testes.md`).
 
 No Vitest, a tag vai nas opções do teste:
 

@@ -10,8 +10,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$HERE/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor dos testes em shell precisa dele."; exit 2; }
 
@@ -22,7 +22,7 @@ cd "$ROOT" || exit 2
 mapfile -t suites < <("$SKILL/scripts/verify/skill-tests.sh" sh)
 
 # As suítes que mudaram de lugar, e que a busca tem de achar sem lista à mão.
-for moved in api-migration-order full-lock full-semaphore git-mount shell-tests skill-tests verify-plan \
+for moved in api-migration-order full-lock full-semaphore git-mount shell-tests skill-tests \
   push-verify stop-verify record-touched settings-hooks; do
   found=no
   for suite in "${suites[@]}"; do
@@ -44,7 +44,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 cat >"$tmp/suite.test.sh" <<SUITE
 #!/usr/bin/env bash
-source "$HERE/sh-helpers.sh"
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 pass_case "um caso de aceite @PROJ-1-CA1 e outro @PROJ-1-CA2"
 finish "da suíte"
 SUITE

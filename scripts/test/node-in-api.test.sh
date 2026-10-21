@@ -7,8 +7,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 NODE="$ROOT/scripts/node-in-api.sh"
 tmp="$(mktemp -d)"

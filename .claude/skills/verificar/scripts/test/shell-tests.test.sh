@@ -2,7 +2,7 @@
 #
 # Testes do executor das suítes em shell (shell-tests.sh) e do relatório dele: o caso com o
 # token de um ID no nome sai com a tag, o conferidor do aceite o conta, e o relatório é refeito a cada
-# execução. Cada teste monta suítes de mentira (scripts que carregam o sh-helpers.sh e rodam um caso com
+# execução. Cada teste monta suítes de mentira (scripts que carregam os auxiliares da skill de plano e rodam um caso com
 # o ID de mentira `PROJ-9`), roda o executor e confere o relatório com o conferidor de verdade, o mesmo
 # do modo completo, pelo scripts/node-in-api.sh. O conferidor roda no contêiner `api`, que monta o
 # repositório em /repo, então a pasta de trabalho fica em apps/api/reports/ (ignorada pelo Git), e o
@@ -11,8 +11,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor e o teste dele precisam dele."; exit 2; }
 
@@ -43,7 +43,7 @@ ACCEPTANCE
 # suite <arquivo> <corpo>: uma suíte de mentira, que carrega os auxiliares reais.
 suite() {
   {
-    printf '#!/usr/bin/env bash\nsource "%s/.claude/skills/verificar/scripts/test/sh-helpers.sh"\n' "$ROOT"
+    printf '#!/usr/bin/env bash\nsource "%s/.claude/skills/plan-ticket/scripts/test/helpers.sh"\n' "$ROOT"
     printf '%s\n' "$2"
   } >"$work/$1"
 }

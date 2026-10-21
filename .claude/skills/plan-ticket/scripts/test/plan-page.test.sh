@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Testes dos argumentos e da pasta do ticket do script da página do plano
-# (plan-page.sh, desta skill): o `--pai` obrigatório e validado, a página gravada em
-# <tickets>/<pai>/<ticket>/ e as regras do .gitignore na profundidade nova. O script roda num repositório
-# temporário, com um comando do Node de mentira. Rodam na máquina, como o script, porque ele usa o `git` e o
+# (plan-page.sh, desta skill): o `--pai` obrigatório e validado, os valores do projeto lidos do
+# `.config/project`, a página gravada em <tickets>/<pai>/<ticket>/ e as regras do .gitignore na profundidade
+# nova. O script roda num repositório temporário, com um comando do Node de mentira. Rodam na máquina, como o script, porque ele usa o `git` e o
 # `bash`. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo nome.
 
 set -uo pipefail
@@ -27,10 +27,20 @@ fake_node="$project/fake-node.sh"
 printf '#!/usr/bin/env bash\ncat >/dev/null\necho "<html>página</html>"\n' >"$fake_node"
 chmod +x "$fake_node"
 
-# plan <argumentos...>: roda o script no projeto temporário com os valores fixos, e deixa a saída de
-# erro em $err e o código em $code.
+# config <linhas...>: grava o .config/project do projeto temporário com as linhas dadas, na sintaxe do `git config`.
+mkdir -p "$project/.config"
+config() {
+  printf '%s\n' "$@" >"$project/.config/project"
+}
+# Os valores de sempre: a pasta dos tickets e o Node de mentira, sem contrato.
+default_config() {
+  config '[tickets]' 'pasta = docs/tickets' '[node]' "comando = $fake_node"
+}
+default_config
+
+# plan <argumentos...>: roda o script no projeto temporário, e deixa a saída de erro em $err e o código em $code.
 plan() {
-  err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fake_node" --contrato nenhum "$@" 2>&1 >/dev/null)"
+  err="$(cd "$project" && "$SCRIPT" "$@" 2>&1 >/dev/null)"
   code=$?
 }
 
@@ -94,21 +104,31 @@ fail_cmd="$project/fail-cmd.sh"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$fail_cmd"
 chmod +x "$fail_cmd"
 
-err="$(cd "$project" && "$SCRIPT" --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
-code=$?
+rm -f "$project/.config/project"
+plan --pai PROJ-1 --ticket PROJ-2
 check "recusa a chamada sem os valores do projeto" test $code -eq 2
 check "a mensagem aponta para o arquivo de configuração do projeto" contains '.config/project'
+check "a mensagem diz as chaves que faltam" contains 'tickets.pasta'
 check "a mensagem de um valor que falta não cita o nome do arquivo do projeto" lacks "AGENTS.md"
 
-err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fake_node" --contrato "$fail_cmd" --contrato-arquivos x --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
-code=$?
+config '[tickets]' 'pasta = docs/tickets' '[node]' "comando = $fake_node" '[contrato]' "comando = $fail_cmd"
+plan --pai PROJ-1 --ticket PROJ-2
+check "recusa o comando do contrato sem os arquivos do contrato" test $code -eq 2
+check "a mensagem diz que faltam os arquivos do contrato" contains 'contrato.arquivos'
+
+plan --tickets docs/tickets --pai PROJ-1 --ticket PROJ-2
+check "recusa um valor do projeto passado como argumento" test $code -eq 2
+check "a mensagem diz que os valores do projeto vêm do arquivo de configuração" contains '.config/project'
+
+config '[tickets]' 'pasta = docs/tickets' '[node]' "comando = $fake_node" '[contrato]' "comando = $fail_cmd" 'arquivos = x'
+plan --pai PROJ-1 --ticket PROJ-2
 check "recusa o comando do contrato que falha" test $code -eq 1
 check "a mensagem diz que o comando do contrato falhou" contains 'falhou'
 check "a mensagem manda acertar o valor no arquivo de configuração do projeto" contains '.config/project'
 check "a mensagem do comando do contrato que falha não cita o nome do arquivo do projeto" lacks "AGENTS.md"
 
-err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fail_cmd" --contrato nenhum --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
-code=$?
+config '[tickets]' 'pasta = docs/tickets' '[node]' "comando = $fail_cmd"
+plan --pai PROJ-1 --ticket PROJ-2
 check "recusa o comando do Node que falha" test $code -eq 1
 check "a mensagem diz que a página não pôde ser montada" contains 'não pôde ser montada'
 check "a mensagem do Node manda acertar o valor no arquivo de configuração do projeto" contains '.config/project'

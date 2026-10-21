@@ -9,8 +9,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$HERE/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -32,6 +32,9 @@ mkdir -p "$repo/scripts" "$repo/$SK" "$repo/.claude/skills/proteger-harness/scri
 cp -R "$ROOT/$SK/scripts" "$repo/$SK/"
 rm -rf "$repo/$SK/scripts/test"
 mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
+mkdir -p "$repo/.claude/skills/plan-ticket/scripts" && cp "$ROOT/.claude/skills/plan-ticket/scripts/plan-git.sh" "$repo/.claude/skills/plan-ticket/scripts/"
+# A configuração do projeto, com a pasta dos tickets, que a verificação exige.
+mkdir -p "$repo/.config" && printf '[tickets]\n\tpasta = docs/tickets\n' >"$repo/.config/project"
 cp "$ROOT/.claude/skills/proteger-harness/scripts/harness-dir.sh" "$ROOT/.claude/skills/proteger-harness/scripts/harness-state-guard.sh" \
   "$repo/.claude/skills/proteger-harness/scripts/"
 git -C "$repo" init -q -b main
@@ -62,7 +65,7 @@ prepush() {
 head_state() {
   (
     cd "$repo" || exit 1
-    local -a paths=(apps compose.dev.yaml docs/tickets)
+    local -a paths=(apps compose.dev.yaml .config docs/tickets)
     local dir path
     while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs .claude/skills scripts)
     for path in "${paths[@]}"; do

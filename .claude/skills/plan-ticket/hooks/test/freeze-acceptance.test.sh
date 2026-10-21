@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 #
 # Testes do hook de congelamento do aceite (hooks/freeze-acceptance.sh), pela entrada que o Claude Code entrega
-# a ele (um JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). A pasta dos tickets
-# chega a ele como argumento da linha de comando. Rodam na máquina, como o hook, porque ele usa o `git` e o
-# `jq`, que o contêiner `api` não tem. Os casos de aceite levam o ID no mapa de testes do ticket, e não no nome.
+# a ele (um JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam na máquina, como o
+# hook, porque ele usa o `git` e o `jq`, que o contêiner `api` não tem. Os casos de aceite levam o ID no mapa de testes do ticket, e não no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -32,9 +31,8 @@ echo x >"$project/apps/a.ts"
 git -C "$project" add -A
 git -C "$project" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m plano || exit 2
 
-# O hook roda no projeto temporário, com a pasta dos tickets como argumento.
+# O hook roda no projeto temporário, com a pasta dos tickets na configuração dele.
 export CLAUDE_PROJECT_DIR="$project"
-HOOK_ARGS=(docs/tickets)
 
 # expect <código esperado> <nome> <JSON da entrada> [trecho esperado na saída de erro]
 expect() {
@@ -43,8 +41,8 @@ expect() {
 
 expect 2 "nega a edição de um arquivo de aceite já versionado, e diz que descongelar é do usuário" \
   "{\"tool_input\":{\"file_path\":\"$project/$t/aceite.md\"}}" "Descongelar é do usuário"
-expect 2 "nega a edição de um aceite versionado no caminho antigo, de um nível, e manda movê-lo para a pasta da issue pai" \
-  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-7/aceite.md\"}}" "docs/tickets/<issue>/<ticket>/"
+expect 2 "nega a edição de um aceite versionado no caminho antigo, de um nível" \
+  "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-7/aceite.md\"}}" "Descongelar é do usuário"
 expect 0 "libera a criação de um aceite novo no caminho antigo, de um nível" \
   "{\"tool_input\":{\"file_path\":\"$project/docs/tickets/PROJ-8/aceite.md\"}}"
 expect 2 "nega a entrada ilegível que cita um aceite no caminho antigo" \
@@ -67,53 +65,39 @@ expect 2 "nega a entrada ilegível que cita um arquivo de aceite" \
   "isto não é json $t/aceite.md"
 expect 0 "libera a entrada ilegível que cita só outro arquivo da pasta do ticket" \
   "isto não é json $t/plano.msg"
-expect 0 "libera a entrada ilegível que não cita a pasta dos tickets" \
+expect 0 "libera a entrada ilegível que não cita um arquivo de aceite" \
   "isto não é json apps/a.ts"
 
 # O mapa de testes do ticket, em commit ou não, é livre: é a parte viva da ligação entre critério e teste.
 expect 0 "libera a edição do mapa de testes de um ticket que já tem aceite em commit" \
   "{\"tool_input\":{\"file_path\":\"$project/$t/mapa-de-testes.txt\"}}"
 
-# A pasta dos tickets que o hook recebe: com outra pasta no argumento, o aceite dela fica congelado, e o da
-# pasta de antes deixa de estar.
+# O hook não depende de onde o projeto guarda os tickets: um aceite em commit fora de docs/tickets também fica congelado,
+# com ou sem configuração do projeto, e o mapa de testes ao lado dele continua livre.
 other="planos/PROJ-100/PROJ-1"
 mkdir -p "$project/$other"
 echo congelado >"$project/$other/aceite.md"
 git -C "$project" add -A
 git -C "$project" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m "outra pasta" || exit 2
 
-# hook_code <pasta dos tickets> <arquivo>: o código de saída do hook para a edição do arquivo.
-hook_code() {
-  jq -n --arg file "$project/$2" '{tool_input: {file_path: $file}}' | "$HOOK" "$1" >/dev/null 2>&1
-  echo $?
-}
-
-# want <código esperado> <pasta dos tickets no argumento> <arquivo>: confere o código do hook, e diz qual conferência falhou.
+# want <código esperado> <arquivo>: confere o código do hook para a edição do arquivo, e diz qual conferência falhou.
 want() {
   local got
-  got="$(hook_code "$2" "$3")"
-  [[ "$got" == "$1" ]] || { echo "  $3 com a pasta $2: saiu $got, esperava $1" >&2; return 1; }
+  jq -n --arg file "$project/$2" '{tool_input: {file_path: $file}}' | "$HOOK" >/dev/null 2>&1
+  got=$?
+  [[ "$got" == "$1" ]] || { echo "  $2: saiu $got, esperava $1" >&2; return 1; }
 }
 
 freeze_case() {
-  want 2 docs/tickets "$t/aceite.md" &&
-    want 0 docs/tickets "$t/mapa-de-testes.txt" &&
-    want 0 docs/tickets docs/tickets/PROJ-100/PROJ-9/aceite.md &&
-    want 2 planos "$other/aceite.md" &&
-    want 0 planos "$other/mapa-de-testes.txt" &&
-    want 0 planos "$t/aceite.md" &&
-    want 0 docs/tickets "$other/aceite.md"
+  want 2 "$t/aceite.md" &&
+    want 0 "$t/mapa-de-testes.txt" &&
+    want 0 docs/tickets/PROJ-100/PROJ-9/aceite.md &&
+    want 2 "$other/aceite.md" &&
+    want 0 "$other/mapa-de-testes.txt" || return 1
+  # Uma configuração que aponta outra pasta não muda nada.
+  mkdir -p "$project/.config" && printf '[tickets]\n\tpasta = outra\n' >"$project/.config/project"
+  want 2 "$t/aceite.md" && want 2 "$other/aceite.md"
 }
-check "nega editar o aceite em commit, libera o mapa de testes e respeita a pasta dos tickets do argumento" freeze_case
-
-# A pasta dos tickets pode chegar escrita de outros jeitos, e o aceite segue congelado: com `./`, barra no fim,
-# barras repetidas ou o caminho absoluto dentro do projeto.
-forms_case() {
-  local folder
-  for folder in ./docs/tickets docs/tickets/ docs//tickets "docs/./tickets" "$project/docs/tickets"; do
-    want 2 "$folder" "$t/aceite.md" || return 1
-  done
-}
-check "congela o aceite com a pasta dos tickets escrita com ./, barra no fim, barras repetidas ou caminho absoluto" forms_case
+check "nega editar o aceite em commit, em qualquer pasta e com qualquer configuração, e libera o mapa de testes" freeze_case
 
 finish "do hook"

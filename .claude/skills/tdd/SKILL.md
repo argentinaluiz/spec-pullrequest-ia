@@ -21,15 +21,11 @@ A **seam** is the public boundary you test at: the interface where you observe b
 
 **Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
-When the ticket has an approved plan (the plan skill writes it), the seams and the list of tests come from its acceptance file: do not ask again, and keep the loop to one test at a time, taking the next test from that list.
+When the ticket has an approved plan (the plan skill writes it), the seams and the list of tests come from its acceptance file: do not ask again, and keep the loop to one test at a time, taking the next test from that list. Each acceptance test is linked to its criterion as the formats of the plan skill say: by the ID in a tag (`formatos/aceite.md`, "Teste de aceite"), or, for a test of a skill, by a line of the ticket's test map (`formatos/mapa-de-testes.md`), which you write when you write the test.
 
 Otherwise, ask: "What's the public interface, and which seams should we test?" Give each proposed seam a one-line note on what it catches and what it misses.
 
 When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), call the Skill tool with "codebase-design" for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
-
-## A test of a skill that proves a criterion
-
-A test of a general-purpose skill cannot carry the ID of a criterion of the project in its tag. When you write one that proves a criterion of the ticket, write the link in the test map of the ticket (`mapa-de-testes.txt` in its folder; the format is in the plan skill, `formatos/mapa-de-testes.md`). A test of the project keeps the ID in its tag.
 
 ## Anti-patterns
 

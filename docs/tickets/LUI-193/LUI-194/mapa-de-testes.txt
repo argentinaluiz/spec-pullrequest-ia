@@ -1,0 +1,45 @@
+# Ligações do LUI-194: os testes da Guarda e do hook do estado moram na skill proteger-harness e não levam o ID na tag.
+# ID, arquivo do teste e nome do caso, separados por tabulação.
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o bloqueado reprova com o código 1 e o nome do arquivo
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o aviso passa e sai como aviso
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	avisa o aceite que já existe, na profundidade do padrão
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	não avisa o aceite de um nível só, o fundo demais nem o novo
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o manifesto com os comandos trocados reprova
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o manifesto que só mudou dependências avisa
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o manifesto que o jq não lê conta como mudança nos comandos
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o caminho que nenhum padrão casa passa
+LUI-194-CA1	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o * não atravessa a barra, e o caminho fundo passa
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	classifica os caminhos pela lista, sem nenhum arquivo do projeto
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o aviso da lista de fora sai como aviso
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	sem lista, sai com o código 2 e diz por quê
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	sem o argumento da lista, sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	a lista ilegível sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	tipo desconhecido sai com o código 2 e nomeia o tipo
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	linha sem tabulação sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	a lista de caminhos vazia sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	mais arquivos que o limite da API sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o total que não é um número sai com o código 2
+LUI-194-CA2	.claude/skills/proteger-harness/scripts/test/harness-guard.test.sh	o limite da API é só o teto, abaixo dele passa
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega apagar a trava na pasta de estado do harness, e diz que o estado é da verificação
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega mexer na aprovação do modo completo por outro caminho
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado montada pela raiz do repositório, em um trecho com espaços
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega ler a aprovação do modo completo
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega apagar a pasta de estado inteira, sem barra no fim
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado entre aspas
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado seguida de um arquivo, escrita por redirecionamento
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado entre aspas, sozinha
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado montada pela raiz do repositório, fora das aspas
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado dentro do bash -c
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a pasta de estado antiga, que também guardava a trava
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera um arquivo full- que não é da pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera a mensagem de commit que cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera a mensagem de commit em heredoc que cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera o corpo do PR, entre aspas simples, que cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera o padrão de um grep que cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera o ponto escapado de um padrão de busca
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	nega a entrada ilegível que cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera o ls -a, que não cita a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera nomes parecidos, que não são a pasta de estado
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	a mensagem de negação traz a ajuda que a linha de comando do hook passou
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	sem o --ajuda, nega do mesmo jeito e sem frase a mais
+LUI-194-CA4	.claude/skills/proteger-harness/hooks/test/state-guard.test.sh	libera um comando qualquer

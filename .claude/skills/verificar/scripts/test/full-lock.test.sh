@@ -8,8 +8,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 state="$(mktemp -d)"
 trap 'rm -rf "$state"' EXIT

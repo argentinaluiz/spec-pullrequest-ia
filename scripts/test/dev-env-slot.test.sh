@@ -8,8 +8,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 for tool in docker jq git; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: o teste do ambiente por slot precisa dele."; exit 2; }

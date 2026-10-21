@@ -7,8 +7,8 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
-source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
+# shellcheck source=../../.claude/skills/plan-ticket/scripts/test/helpers.sh
+source "$ROOT/.claude/skills/plan-ticket/scripts/test/helpers.sh"
 
 CORE="$ROOT/.claude/skills/worktree/scripts/frentes.sh"
 CONFIG="$ROOT/.config/project"
@@ -83,15 +83,5 @@ STUB
     grep -qxF -- "$front|compose -f compose.dev.yaml up -d --build --wait" "$DOCKER_LOG"
 }
 check "$name: o novo recusa a porta ocupada sem criar nada, e com a porta livre grava o .env e sobe o Compose @LUI-186-CA1 @LUI-186-CA4" real_new
-
-# A trava dos slots do núcleo e o semáforo da verificação completa ficam na mesma pasta da máquina: o núcleo define o caminho
-# por conta própria (uma skill genérica não carrega arquivo do projeto), e este caso prende os dois à mesma expressão.
-same_lock_folder() {
-  local core verification
-  core="$(sed -n '/^lock_dir()/,/^}/p' "$CORE" | grep -o 'rev-parse --path-format=absolute --git-common-dir)/harness')"
-  verification="$(sed -n '/^full_semaphore_dir()/,/^}/p' "$ROOT/.claude/skills/verificar/scripts/full-semaphore.sh" | grep -o 'rev-parse --path-format=absolute --git-common-dir)/harness')"
-  [[ -n "$core" && "$core" == "$verification" ]]
-}
-check "o núcleo das frentes e a verificação completa travam na mesma pasta das travas da máquina" same_lock_folder
 
 finish "das frentes do projeto"

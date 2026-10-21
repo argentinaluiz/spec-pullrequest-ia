@@ -7,8 +7,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=sh-helpers.sh
-source "$HERE/sh-helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 MODEL="$ROOT/.claude/skills/revisao-conformidade/revisor.md"
 INSTALLED="$ROOT/.claude/agents/revisor-conformidade.md"

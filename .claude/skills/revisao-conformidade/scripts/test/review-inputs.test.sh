@@ -2,15 +2,17 @@
 #
 # Testes do script dos insumos da revisão de conformidade (scripts/review-inputs.sh): os argumentos, o diff da branch com os
 # arquivos novos sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a mensagem
-# dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios. O script roda copiado num
-# repositório temporário, que só tem a skill: a base e o comando do desvio chegam por opção, e o comando do desvio é um
-# falso (a comparação real tem os próprios testes). Não carrega arquivo de projeto: o auxiliar é o da própria skill. Roda na
-# máquina. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo nome.
+# dele, o desvio do contrato gravado sempre, a mudança sem ticket, que exige os critérios, e se a mudança pede revisão. O
+# script roda copiado num repositório temporário, só com os arquivos das skills que ele carrega (a base da worktree, o diff
+# da skill de plano e o padrão de caminho da proteger-harness): a base chega pela HARNESS_BASE_REF e o resto, pelo
+# .config/project do repositório, e o comando do desvio é um falso (a comparação real tem os próprios testes). Não carrega
+# arquivo de projeto. Roda na máquina. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo
+# nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=helpers.sh
-source "$HERE/helpers.sh"
+# shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
+source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -24,10 +26,23 @@ contains() {
   [[ "$1" == *"$2"* ]]
 }
 
-# O repositório: só a cópia do script da skill e as regras de .gitignore da pasta dos tickets, na main.
+# install_kit <repositório>: copia para o repositório o script e os arquivos das skills que ele carrega, nos caminhos delas.
+SKILLS="$(cd "$HERE/../../.." && pwd)"
+install_kit() {
+  local file
+  for file in revisao-conformidade/scripts/review-inputs.sh worktree/scripts/harness-base.sh plan-ticket/scripts/plan-git.sh \
+    proteger-harness/scripts/path-pattern.sh; do
+    mkdir -p "$1/.claude/skills/$(dirname "$file")"
+    cp "$SKILLS/$file" "$1/.claude/skills/$file"
+  done
+}
+
+# O repositório: a cópia do script e do que ele carrega, a configuração do projeto e as regras de .gitignore da pasta dos
+# tickets, na main.
 SK=.claude/skills/revisao-conformidade
-mkdir -p "$repo/$SK/scripts" "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3"
-cp "$HERE/../review-inputs.sh" "$repo/$SK/scripts/"
+mkdir -p "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3" "$repo/.config"
+install_kit "$repo"
+printf '[tickets]\n\tpasta = docs/tickets\n[contrato]\n\tdesvio = %s\n[revisao]\n\tsempre = apps/**\n' "$tmp/desvio" >"$repo/.config/project"
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$repo/.gitignore"
 # O comando do desvio do contrato, falso, chamado como o do contrato da raiz: <commit de plano> <para, ou vazio> <arquivo do desvio>.
 # Com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e avisa); sem ela, diz que o contrato está
@@ -75,11 +90,11 @@ printf 'export const novo = true;\n' >"$repo/apps/api/novo.ts"
 printf 'export const espaco = true;\n' >"$repo/apps/api/com espaço.ts"
 rm "$repo/apps/api/apagado.ts"
 
-# review <argumentos...>: roda o script no repositório temporário, contra a main dele, com o comando do desvio falso, e deixa a
-# saída em $out, a saída de erro em $err e o código em $code.
+# review <argumentos...>: roda o script no repositório temporário, contra a main dele, com o comando do desvio falso da
+# configuração, e deixa a saída em $out, a saída de erro em $err e o código em $code.
 review() {
-  local errfile="$tmp/err" opts=(--base main --desvio "$tmp/desvio")
-  out="$(cd "$repo" && $SK/scripts/review-inputs.sh "${opts[@]}" "$@" 2>"$errfile")"
+  local errfile="$tmp/err"
+  out="$(cd "$repo" && HARNESS_BASE_REF=main $SK/scripts/review-inputs.sh "$@" 2>"$errfile")"
   code=$?
   err="$(<"$errfile")"
 }
@@ -229,11 +244,23 @@ minimal_ignore_without_ticket() {
 }
 check "sem ticket, um .gitignore que ignora só o diff e os critérios basta" minimal_ignore_without_ticket
 
-# --- um repositório de fora: só a cópia da skill, sem contrato nenhum, com os padrões da base e do desvio
+# --- sem a pasta dos tickets na configuração
+
+no_tickets_folder() {
+  cp "$repo/.config/project" "$tmp/project"
+  printf '[contrato]\n\tdesvio = %s\n[revisao]\n\tsempre = apps/**\n' "$tmp/desvio" >"$repo/.config/project"
+  review PROJ-1 PROJ-2
+  cp "$tmp/project" "$repo/.config/project"
+  [[ $code -eq 2 && "$err" == *"tickets.pasta"* ]]
+}
+check "sem a pasta dos tickets no .config/project, recusa e diz qual chave falta" no_tickets_folder
+
+# --- um repositório de fora: só as skills, sem contrato nenhum, com a base padrão e sem o comando do desvio
 
 outside="$tmp/fora"
-mkdir -p "$outside/$SK/scripts" "$outside/docs/tickets/EX-1/EX-2"
-cp "$HERE/../review-inputs.sh" "$outside/$SK/scripts/"
+mkdir -p "$outside/docs/tickets/EX-1/EX-2" "$outside/.config"
+install_kit "$outside"
+printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = **\n' >"$outside/.config/project"
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$outside/.gitignore"
 git -C "$outside" init -q -b main
 git -C "$outside" config user.email teste@exemplo.com
@@ -249,10 +276,17 @@ printf '# Aceite do EX-2\n' >"$outside/docs/tickets/EX-1/EX-2/aceite.md"
 git -C "$outside" add -A && git -C "$outside" commit -q -m 'plano do EX-2'
 echo mudanca >"$outside/novo.txt"
 
+# outside_run <argumentos...>: roda o script no repositório de fora, sem a HARNESS_BASE_REF de quem roda os testes (a CI a
+# define), salvo a que o caso dá em OUTSIDE_BASE.
 outside_run() {
-  out="$(cd "$outside" && $SK/scripts/review-inputs.sh "$@" 2>"$tmp/err")"
+  out="$(cd "$outside" && env -u HARNESS_BASE_REF ${OUTSIDE_BASE:+HARNESS_BASE_REF="$OUTSIDE_BASE"} "$SK/scripts/review-inputs.sh" "$@" 2>"$tmp/err")"
   code=$?
   err="$(<"$tmp/err")"
+}
+# outside_config [desvio]: a configuração do repositório de fora, com o comando do desvio dado ou sem nenhum.
+outside_config() {
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = **\n' >"$outside/.config/project"
+  [[ -z "${1:-}" ]] || printf '[contrato]\n\tdesvio = %s\n' "$1" >>"$outside/.config/project"
 }
 outside_defaults() {
   outside_run EX-1 EX-2 &&
@@ -265,14 +299,17 @@ check "roda num repositório de fora, com os padrões da base e do desvio" outsi
 outside_given() {
   printf '#!/usr/bin/env bash\necho "desvio de fora: $1 $3"\n' >"$tmp/desvio-fora"
   chmod +x "$tmp/desvio-fora"
-  outside_run --base origin/main --desvio "$tmp/desvio-fora" EX-1 EX-2 &&
-    [[ $code -eq 0 ]] &&
+  outside_config "$tmp/desvio-fora"
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
+  local ok=$code
+  outside_config
+  [[ $ok -eq 0 ]] &&
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == *"desvio de fora: "* ]]
 }
-check "a base e o comando do desvio dados por opção são os que o script usa" outside_given
+check "a base da HARNESS_BASE_REF e o comando do desvio do .config/project são os que o script usa" outside_given
 
 outside_bad_base() {
-  outside_run --base naoexiste EX-1 EX-2
+  OUTSIDE_BASE=naoexiste outside_run EX-1 EX-2
   [[ $code -eq 2 && "$err" == *"naoexiste"* ]]
 }
 check "uma base que não existe é recusada, dizendo qual" outside_bad_base
@@ -284,17 +321,79 @@ outside_other_head() {
   outside_run EX-1 EX-2
   [[ $code -eq 2 && "$err" == *"origin/principal..HEAD"* ]]
 }
-check "sem --base, a base é o ramo principal que o remoto de origem diz" outside_other_head
+check "sem a HARNESS_BASE_REF, a base é o ramo principal que o remoto de origem diz" outside_other_head
 
 # O comando do desvio pode ter argumentos próprios: eles vão antes do commit de plano.
 outside_command_with_arguments() {
   git -C "$outside" remote set-head origin -d >/dev/null
   printf '#!/usr/bin/env bash\necho "recebi: $*"\n' >"$tmp/desvio-args"
   chmod +x "$tmp/desvio-args"
-  outside_run --base origin/main --desvio "$tmp/desvio-args um-argumento" EX-1 EX-2 &&
-    [[ $code -eq 0 ]] &&
+  outside_config "$tmp/desvio-args um-argumento"
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
+  outside_config
+  [[ $code -eq 0 ]] &&
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == "recebi: um-argumento "* ]]
 }
 check "o comando do desvio com argumentos próprios os recebe antes do commit de plano" outside_command_with_arguments
+
+# --- se a mudança pede revisão: os padrões de revisao.sempre e, num ticket com aceite, os bloqueado da lista de protegidos
+
+need_case() {
+  local result=0
+  printf 'bloqueado\tscripts/**\n' >"$outside/.config/protegidos"
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n[protegidos]\n\tlista = .config/protegidos\n' \
+    >"$outside/.config/project"
+  rm -f "$outside/docs/tickets/EX-1/EX-2/review.diff"
+  # Só um arquivo fora dos padrões (o novo.txt da raiz): não pede revisão, sai com 3 e não grava nada.
+  outside_run EX-1 EX-2
+  [[ $code -eq 3 && "$out" == *"não pede revisão"* && ! -e "$outside/docs/tickets/EX-1/EX-2/review.diff" ]] || result=1
+  # Um script do harness, com ticket: pede revisão pelo bloqueado da lista, e diz o arquivo e o padrão.
+  mkdir -p "$outside/scripts" && echo 'echo x' >"$outside/scripts/x.sh"
+  outside_run EX-1 EX-2
+  [[ $code -eq 0 && "$out" == *'scripts/x.sh casa com `scripts/**` (bloqueado de .config/protegidos)'* ]] || result=1
+  # Sem ticket, o bloqueado da lista não pede revisão.
+  mkdir -p "$outside/docs/tickets/sem-ticket/harness"
+  printf '1. Um critério.\n' >"$outside/docs/tickets/sem-ticket/harness/criterios.md"
+  outside_run sem-ticket harness
+  [[ $code -eq 3 ]] || result=1
+  # Um arquivo de apps/ pede revisão com ou sem ticket.
+  mkdir -p "$outside/apps" && echo x >"$outside/apps/a.ts"
+  outside_run sem-ticket harness
+  [[ $code -eq 0 && "$out" == *'apps/a.ts casa com `apps/**` (revisao.sempre)'* ]] || result=1
+  rm -rf "$outside/scripts" "$outside/apps" "$outside/docs/tickets/sem-ticket" "$outside/.config/protegidos"
+  outside_config
+  return $result
+}
+check "pede revisão pelo revisao.sempre com ou sem ticket e pelo bloqueado da lista só com ticket, e sem nenhum sai com 3 sem gravar nada" need_case
+
+missing_patterns_case() {
+  local result=0
+  printf '[tickets]\n\tpasta = docs/tickets\n' >"$outside/.config/project"
+  outside_run EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *"revisao.sempre"* ]] || result=1
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n[protegidos]\n\tlista = .config/nao-existe\n' \
+    >"$outside/.config/project"
+  outside_run EX-1 EX-2
+  [[ $code -eq 2 && "$err" == *".config/nao-existe"* ]] || result=1
+  outside_config
+  return $result
+}
+check "sem o código que pede revisão, ou com a lista de protegidos que não se lê, recusa com 2 e diz o que falta" missing_patterns_case
+
+renamed_out_case() {
+  # O arquivo existe na base: a main de origem o ganha, e a branch a traz antes de tirá-lo de apps/ (o último caso, porque
+  # muda a base do repositório de fora).
+  git -C "$outside" switch -q main
+  mkdir -p "$outside/apps"
+  printf 'export const a = 1;\nexport const b = 2;\nexport const c = 3;\n' >"$outside/apps/movido.ts"
+  git -C "$outside" add apps/movido.ts && git -C "$outside" commit -q -m 'arquivo em apps'
+  git -C "$outside" push -q origin main && git -C "$outside" fetch -q origin
+  git -C "$outside" switch -q trabalho && git -C "$outside" merge -q --no-edit origin/main >/dev/null
+  git -C "$outside" mv apps/movido.ts movido.ts && git -C "$outside" commit -q -m 'move para fora de apps'
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n' >"$outside/.config/project"
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
+  [[ $code -eq 0 && "$out" == *'apps/movido.ts casa com `apps/**`'* ]]
+}
+check "o arquivo que a branch tira de um caminho que pede revisão, renomeando-o, pede revisão pelo nome antigo" renamed_out_case
 
 finish "do script dos insumos da revisão"

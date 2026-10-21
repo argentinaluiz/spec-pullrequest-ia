@@ -2,9 +2,12 @@
 #
 # Executor das suítes em shell do harness: roda cada suíte e grava o relatório no formato do Vitest,
 # o mesmo que o relatório dos testes em Node, para o `check-report.cjs` e o conferidor do aceite (o
-# .claude/skills/plan-ticket/scripts/check-acceptance.cjs) o lerem. O token `@<ticket>-CA<n>` do nome de um caso vira também uma
-# tag dele, como no repórter dos testes em Node (node-test-report.cjs). Como nomear um
-# caso de aceite está no cabeçalho do sh-helpers.sh.
+# .claude/skills/plan-ticket/scripts/check-acceptance.cjs) o lerem. As suítes registram os casos pelos auxiliares da
+# skill de plano (.claude/skills/plan-ticket/scripts/test/helpers.sh). Um caso de um teste deste projeto prova um
+# critério com o token `@<ticket>-CA<n>` no nome (por exemplo, `@LUI-183-CA1`), e o critério tem de ser de teste no
+# arquivo de aceite: o token vira também uma tag do caso, como no repórter dos testes em Node (node-test-report.cjs).
+# Um teste de skill se liga ao critério pelo mapa de testes do ticket, e não pelo nome. O verify.sh passa o relatório
+# em apps/api/reports/harness/shell-tests.json, ao lado do dos testes em Node (node-tests.json).
 #
 #   shell-tests.sh <relatório> <suíte>...
 #

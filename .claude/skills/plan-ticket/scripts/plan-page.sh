@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 #
 # Monta a página de revisão do plano de um ticket e a grava em <tickets>/<pai>/<ticket>/plano.html. Faz
-# parte da skill de plano (SKILL.md, passos 5 e 6), e os valores de cada argumento são do projeto,
-# que os declara no arquivo de configuração dele, `.config/project`. O <pai> é a issue pai do ticket no
-# gerenciador de issues, e vem da tarefa, como o ticket.
+# parte da skill de plano (SKILL.md, passos 5 e 6). O <pai> é a issue pai do ticket no gerenciador de
+# issues, e vem da tarefa, como o ticket.
 #
-#   plan-page.sh --pai <issue pai> --ticket <ticket> --tickets <pasta dos tickets>
-#                --node <comando do Node> --contrato <comando do contrato, ou nenhum>
-#                [--contrato-arquivos "<arquivo>..."] [--documentos <pasta dos documentos>]
-#                [--commit <commit de plano>]
+#   plan-page.sh --pai <issue pai> --ticket <ticket> [--commit <commit de plano>]
+#
+# Os valores do projeto vêm do arquivo de configuração dele, `.config/project` na raiz, lido com
+# `git config --file`:
+#
+#   [tickets] pasta = <pasta>         a pasta dos tickets, com o aceite de cada um (obrigatória)
+#   [tickets] documentos = <pasta>    a pasta dos documentos do projeto, cujas mudanças fora do índice
+#                                     entram no aviso (sem ela, não há aviso de documentos)
+#   [node] comando = <comando>        o comando do Node (obrigatório)
+#   [contrato] comando = <comando>    o comando do contrato (sem ele, a página diz que o projeto não
+#                                     declara contrato)
+#   [contrato] arquivos = <arquivos>  os arquivos do contrato, separados por espaço (obrigatórios com
+#                                     o comando do contrato)
 #
 # Onde fica o arquivo de aceite do ticket, e o que o Git ignora na pasta dele, está no
 # formatos/aceite.md, "Onde". O script confere as regras do .gitignore antes de montar a página e, se
@@ -23,7 +31,7 @@
 # leem só o índice. O script avisa, no terminal e no topo da página, sem falhar, do que parece ser do
 # plano e ficou fora do índice: um arquivo preparado que tem também mudanças não preparadas; um
 # arquivo de aceite novo, fora do versionamento, na pasta dos tickets; uma mudança não preparada nos
-# arquivos do contrato; e, com --documentos, uma mudança não preparada ou um arquivo novo na pasta dos
+# arquivos do contrato; e, com a pasta dos documentos, uma mudança não preparada ou um arquivo novo na pasta dos
 # documentos do projeto. O resto da pasta de trabalho (um arquivo solto na raiz, o trabalho em
 # andamento fora desses caminhos) não entra no aviso.
 #
@@ -36,7 +44,7 @@
 # donos dele (as rotas e as tabelas), que têm aba própria e ficam fora da aba Documentos.
 #
 # Precisa só do `git` e do `bash`. Sai com 0 quando grava a página, 1 quando uma fonte falta ou um
-# comando do projeto falha e 2 quando um argumento falta ou não vale.
+# comando do projeto falha e 2 quando um argumento ou um valor do projeto falta ou não vale.
 
 set -uo pipefail
 
@@ -48,56 +56,37 @@ stop() {
   exit "$1"
 }
 
-# O que cada argumento é, para a mensagem de quando ele falta. Sem vetor associativo, para rodar
+# O que cada valor do projeto é, para a mensagem de quando ele falta. Sem vetor associativo, para rodar
 # também no bash 3 (o do macOS).
 describe() {
   case "$1" in
-    pai) echo 'o identificador da issue pai do ticket, como PROJ-1, que é a pasta do ticket dentro da pasta dos tickets' ;;
-    ticket) echo 'o identificador do ticket, como PROJ-123' ;;
-    tickets) echo 'a pasta dos tickets, com o arquivo de aceite de cada ticket, onde a página é gravada' ;;
-    node) echo 'o comando do Node, chamado como `<comando> <script> -`, com as fontes na entrada padrão' ;;
-    contrato) echo 'o comando do contrato, chamado como `<comando> <de> <até>`, ou `nenhum`' ;;
-    contrato-arquivos) echo 'os arquivos do contrato (os donos das rotas e das tabelas), separados por espaço' ;;
-    documentos) echo 'a pasta dos documentos do projeto, cujas mudanças fora do índice entram no aviso' ;;
+    tickets.pasta) echo 'a pasta dos tickets, com o arquivo de aceite de cada ticket, onde a página é gravada' ;;
+    node.comando) echo 'o comando do Node, chamado como `<comando> <script> -`, com as fontes na entrada padrão' ;;
+    contrato.arquivos) echo 'os arquivos do contrato (os donos das rotas e das tabelas), separados por espaço' ;;
   esac
 }
 
-pai='' ticket='' tickets='' node='' contrato='' contrato_arquivos='' documentos='' commit=''
+pai='' ticket='' commit=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --pai | --ticket | --tickets | --node | --contrato | --contrato-arquivos | --documentos | --commit) ;;
+    --pai | --ticket | --commit) ;;
     *)
       stop 2 "O argumento \`$1\` não existe." \
-        "use só os argumentos do cabeçalho deste script (--pai, --ticket, --tickets, --node, --contrato, --contrato-arquivos, --documentos e --commit)."
+        "use só os argumentos do cabeçalho deste script (--pai, --ticket e --commit); os valores do projeto vêm do \`.config/project\`."
       ;;
   esac
   [[ $# -ge 2 && -n "$2" ]] ||
     stop 2 "O argumento \`$1\` veio sem valor." "passe o valor depois dele, como \`$1 <valor>\`."
-  name="${1#--}"
-  printf -v "${name//-/_}" '%s' "$2"
+  printf -v "${1#--}" '%s' "$2"
   shift 2
 done
 
-# Os argumentos que faltam, todos de uma vez. O --pai e o --ticket vêm da tarefa; os outros, do projeto.
 missing=()
-[[ -n "$pai" ]] || missing+=(pai)
-[[ -n "$ticket" ]] || missing+=(ticket)
-for name in tickets node contrato; do
-  [[ -n "${!name}" ]] || missing+=("$name")
-done
-[[ -n "$contrato" && "$contrato" != nenhum && -z "$contrato_arquivos" ]] && missing+=(contrato-arquivos)
-if [[ ${#missing[@]} -gt 0 ]]; then
-  for name in "${missing[@]}"; do
-    printf '\nFalta o argumento --%s: %s.\n' "$name" "$(describe "$name")" >&2
-  done
-  if [[ "${missing[*]}" == pai || "${missing[*]}" == ticket || "${missing[*]}" == "pai ticket" ]]; then
-    printf 'Como corrigir: passe a issue pai e o ticket do plano com --pai e --ticket. A issue pai é a do ticket no gerenciador de issues, a mesma da spec que o passo 1 da skill lê.\n' >&2
-  else
-    printf 'Como corrigir: o projeto declara cada valor no `.config/project`, nas seções `tickets`, `node` e `contrato`; passe-o com o argumento de mesmo nome. Se o arquivo não o declara, vale o padrão do passo 0 do SKILL.md da skill, ou a pergunta ao usuário quando o valor não tem padrão.\n' >&2
-  fi
-  exit 2
-fi
-
+[[ -n "$pai" ]] || missing+=(--pai)
+[[ -n "$ticket" ]] || missing+=(--ticket)
+[[ ${#missing[@]} -eq 0 ]] ||
+  stop 2 "Falta o argumento ${missing[*]}." \
+    "passe a issue pai e o ticket do plano com --pai e --ticket. A issue pai é a do ticket no gerenciador de issues, a mesma da spec que o passo 1 da skill lê."
 [[ "$pai" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
   stop 2 "\`$pai\` não é o identificador de uma issue pai." "passe o identificador da issue pai do ticket no gerenciador de issues, como \`PROJ-1\`."
 [[ "$ticket" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] ||
@@ -106,6 +95,27 @@ fi
 root="$(git rev-parse --show-toplevel 2>/dev/null)" ||
   stop 2 "O diretório atual não está num repositório do Git." "rode o script de dentro do repositório do projeto."
 cd "$root" || stop 2 "Não deu para entrar na raiz do repositório, $root." "confira as permissões da pasta."
+
+# Os valores do projeto, do .config/project (ver o cabeçalho), e os que faltam, todos de uma vez.
+config() {
+  git config --file .config/project --get "$1" 2>/dev/null
+}
+tickets="$(config tickets.pasta)"
+documentos="$(config tickets.documentos)"
+node="$(config node.comando)"
+contrato="$(config contrato.comando)"
+contrato_arquivos="$(config contrato.arquivos)"
+missing=()
+[[ -n "$tickets" ]] || missing+=(tickets.pasta)
+[[ -n "$node" ]] || missing+=(node.comando)
+[[ -n "$contrato" && -z "$contrato_arquivos" ]] && missing+=(contrato.arquivos)
+if [[ ${#missing[@]} -gt 0 ]]; then
+  for name in "${missing[@]}"; do
+    printf '\nO .config/project não diz %s: %s.\n' "$name" "$(describe "$name")" >&2
+  done
+  printf 'Como corrigir: acrescente ao `.config/project`, na sintaxe do `git config`, a chave que falta na seção dela (como `[tickets]` com `pasta = <pasta>`), e rode o script de novo.\n' >&2
+  exit 2
+fi
 
 # A pasta dos scripts da skill, pelo caminho real (sem links), relativa à raiz quando está dentro do
 # repositório, para o comando do Node do projeto receber caminhos relativos a ela. O `git` também dá
@@ -147,12 +157,10 @@ project() {
   bash -c "$command"' "$@"' "$command" "$@"
 }
 
-# O `git diff` que a página lê: sem cor nem diff externo, com os prefixos `a/` e `b/` fixos e os
-# caminhos com acento sem aspas, seja qual for a configuração do Git de quem roda, para o page.cjs
-# achar o arquivo de cada trecho.
-plain_diff() {
-  git -c core.quotePath=false --no-pager diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$@"
-}
+# O `git diff` que a página lê (`plain_diff`), com os prefixos fixos para o page.cjs achar o arquivo de
+# cada trecho, é o do plan-git.sh desta pasta.
+# shellcheck source=plan-git.sh
+source "${BASH_SOURCE[0]%/*}/plan-git.sh"
 
 # A mensagem de um commit, byte a byte: o que vem depois do cabeçalho do objeto.
 # commit_message <commit>
@@ -251,8 +259,8 @@ fi
 sources=(ticket "$ticket" origin "$origin" acceptancePath "$acceptance")
 capture accepted git show "$to:$acceptance" 2>/dev/null && sources+=(acceptance "$accepted")
 
-# O contrato: o Markdown do comando do projeto, ou nada, quando o projeto declara `nenhum`.
-if [[ "$contrato" != nenhum ]]; then
+# O contrato: o Markdown do comando do projeto, ou nada, quando o projeto não declara contrato.
+if [[ -n "$contrato" ]]; then
   capture contract project "$contrato" "$from" "$to" ||
     stop 1 "O comando do contrato (\`$contrato $from $to\`) falhou: o erro dele está acima." \
       "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no \`.config/project\`."

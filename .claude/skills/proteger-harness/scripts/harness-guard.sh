@@ -46,28 +46,9 @@ if [[ -n "$declared" && "$declared" -ge "$API_FILE_LIMIT" ]]; then
   exit 2
 fi
 
-# O padrão da lista como expressão regular inteira: `**` atravessa as barras, `*` fica num nível, e o
-# resto é literal.
-# pattern_regex <padrão>
-pattern_regex() {
-  local pattern="$1" regex="" char i
-  for ((i = 0; i < ${#pattern}; i++)); do
-    char="${pattern:i:1}"
-    case "$char" in
-      '*')
-        if [[ "${pattern:i+1:1}" == '*' ]]; then
-          regex+='.*'
-          i=$((i + 1))
-        else
-          regex+='[^/]*'
-        fi
-        ;;
-      [[:alnum:]_/-]) regex+="$char" ;;
-      *) regex+="\\$char" ;;
-    esac
-  done
-  printf '^%s$' "$regex"
-}
+# O padrão da lista como expressão regular inteira (`pattern_regex`), com o significado único do padrão de caminho.
+# shellcheck source=path-pattern.sh
+source "${BASH_SOURCE[0]%/*}/path-pattern.sh"
 
 # Lê a lista: os tipos e as expressões, na ordem em que aparecem.
 types=()

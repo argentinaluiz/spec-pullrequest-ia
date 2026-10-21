@@ -385,10 +385,10 @@ test('reprova uma marca desconhecida no arquivo de aceite', () => {
   assert.match(out, /marca "teste manual" desconhecida/);
 });
 
-test('reprova o PR que altera apps/ sem a seção Aceite', () => {
+test('reprova o PR que altera o código que exige a seção Aceite e não a tem', () => {
   const { code, out } = check({ body: '## Resumo\n\ntexto\n' });
   assert.equal(code, 1);
-  assert.match(out, /não tem a seção "Aceite"/);
+  assert.match(out, /exige a seção "Aceite" e não a tem/);
 });
 
 test('passa o PR com "nenhum" e o motivo, e reprova "nenhum" sem motivo', () => {
@@ -431,7 +431,7 @@ test('reprova o PR que cita o caminho de um nível, sem a pasta da issue pai, ap
   assert.doesNotMatch(out, /não cita/);
 });
 
-test('sem a seção Aceite, o PR que não altera apps/ passa, mas a cobertura continua conferida', () => {
+test('sem a seção Aceite, o PR que não altera o código que a exige passa, mas a cobertura continua conferida', () => {
   assert.equal(check({ mode: '--optional', body: 'só documento' }).code, 0);
   assert.equal(check({ mode: '--optional', body: 'só documento', files: TICKET }).code, 1);
 });
@@ -515,7 +515,7 @@ test('sem corpo de PR, a entrada vazia, o modo opcional confere só a cobertura,
 
   const required = check({ body: '', files: TICKET, vitest: [['ok', 'passed', ['@PROJ-1-CA1']]] });
   assert.equal(required.code, 1);
-  assert.match(required.out, /não tem a seção "Aceite"/);
+  assert.match(required.out, /exige a seção "Aceite" e não a tem/);
 });
 
 test('recebe o corpo do PR só pela entrada padrão: um caminho no lugar do `-` é recusado', () => {
