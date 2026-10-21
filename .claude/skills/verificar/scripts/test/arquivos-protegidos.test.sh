@@ -48,7 +48,6 @@ for path in \
   .claude/skills/qualquer-skill-nova/hooks/test/y.test.sh \
   .claude/skills/verificar/arquivos-protegidos.txt \
   .config/project \
-  .claude/skills/verificar/genericidade.txt \
   .claude/agents/revisor-conformidade.md \
   .claude/skills/verificar/hooks/push-verify.sh \
   .claude/settings.json \

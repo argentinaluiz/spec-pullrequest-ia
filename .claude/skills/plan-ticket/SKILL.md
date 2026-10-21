@@ -10,7 +10,7 @@ This skill owns the plan formats, in its `formatos/` folder: the criterion and t
 
 This skill also owns the pieces that depend on those formats, which live in its folder: the acceptance checker (`scripts/check-acceptance.cjs`), the freeze hook (`hooks/freeze-acceptance.sh`) and the test map (`formatos/mapa-de-testes.md`). See "The test map" below.
 
-The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash` on the machine, and Node only through the project's Node command, so they work in any repository the skill folder is copied to.
+The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash` on the machine, and Node only through the project's Node command.
 
 ## Steps
 

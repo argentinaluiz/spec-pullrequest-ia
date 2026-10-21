@@ -1,4 +1,4 @@
-# Os valores deste projeto para as skills genéricas do kit, na sintaxe de `git config`: um arquivo só, com uma seção por
+# Os valores deste projeto para as skills do kit, na sintaxe de `git config`: um arquivo só, com uma seção por
 # assunto, e cada skill lê as seções de que precisa. É o dono único destes valores. Quem lê o quê:
 #
 #   tickets, node, plano   /plan-ticket (a pasta dos tickets é também da /revisao-conformidade e da /implement)
