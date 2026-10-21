@@ -1,6 +1,6 @@
 # Formato do critério e do arquivo de aceite
 
-A skill de plano é a dona deste formato. A página do plano lê o arquivo de aceite com o parser da skill (`scripts/plan.cjs`), e o conferidor do aceite de um projeto pode importar o mesmo parser. O projeto declara a pasta dos tickets no `AGENTS.md`, na lista "Valores das skills do ticket".
+A skill de plano é a dona deste formato. A página do plano lê o arquivo de aceite com o parser da skill (`scripts/plan.cjs`), e o conferidor do aceite de um projeto pode importar o mesmo parser. O projeto declara a pasta dos tickets no arquivo de instruções do agente, na lista "Valores das skills do ticket".
 
 ## Critério do ticket
 
@@ -37,7 +37,7 @@ Ticket de exemplo. O CA1 é provado por teste HTTP, e o CA2, pela leitura do dif
 
 ## Congelado depois do commit de plano
 
-O arquivo de aceite não muda depois do commit de plano. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID. Como o projeto impõe isso, se impõe, está no `AGENTS.md` dele.
+O arquivo de aceite não muda depois do commit de plano. Descongelar é do usuário, no editor ou no terminal. O que se congela é o ID e o cenário: o teste previsto é só uma previsão, e não se corrige o arquivo quando o teste muda de nome ou de lugar, porque a ligação é o ID. Como o projeto impõe isso, se impõe, está no arquivo de instruções do agente dele.
 
 ## Teste de aceite
 
