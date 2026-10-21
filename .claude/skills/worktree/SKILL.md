@@ -7,7 +7,7 @@ The one place for everything about the parallel fronts. A front is a Git worktre
 
 ## Step 0: the project values
 
-The values of the project live in its configuration file for this skill, `.config/worktree`, in the syntax of `git config` (one file per general-purpose skill, with the name of the skill). Read only the keys the mode you are going to run uses (the last column), with `git config --file .config/worktree --get <key>`, `--get-all <key>` for a list of commands and `--get-regexp '^convergencia\.'` for the convergence points. Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+The values of the project live in its configuration file, `.config/project`, in the syntax of `git config` (one file for the project, with a section for each subject, and each skill reads the sections it uses). Read only the keys the mode you are going to run uses (the last column), with `git config --file .config/project --get <key>`, `--get-all <key>` for a list of commands and `--get-regexp '^convergencia\.'` for the convergence points. Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
 | Value | Key | Default | Used in |
 | --- | --- | --- | --- |

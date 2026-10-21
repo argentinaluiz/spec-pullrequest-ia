@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Teste das frentes deste projeto: o núcleo da skill worktree, com o arquivo de configuração do projeto (.config/worktree)
+# Teste das frentes deste projeto: o núcleo da skill worktree, com o arquivo de configuração do projeto (.config/project)
 # e o comando de ambiente da frente daqui (scripts/frente-ambiente.sh). O arquivo de configuração e o comando de ambiente
 # são copiados, nos caminhos de sempre, para um repositório temporário, e o núcleo de verdade roda nele sem a pessoa
 # digitar opção nenhuma. Rodam na máquina. Os casos levam a tag do critério de aceite no nome.
@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 CORE="$ROOT/.claude/skills/worktree/scripts/frentes.sh"
-CONFIG="$ROOT/.config/worktree"
+CONFIG="$ROOT/.config/project"
 ENV_COMMAND=scripts/frente-ambiente.sh
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
@@ -38,7 +38,7 @@ project_repo() {
   git -C "$work/$1" -c user.name=t -c user.email=t@t commit -q -m inicial
   git -C "$work/$1" "push" -q origin main
   mkdir -p "$work/$1/.config" "$work/$1/$(dirname "$ENV_COMMAND")"
-  cp "$CONFIG" "$work/$1/.config/worktree"
+  cp "$CONFIG" "$work/$1/.config/project"
   cp "$ROOT/$ENV_COMMAND" "$work/$1/$ENV_COMMAND"
   repo="$work/$1"
 }

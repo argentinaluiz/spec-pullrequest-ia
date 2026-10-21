@@ -1,7 +1,7 @@
 # Os arquivos protegidos do harness deste projeto, lidos pela Guarda da skill /proteger-harness (o formato e os
 # tipos estão no SKILL.md dela). Uma linha por padrão: o tipo, uma tabulação e o caminho, relativo à raiz. O `*`
 # casa dentro de um nível de pasta e o `**` atravessa as barras. Vale o primeiro padrão que casa; o arquivo que
-# nenhum casa é código e passa. Atenção: o formato lembra o da seção `convergencia` de .config/worktree, mas lá o `*`
+# nenhum casa é código e passa. Atenção: o formato lembra o da seção `convergencia` de .config/project, mas lá o `*`
 # casa também as barras; aqui ele fica num nível de pasta.
 #
 # O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request. A própria lista é bloqueada.
@@ -44,7 +44,7 @@ aviso	compose.dev.yaml
 aviso	apps/*/Dockerfile.dev
 
 # Os pontos de convergência, em que duas frentes paralelas costumam esbarrar (a classificação deles está em
-# .config/worktree, e a regra de cada tipo, no modo sincronizar da /worktree).
+# .config/project, e a regra de cada tipo, no modo sincronizar da /worktree).
 aviso	apps/api/openapi.json
 aviso	apps/api/prisma/migrations/**
 aviso	apps/api/src/app.module.ts

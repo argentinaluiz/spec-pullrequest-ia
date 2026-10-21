@@ -8,7 +8,7 @@
 #   frentes.sh [--config <arquivo>] listar                        as frentes abertas, com slot, branch, portas, PR e conflitos
 #   frentes.sh [--config <arquivo>] remover <ticket> [--forcar]   desmonta a frente do ticket
 #
-# Os valores de um projeto vêm do arquivo de configuração dele, `.config/worktree` na raiz do checkout onde o núcleo
+# Os valores de um projeto vêm do arquivo de configuração dele, `.config/project` na raiz do checkout onde o núcleo
 # roda (a pasta da frente, quando é dentro dela), lido com `git config --file`: sem o arquivo, valem os padrões, e o
 # núcleo trabalha só com o Git. A opção `--config <arquivo>`, antes do subcomando, troca o arquivo (os testes a usam; um
 # arquivo que não existe, nesse caso, é um erro). O núcleo lê três coisas dele; as outras seções são do modo `sincronizar`, que o agente
@@ -109,7 +109,7 @@ load_config() {
     [[ -f "$CONFIG" ]] || die "O arquivo de configuração \`$CONFIG\` não existe."
     file="$CONFIG"
   else
-    file="$root/.config/worktree"
+    file="$root/.config/project"
     [[ -f "$file" ]] || return 0
   fi
   git config --file "$file" --list >/dev/null 2>&1 || die "O arquivo \`$file\` não se lê como arquivo de configuração do Git."

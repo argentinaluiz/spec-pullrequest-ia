@@ -1,8 +1,8 @@
-# Os valores deste projeto para a skill /worktree, na sintaxe de `git config` (um arquivo por skill genérica, com o nome
-# dela, nesta pasta). É o dono único destes valores: o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh) lê
-# as seções `frentes` e `convergencia`, e o agente lê o resto ao seguir os modos da skill (cada seção diz qual). O que
-# não está aqui vale o padrão da skill: a base (a HARNESS_BASE_REF), os status do Linear, o tipo da branch e a pasta
-# dos tickets.
+# Os valores deste projeto para as skills genéricas do kit, na sintaxe de `git config`: um arquivo só, com uma seção por
+# assunto, e cada skill lê as seções de que precisa. É o dono único destes valores. Hoje só o /worktree os lê: o núcleo
+# das frentes (.claude/skills/worktree/scripts/frentes.sh) lê as seções `frentes` e `convergencia`, e o agente lê o resto
+# ao seguir os modos da skill (cada seção diz qual). O que não está aqui vale o padrão da skill: a base (a
+# HARNESS_BASE_REF), os status do Linear, o tipo da branch e a pasta dos tickets.
 
 # O limite de frentes ao todo, contando o checkout principal quando ele não está na main, e o comando de ambiente de
 # cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O limite é também o teto do ambiente

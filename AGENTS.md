@@ -107,7 +107,7 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 ## Frentes paralelas
 
-Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker". As outras são worktrees em pastas irmãs, abertas com `cd` e o Claude Code, cada uma com um slot que dá a ela um bloco próprio de portas. O limite de frentes ao todo está em `.config/worktree` (`frentes.limite`).
+Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker". As outras são worktrees em pastas irmãs, abertas com `cd` e o Claude Code, cada uma com um slot que dá a ela um bloco próprio de portas. O limite de frentes ao todo está em `.config/project` (`frentes.limite`).
 
 O principal conta como frente quando não está na `main`, e o HEAD solto também conta, porque não é estado de repouso. Em repouso, ele fica na `main`, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
@@ -236,12 +236,12 @@ Os valores da `/revisao-conformidade`:
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
 - **Desvio do contrato:** `scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
-Os valores do `/worktree` moram em `.config/worktree`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`; os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
+Os valores do `/worktree` moram em `.config/project`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`; os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
 
 Os valores da `/implement`:
 
 - **Código que pede revisão:** o da `/revisao-conformidade`, acima.
-- **Verificação completa:** a chave `verificacao.completa` do `.config/worktree`.
+- **Verificação completa:** a chave `verificacao.completa` do `.config/project`.
 
 Os valores da `/proteger-harness`:
 
@@ -265,7 +265,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
-**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. O valor de uma skill mora no arquivo dela quando ele existe e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
+**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. Um valor mora nesse arquivo quando ele o declara e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
 **Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`), ou quando ela é genérica, do kit, e vai ser copiada para outros projetos; um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
 
