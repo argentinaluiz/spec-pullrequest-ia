@@ -3,13 +3,10 @@
 # as seções `frentes` e `convergencia`, e o agente lê o resto ao seguir os modos da skill (cada seção diz qual). O que
 # não está aqui vale o padrão da skill: a base (a HARNESS_BASE_REF), os status do Linear, o tipo da branch e a pasta
 # dos tickets.
-#
-# É arquivo de harness: nomeia o comando que o núcleo executa, então só muda por override do admin (a lista de
-# arquivos protegidos, .claude/skills/verificar/arquivos-protegidos.txt, o bloqueia).
 
 # O limite de frentes ao todo, contando o checkout principal quando ele não está na main, e o comando de ambiente de
-# cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O comando está em
-# .claude/skills/ambiente/scripts/frente-ambiente.sh, e o cabeçalho dele diz o contrato.
+# cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O limite é também o teto do ambiente
+# por slot: o frente-ambiente.sh aceita os slots de 0 a 3 (docs/lld.md, seção 6), então subir daqui de 3 pede mudar lá.
 [frentes]
 	limite = 3
 	ambiente = .claude/skills/ambiente/scripts/frente-ambiente.sh

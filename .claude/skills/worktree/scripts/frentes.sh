@@ -10,8 +10,8 @@
 #
 # Os valores de um projeto vêm do arquivo de configuração dele, `.config/worktree` na raiz do checkout onde o núcleo
 # roda (a pasta da frente, quando é dentro dela), lido com `git config --file`: sem o arquivo, valem os padrões, e o
-# núcleo trabalha só com o Git. A opção `--config <arquivo>`, antes do subcomando, troca o arquivo (e um arquivo que não
-# existe, nesse caso, é um erro). O núcleo lê três coisas dele; as outras seções são do modo `sincronizar`, que o agente
+# núcleo trabalha só com o Git. A opção `--config <arquivo>`, antes do subcomando, troca o arquivo (os testes a usam; um
+# arquivo que não existe, nesse caso, é um erro). O núcleo lê três coisas dele; as outras seções são do modo `sincronizar`, que o agente
 # lê:
 #
 #   [frentes] limite = <n>        o máximo de frentes ao todo, contando o principal quando ele é uma (padrão 3)
@@ -23,7 +23,9 @@
 #                         dizendo por quê, se não.
 #   [convergencia] <tipo> = <padrão>  a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é
 #                         código). O tipo é a chave e o caminho, o valor, que aceita `*` (casa também as barras); vale o
-#                         primeiro padrão que casa, na ordem do arquivo.
+#                         primeiro padrão que casa, na ordem do arquivo. Os tipos que o núcleo conhece são `gerado`,
+#                         `migracoes` e `registros` (o `listar` os mostra à parte, com regra mecânica) e `documentos` e
+#                         `manual` (pedem atenção, com o tipo ao lado); qualquer outro tipo vale como código.
 #
 # Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>, na
 # branch <tipo>/<ticket em minúsculas>, com o tipo feature (o padrão), bugfix, hotfix ou docs. O checkout principal
@@ -75,8 +77,8 @@ SLOT_FILE=frente-slot
 CONFIG=""
 LIMITE=3
 AMBIENTE=""
-CONV_TYPES=()
-CONV_PATTERNS=()
+# As linhas `convergencia.<tipo> <padrão>` do arquivo, na ordem dele.
+CONVERGENCE=()
 
 # Os substitutos do modo de teste do harness: só com HARNESS_TEST=1, e nada mais pode trocá-los.
 GH=gh
@@ -101,7 +103,7 @@ require_git_version() {
 
 # Lê o arquivo de configuração do projeto (ver o cabeçalho) e troca os padrões pelos valores dele.
 load_config() {
-  local root file value key pattern
+  local root file value
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   if [[ -n "$CONFIG" ]]; then
     [[ -f "$CONFIG" ]] || die "O arquivo de configuração \`$CONFIG\` não existe."
@@ -122,10 +124,7 @@ load_config() {
     [[ "$value" == /* ]] || value="$root/$value"
     AMBIENTE="$value"
   fi
-  while read -r key pattern; do
-    CONV_TYPES+=("${key#convergencia.}")
-    CONV_PATTERNS+=("$pattern")
-  done < <(git config --file "$file" --get-regexp '^convergencia\.')
+  mapfile -t CONVERGENCE < <(git config --file "$file" --get-regexp '^convergencia\.')
 }
 
 # O ticket PREFIXO-N em minúsculas (lui-186), no TICKET_KEY. Sai com o uso se o formato não vale.
@@ -249,10 +248,11 @@ COMPUTE_ERROR="@@erro"
 # seção convergencia do arquivo de configuração; nada, se o arquivo é código ou se não há classificação.
 # convergence_type <arquivo>
 convergence_type() {
-  local i
-  for i in "${!CONV_PATTERNS[@]}"; do
+  local line key pattern
+  for line in "${CONVERGENCE[@]}"; do
+    read -r key pattern <<<"$line"
     # shellcheck disable=SC2053
-    [[ "$1" == ${CONV_PATTERNS[$i]} ]] && { echo "${CONV_TYPES[$i]}"; return 0; }
+    [[ "$1" == $pattern ]] && { echo "${key#convergencia.}"; return 0; }
   done
   return 0
 }

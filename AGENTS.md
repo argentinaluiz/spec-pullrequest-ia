@@ -99,7 +99,7 @@ Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos:
 
 **Trazer a `main` para a frente:** use o `/worktree sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
 
-O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"): o limite de 3, o ambiente por slot da frente (`.claude/skills/ambiente/scripts/frente-ambiente.sh`) e os pontos de convergência; o modo `sincronizar` lê dele os comandos do ambiente. Mudar o limite é editar esse arquivo. As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"). As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente (`.claude/skills/ambiente/scripts/frente-ambiente.sh`), e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente, um perfil por slot.
 
@@ -227,7 +227,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 **Valores das skills do ticket**
 
-Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor que não está aqui vale o padrão que a skill diz. A `/worktree` é a exceção: os valores dela estão no `.config/worktree`. Os valores da `/plan-ticket`:
+Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor que não está aqui vale o padrão que a skill diz. Os valores da `/plan-ticket`:
 
 - **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
 - **Pasta dos documentos:** `docs`.
@@ -273,7 +273,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
-**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Hoje só a `/worktree` lê o dela (`.config/worktree`); as outras ainda leem a lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
+**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. O valor de uma skill mora no arquivo dela quando ele existe (hoje, só o `.config/worktree`) e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
 **Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). A verificação completa acha e roda os testes de todas as skills sem lista à mão.
 

@@ -110,15 +110,13 @@ fresh() {
 # núcleo, e faz as $OPTS a usarem. O `pontos` põe nela a seção dos pontos de convergência deste teste.
 config() {
   local arg
-  {
-    echo '[frentes]'
-    for arg in "$@"; do
-      case "$arg" in limite=* | ambiente=*) printf '\t%s = %s\n' "${arg%%=*}" "${arg#*=}" ;; esac
-    done
-    for arg in "$@"; do
-      [[ "$arg" != pontos ]] || cat "$work/pontos.conf"
-    done
-  } >"$work/worktree.conf"
+  : >"$work/worktree.conf"
+  for arg in "$@"; do
+    case "$arg" in
+      limite=* | ambiente=*) git config --file "$work/worktree.conf" "frentes.${arg%%=*}" "${arg#*=}" ;;
+      pontos) cat "$work/pontos.conf" >>"$work/worktree.conf" ;;
+    esac
+  done
   OPTS=(--config "$work/worktree.conf")
 }
 

@@ -20,13 +20,10 @@ name="o arquivo de configuração do projeto dá ao núcleo os valores deste pro
 # Os valores do arquivo de configuração: o limite 3, o comando de ambiente que existe e é executável, e só os cinco tipos
 # de ponto de convergência que o modo sincronizar conhece.
 config_values() {
-  local type
   [[ "$(git config --file "$CONFIG" --get frentes.limite)" == 3 ]] || return 1
   [[ "$(git config --file "$CONFIG" --get frentes.ambiente)" == "$ENV_COMMAND" && -x "$ROOT/$ENV_COMMAND" ]] || return 1
-  while read -r type; do
-    case "$type" in gerado | migracoes | registros | documentos | manual) ;; *) echo "tipo desconhecido: $type"; return 1 ;; esac
-  done < <(git config --file "$CONFIG" --get-regexp '^convergencia\.' | awk '{ sub(/^convergencia\./, "", $1); print $1 }' | sort -u)
-  [[ -n "$(git config --file "$CONFIG" --get-regexp '^convergencia\.')" ]]
+  git config --file "$CONFIG" --get-regexp '^convergencia\.' | grep -q . || return 1
+  ! git config --file "$CONFIG" --get-regexp '^convergencia\.' | grep -vE '^convergencia\.(gerado|migracoes|registros|documentos|manual) '
 }
 check "$name: o limite, o comando de ambiente que existe e os tipos dos pontos de convergência" config_values
 

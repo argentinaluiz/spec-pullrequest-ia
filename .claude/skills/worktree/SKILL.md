@@ -13,22 +13,22 @@ The values of the project live in its configuration file for this skill, `.confi
 | --- | --- | --- | --- |
 | Base | none: the variable `HARNESS_BASE_REF` adjusts it | the main branch of the origin remote, `origin/<branch>` | `abrir` and `sincronizar`: what a front leaves from and what the sync brings (the core reads it by itself in the other modes) |
 | Limit of fronts | `frentes.limite` | 3 | the core, in `novo`; `abrir`: step 3, how many fit |
-| Environment command | `frentes.ambiente` | `nenhum`: the core works with Git alone | the core, in `novo`, `listar` and `remover` |
-| Convergence points | `convergencia.<type>`, one pattern per line | `nenhum`, and every conflicting file is code | the core, in `listar`; `sincronizar`: step 4 |
+| Environment command | `frentes.ambiente` | none: the core works with Git alone | the core, in `novo`, `listar` and `remover` |
+| Convergence points | `convergencia.<type>`, one pattern per line | none, and every conflicting file is code | the core, in `listar`; `sincronizar`: step 4 |
 | Statuses | `status.em-andamento`, `status.em-revisao`, `status.concluido` | "In Progress", "In Review" and "Done" | `abrir`: steps 2 and 3, which tickets are taken or finished |
 | Kind of branch | `branch.tipo-do-bug`, `branch.tipo-padrao` | `bugfix` for the label `Bug`, `feature` for the rest | `abrir`: step 5, the kind to pass to `novo` |
 | Tickets folder | `tickets.pasta` | `docs/tickets` | `abrir` (step 7) and `sincronizar` (step 2): where the acceptance file of a ticket lives |
-| Update the environment | `sincronizar.atualizar-ambiente` | `nenhum` | `sincronizar`: step 5 |
-| Recreate the database | `sincronizar.recriar-banco` | `nenhum` | `sincronizar`: step 5 |
-| Generate a migration | `sincronizar.gerar-migracao` | `nenhum` | `sincronizar`: step 5 |
-| Start the applications | `sincronizar.subir-aplicacoes` | `nenhum` | `sincronizar`: step 5 |
-| Regenerate each generated file | `gerado.<path>.regenerar` | `nenhum`: a generated file in conflict with no command makes the agent ask | `sincronizar`: steps 4 and 5 |
+| Update the environment | `sincronizar.atualizar-ambiente` | none | `sincronizar`: step 5 |
+| Recreate the database | `sincronizar.recriar-banco` | none | `sincronizar`: step 5 |
+| Generate a migration | `sincronizar.gerar-migracao` | none | `sincronizar`: step 5 |
+| Start the applications | `sincronizar.subir-aplicacoes` | none | `sincronizar`: step 5 |
+| Regenerate each generated file | `gerado.<path>.regenerar` | none: a generated file in conflict with no command makes the agent ask | `sincronizar`: steps 4 and 5 |
 | Full verification | `verificacao.completa` | none: ask | `sincronizar`, when it runs on its own: ask now, before the merge, because step 8 runs it |
 
-Say in the chat, in one line, which of the values the mode reads came from the default, all of them when the project has no file. The modes `novo`, `listar` and `remover`, which only call the core (it reads the file by itself), say it only when the project has no file. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the line for the file. The values mean:
+Say in the chat, in one line, which of the values the mode reads came from the default, all of them when the project has no file. The modes `novo`, `listar` and `remover`, which only call the core (it reads the file by itself), say it only when the project has no file. A value whose default is "none" skips the step that uses it while its key is absent. Ask the person only for a value that has no default, which is the full verification, and only when the mode needs it; once agreed, propose the line for the file. The values mean:
 - **Limit of fronts:** the most fronts at once, counting the main checkout when it is a front.
-- **Environment command:** a path, relative to the root of the checkout, that the core calls as `<command> verificar <slot>` (refuses a slot that is not free, before anything is created), `<command> criar <folder> <slot>` (prepares and starts the environment of the folder), `<command> derrubar <folder>` (takes it down) and `<command> portas <slot>` (prints the ports of the slot, which `listar` shows). It exits with 0 when it worked and with another code, saying why, when it did not.
-- **Convergence points:** a line per pattern, `<type> = <path>`, where the path accepts `*`; the first pattern that matches wins, in the order of the file, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`. The file only classifies; the rule of each type is in `modos/sincronizar.md`.
+- **Environment command:** a path, relative to the root of the checkout. The core calls it with `verificar`, `criar`, `derrubar` and `portas`, and the header of the core script (`scripts/frentes.sh`) has the contract.
+- **Convergence points:** a line per pattern, `<type> = <path>`; the first pattern that matches wins, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`. The header of the core script has the syntax, and the rule of each type is in `modos/sincronizar.md`.
 - **Update the environment, recreate the database, generate a migration, start the applications, regenerate each generated file:** the commands of the environment step of the sync, run in the order of the file (a repeated key is a list of commands in sequence). Each runs in the folder of the front.
 - **Full verification:** the command that runs the complete verification of the project. If it receives the body of the pull request, it shows where with a placeholder (`<file>`): save the body first and pass it there.
 
