@@ -97,19 +97,21 @@ chmod +x "$fail_cmd"
 err="$(cd "$project" && "$SCRIPT" --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
 code=$?
 check "recusa a chamada sem os valores do projeto" test $code -eq 2
-check "a mensagem aponta para a lista dos valores das skills" contains 'Valores das skills do ticket'
+check "a mensagem aponta para o arquivo de configuração do projeto" contains '.config/project'
 check "a mensagem de um valor que falta não cita o nome do arquivo do projeto" lacks "AGENTS.md"
 
 err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fake_node" --contrato "$fail_cmd" --contrato-arquivos x --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
 code=$?
 check "recusa o comando do contrato que falha" test $code -eq 1
 check "a mensagem diz que o comando do contrato falhou" contains 'falhou'
+check "a mensagem manda acertar o valor no arquivo de configuração do projeto" contains '.config/project'
 check "a mensagem do comando do contrato que falha não cita o nome do arquivo do projeto" lacks "AGENTS.md"
 
 err="$(cd "$project" && "$SCRIPT" --tickets docs/tickets --node "$fail_cmd" --contrato nenhum --pai PROJ-1 --ticket PROJ-2 2>&1 >/dev/null)"
 code=$?
 check "recusa o comando do Node que falha" test $code -eq 1
 check "a mensagem diz que a página não pôde ser montada" contains 'não pôde ser montada'
+check "a mensagem do Node manda acertar o valor no arquivo de configuração do projeto" contains '.config/project'
 check "a mensagem do comando do Node que falha não cita o nome do arquivo do projeto" lacks "AGENTS.md"
 
 finish "do script da página do plano"

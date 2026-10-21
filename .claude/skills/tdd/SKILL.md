@@ -21,7 +21,7 @@ A **seam** is the public boundary you test at: the interface where you observe b
 
 **Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything, so agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
 
-When the ticket has an approved plan (the plan skill writes it, and the project's rules for the plan of a ticket say how it is approved), the seams and the list of tests come from its acceptance file: do not ask again, and keep the loop to one test at a time, taking the next test from that list.
+When the ticket has an approved plan (the plan skill writes it), the seams and the list of tests come from its acceptance file: do not ask again, and keep the loop to one test at a time, taking the next test from that list.
 
 Otherwise, ask: "What's the public interface, and which seams should we test?" Give each proposed seam a one-line note on what it catches and what it misses.
 

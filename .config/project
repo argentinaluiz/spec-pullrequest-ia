@@ -1,8 +1,51 @@
 # Os valores deste projeto para as skills genéricas do kit, na sintaxe de `git config`: um arquivo só, com uma seção por
-# assunto, e cada skill lê as seções de que precisa. É o dono único destes valores. Hoje só o /worktree os lê: o núcleo
-# das frentes (.claude/skills/worktree/scripts/frentes.sh) lê as seções `frentes` e `convergencia`, e o agente lê o resto
-# ao seguir os modos da skill (cada seção diz qual). O que não está aqui vale o padrão da skill: a base (a
-# HARNESS_BASE_REF), os status do Linear, o tipo da branch e a pasta dos tickets.
+# assunto, e cada skill lê as seções de que precisa. É o dono único destes valores. Quem lê o quê:
+#
+#   tickets, node, plano   /plan-ticket (a pasta dos tickets é também da /revisao-conformidade e da /implement)
+#   contrato               /plan-ticket (o comando e os arquivos) e /revisao-conformidade (o desvio)
+#   revisao                /revisao-conformidade e /implement
+#   verificacao            /implement e /worktree
+#   frentes, convergencia, sincronizar, gerado   /worktree (o núcleo lê `frentes` e `convergencia`; o agente lê o resto)
+#
+# O que não está aqui vale o padrão da skill: os status do Linear, o tipo da branch e o revisor. Uma chave com o valor
+# `nenhum` na skill (a pasta dos documentos, o contrato) fica de fora quando o projeto não a tem.
+
+# A pasta dos tickets (nela o Git versiona só o aceite e o mapa de testes de cada ticket; a revisão e a página do plano
+# ficam fora do Git) e a dos documentos do projeto, cujas mudanças a página do plano destaca. O hook de congelamento
+# recebe a pasta dos tickets na linha de comando dele, no .claude/settings.json.
+[tickets]
+	pasta = docs/tickets
+	documentos = docs
+
+# O comando do Node, que roda no contêiner `api` porque a máquina não roda `node` (chamado como `<comando> <script> -`,
+# da raiz do repositório).
+[node]
+	comando = scripts/node-in-api.sh
+
+# O contrato: a visão legível dele entre dois pontos do Git, os arquivos que são o dono dele (separados por espaço) e o
+# que mostra o desvio dele desde o commit de plano (só avisa, e é também o aviso do modo completo da verificação).
+[contrato]
+	comando = scripts/contract-view.sh
+	arquivos = apps/api/openapi.json apps/api/prisma/schema.prisma
+	desvio = scripts/contract-drift.sh
+
+# O atalho que chama o script da página do plano com os valores de cima: `<atalho> <issue pai> <ticket> [<commit de plano>]`.
+[plano]
+	atalho = .claude/skills/verificar/scripts/verify.sh plan
+
+# A revisão de conformidade. A base é a HARNESS_BASE_REF, com `origin/main` por padrão (o agente expande a expressão e a
+# passa ao script dos insumos, que não lê a variável). O código que pede revisão: toda mudança que casa com `sempre`
+# (`**` atravessa as barras), com ou sem ticket, e a que casa com `com-aceite` só num ticket com aceite. Uma mudança só
+# de documento não pede revisão.
+[revisao]
+	base = ${HARNESS_BASE_REF:-origin/main}
+	sempre = apps/**
+	com-aceite = .claude/hooks/**
+	com-aceite = .github/**
+	com-aceite = .config/**
+	com-aceite = scripts/**
+	com-aceite = .claude/skills/*/scripts/**
+	com-aceite = .claude/skills/*/hooks/**
 
 # O limite de frentes ao todo, contando o checkout principal quando ele não está na main, e o comando de ambiente de
 # cada frente, que o núcleo chama (o caminho vale a partir da raiz do checkout). O limite é também o teto do ambiente
@@ -63,7 +106,7 @@
 [gerado "apps/api/openapi.json"]
 	regenerar = docker compose -f compose.dev.yaml exec api pnpm openapi:generate openapi.json
 
-# O comando da verificação completa, que roda uma vez, em segundo plano. O <arquivo> é o corpo do pull request, com a
+# O comando da verificação completa, que roda uma vez, em segundo plano (a /implement e o modo sincronizar da /worktree). O <arquivo> é o corpo do pull request, com a
 # seção `## Aceite`: o comando o recebe quando a branch altera `apps/`.
 [verificacao]
 	completa = ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full

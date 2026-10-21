@@ -50,7 +50,7 @@ A tabela é a do slot 0, o de um checkout sem `.env` na raiz. As portas e os end
 
 Os contêineres `web` e `api` preparam o próprio ambiente ao subir e depois ficam parados, sem iniciar a aplicação. O `playwright` também fica parado. Os comandos rodam neles com `docker compose -f compose.dev.yaml exec <serviço> <comando>`, e os de cada projeto, inclusive os testes no `playwright`, estão no `AGENTS.md` dele.
 
-O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (o "Comando do Node" dos valores das skills do ticket, abaixo).
+O `web` e o `playwright` montam a pasta da web em `/app`, e o `api`, a da API. O `api` monta também o repositório em `/repo`, só para leitura e sem o `.git`, onde roda o Node do harness (o `node.comando` do `.config/project`).
 
 ### Subir e derrubar
 
@@ -173,7 +173,7 @@ A CI confere, em todos os arquivos de aceite de `docs/tickets/` e não só no do
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera o "Código que pede revisão" (valor da lista "Valores das skills do ticket") passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera o código que pede revisão (as chaves `revisao.sempre` e `revisao.com-aceite` do `.config/project`) passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
 No fluxo do ticket, a ordem é: implementação, commit, `/worktree sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão vem depois da sincronização e das outras revisões para ver o resultado do merge, e antes do `full` para as correções entrarem na única verificação completa. Ela não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. O passo a passo está na skill `revisao-conformidade`.
 
@@ -219,37 +219,6 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 **Os formatos são da skill.** Os do plano (o critério, o arquivo de aceite, a tag do ID no teste, a mensagem do commit de plano e o contrato de rota e de tabela) estão em `.claude/skills/plan-ticket/formatos/`. Siga-os; aqui fica só o que é deste projeto.
 
-**Valores das skills do ticket**
-
-Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor que não está aqui vale o padrão que a skill diz. Os valores da `/plan-ticket`:
-
-- **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
-- **Pasta dos documentos:** `docs`.
-- **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
-- **Comando do contrato:** `scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
-- **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
-
-Os valores da `/revisao-conformidade`:
-
-- **Base:** a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`). O script dos insumos, `.claude/skills/revisao-conformidade/scripts/review-inputs.sh`, não lê a variável: passe `--base "${HARNESS_BASE_REF:-origin/main}"`.
-- **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`.claude/hooks/`, `.github/`, `.config/`, a pasta `scripts/` da raiz, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
-- **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
-- **Desvio do contrato:** `scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
-
-Os valores do `/worktree` moram em `.config/project`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`; os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
-
-Os valores da `/implement`:
-
-- **Código que pede revisão:** o da `/revisao-conformidade`, acima.
-- **Verificação completa:** a chave `verificacao.completa` do `.config/project`.
-
-Os valores da `/proteger-harness`:
-
-- **Lista de arquivos protegidos:** `.claude/skills/verificar/arquivos-protegidos.txt`, que o workflow da Guarda do harness passa à Guarda.
-- **Frase de destravar do hook do estado:** a frase do `--ajuda` na linha de comando do hook, no `.claude/settings.json`, igual à `FULL_LOCK_ASK` do script da trava (um teste confere).
-
-O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o script da página da skill com esses valores.
-
 **Neste projeto**
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
@@ -265,7 +234,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
-**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. Um valor mora nesse arquivo quando ele o declara e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
+**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. O que o arquivo não declara vale o padrão da skill. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
 **Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`), ou quando ela é genérica, do kit, e vai ser copiada para outros projetos; um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
 

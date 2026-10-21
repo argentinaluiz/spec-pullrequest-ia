@@ -4,25 +4,25 @@ description: "Implement one ticket in the session of its front, from its plan co
 disable-model-invocation: true
 ---
 
-Implement one ticket, in this session and in this checkout (the front of the ticket). The flow, step by step. The project's agent instructions file owns the rules around it; where it says more than this skill, it wins. Each step says the minimum it depends on.
+Implement one ticket, in this session and in this checkout (the front of the ticket). The flow, step by step.
 
 ## Step 0: the project values
 
-Read, in the project's agent instructions file, the list "Valores das skills do ticket", the entries of this skill. Each value has a default for when the list does not give it:
+The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill with `git config --file .config/project --get <key>` (`--get-all` for a list of patterns). Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
-| Value | Default | Used in |
-| --- | --- | --- |
-| Tickets folder | `docs/tickets` | step 2: where the acceptance file of the ticket lives |
-| Code that asks for a conformance review | every change outside documents | step 7: when to call the conformance review |
-| Full verification | none: ask | step 8: the command that runs the complete verification |
+| Value | Key | Default | Used in |
+| --- | --- | --- | --- |
+| Tickets folder | `tickets.pasta` | `docs/tickets` | step 2: where the acceptance file of the ticket lives |
+| Code that asks for a conformance review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | step 7: when to call the conformance review (a change that matches `com-aceite` counts on a ticket with an acceptance file, and one that matches `sempre` always; patterns where `**` crosses the slashes) |
+| Full verification | `verificacao.completa` | none: ask | step 8: the command that runs the complete verification |
 
-Say in the chat, in one line, which values came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and once agreed, propose the entry for the list in the agent instructions file. If the full verification command receives the body of the pull request, save the body first, with its acceptance section, and pass it as the command says.
+Say in the chat, in one line, which values came from the default. A value that is `nenhum` skips the step that uses it. Ask the person only for a value that has no default, which is the full verification, and once agreed, propose the entry for the file. If the full verification command receives the body of the pull request, save the body first, with its acceptance section, and pass it as the command says.
 
 ## Steps
 
 1. **Which ticket.** If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask. Take only a ticket whose blocking tickets are done.
 
-2. **The plan.** The ticket needs a plan commit. Start from it and from its acceptance file (`<tickets folder>/<issue>/<ticket>/aceite.md`), as the project's rules for the plan of a ticket describe. If there is no plan commit, stop and ask for `/plan-ticket` first. The issue should already be in progress, because `/plan-ticket` moves it when planning starts; if it is not, move it now.
+2. **The plan.** The ticket needs a plan commit. Start from it and from its acceptance file (`<tickets folder>/<issue>/<ticket>/aceite.md`). If there is no plan commit, stop and ask for `/plan-ticket` first. The issue should already be in progress, because `/plan-ticket` moves it when planning starts; if it is not, move it now.
 
 3. **Build it.** Call the Skill tool with "tdd" at the seams the plan agreed, putting each criterion ID in a tag of its acceptance test. A ticket with no test criterion has no `tdd`: deliver each criterion as its scenario describes. While working, run only the tests tied to the files you changed, with the commands the project gives for each part; a hook of the project may already run the type and lint checks.
 

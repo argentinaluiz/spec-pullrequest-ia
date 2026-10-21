@@ -3,21 +3,21 @@ name: revisao-conformidade
 description: "Run the conformance review of a change that needs one: prepare its inputs with the script of this skill, call the reviewer with paths only, record and triage the findings, then publish them as a pull request comment. Use after the code review and before the full verification, and again when the pull request is opened."
 ---
 
-How to run the conformance review that the project requires, and what to do with its result. The project's rules (who reviews, when, and that the review is not a mechanical gate) are in its agent instructions file; what the reviewer checks is in the model of the reviewer, `revisor.md` in this folder, and in the project's review rules document, if it has one. The skill names roles, so it works in any repository the folder is copied to.
+How to run the conformance review that the project requires, and what to do with its result. What the reviewer checks is in the model of the reviewer, `revisor.md` in this folder, and in the project's review rules document, if it has one. The skill names roles, so it works in any repository the folder is copied to.
 
 The skill has two parts, at two moments: **Review**, after the code review and before the full verification, so the fixes go into the single full verification; and **Publish**, when the pull request exists, which may be in another session.
 
 ## Steps
 
-0. **Project values.** Read, in the project's agent instructions file, the list "Valores das skills do ticket", the entries of this skill. The skill uses these values, and each has a default for when the list does not give it:
+0. **Project values.** The values of the project live in its configuration file, `.config/project`, in the syntax of `git config`. Read the keys of this skill with `git config --file .config/project --get <key>` (`--get-all` for a list of patterns). Each has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
-   | Value | Default | Used in |
-   | --- | --- | --- |
-   | Tickets folder | `docs/tickets` | the review folder of each ticket (`--tickets` of the script) |
-   | Base | the main branch of the origin remote, `origin/<branch>` | the diff and the plan commit (`--base` of the script) |
-   | Code that asks for a review | every change outside documents | when to run the review at all |
-   | Reviewer | `revisor-conformidade` | step 3: the subagent to call |
-   | Contract drift | `nenhum` | step 2: the command that tells the drift since the plan commit (`--desvio` of the script) |
+   | Value | Key | Default | Used in |
+   | --- | --- | --- | --- |
+   | Tickets folder | `tickets.pasta` | `docs/tickets` | the review folder of each ticket (`--tickets` of the script) |
+   | Base | `revisao.base` | the main branch of the origin remote, `origin/<branch>` | the diff and the plan commit (`--base` of the script); the value may be a shell expression, which you expand before passing it |
+   | Code that asks for a review | `revisao.sempre` and `revisao.com-aceite` | every change outside documents | when to run the review at all: a change that matches `sempre` asks for it, and one that matches `com-aceite` asks only on a ticket with an acceptance file (patterns where `**` crosses the slashes) |
+   | Reviewer | `revisao.revisor` | `revisor-conformidade` | step 3: the subagent to call |
+   | Contract drift | `contrato.desvio` | `nenhum` | step 2: the command that tells the drift since the plan commit (`--desvio` of the script) |
 
    Say in the chat which values came from the default, in one line. A value that is `nenhum` skips the step that uses it (no drift command: the drift file says none was declared). If the change does not touch the code that asks for a review, say so and stop: there is nothing to review. The drift command is called as `<command> <plan commit> <to, or empty> <drift file>`: it appends the view of the drift to the file and only warns.
 
@@ -45,7 +45,7 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
    When the review runs inside the implementation flow, the session fixes the findings of the code review and the ones accepted here. The commit after the fixes does not go through the reviewer again: the full verification checks it.
 
-6. **Go on** to the full verification, as the project's agent instructions file says. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
+6. **Go on** to the full verification. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
 
 ## Publish
 
@@ -62,8 +62,6 @@ gh api repos/<owner>/<repo>/issues/<pr>/comments --paginate \
   --jq '.[] | select(.body | startswith("## Revisão de conformidade: <ticket>\n")) | .id'
 gh api -X PATCH repos/<owner>/<repo>/issues/comments/<id> -F body=@<tickets folder>/<pai>/<ticket>/revisao.md
 ```
-
-The comment is the record that the project's agent instructions file asks for.
 
 ## Format of `revisao.md`
 

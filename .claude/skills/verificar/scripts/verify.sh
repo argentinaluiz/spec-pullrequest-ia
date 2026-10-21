@@ -460,15 +460,24 @@ run_full() {
 }
 
 # O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
-# valores é o AGENTS.md da raiz ("Plano do ticket", "Valores das skills do ticket"); o atalho só os passa.
-# A lógica e as mensagens são do script.
+# valores é o .config/project (as chaves tickets.*, node.comando e contrato.*); o atalho só os passa, e a chave
+# que falta vale o padrão da skill de plano. A lógica e as mensagens são do script.
+# config_value <chave> [<padrão>]
+config_value() {
+  git config --file .config/project --get "$1" 2>/dev/null || printf '%s' "${2:-}"
+}
+
 # run_plan <pai> <ticket> [<commit>]
 run_plan() {
+  local documents files
   local args=(
-    --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node "$CONTRACT_NODE" --contrato scripts/contract-view.sh
-    --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
+    --pai "$1" --ticket "$2" --tickets "$(config_value tickets.pasta docs/tickets)"
+    --node "$(config_value node.comando node)" --contrato "$(config_value contrato.comando nenhum)"
   )
+  documents="$(config_value tickets.documentos)"
+  [[ -n "$documents" ]] && args+=(--documentos "$documents")
+  files="$(config_value contrato.arquivos)"
+  [[ -n "$files" ]] && args+=(--contrato-arquivos "$files")
   [[ -n "${3:-}" ]] && args+=(--commit "$3")
   "$PLAN_SKILL_SCRIPTS/plan-page.sh" "${args[@]}"
 }
