@@ -111,13 +111,7 @@ Cada ticket pode correr numa **frente**: um checkout próprio, na branch do tick
 
 O principal conta como frente quando não está na `main`, e o HEAD solto também conta, porque não é estado de repouso. Em repouso, ele fica na `main`, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
-Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos. Os três primeiros também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh <modo>`.
-
-- **`novo <ticket> [tipo]`:** cria a frente de um ticket.
-- **`listar`:** mostra as frentes abertas.
-- **`remover <ticket>`:** desmonta a frente depois do merge do PR. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
-- **`abrir <spec>`:** cria uma frente por ticket pronto da spec. A sessão de cada frente é aberta pelo usuário, na pasta dela.
-- **`sincronizar`:** traz a `main` para a frente, quando o PR fica desatualizado em relação a ela (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual.
+Tudo o que diz respeito às frentes passa pelo `/worktree`. Os modos `novo`, `listar` e `remover` também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh <modo>`. O `--forcar` do `remover` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
 
 As regras de cada comando estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do `scripts/frente-ambiente.sh`; o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
@@ -161,12 +155,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 
 **Antes do push**
 
-Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. Para o push passar:
-
-1. Faça o commit de tudo que alterou. A aprovação vale para o que foi verificado, e o push envia o que está em commit.
-2. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`.
-3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
-4. Faça o push.
+Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. A aprovação vale para o que foi verificado, e o push envia o que está em commit, então faça o commit de tudo antes do `full`. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`, e rode o `full` com `ACCEPTANCE_BODY_FILE=<arquivo>` na frente; sem a variável, o `full` registra o aceite como pulado e o hook recusa a aprovação.
 
 - **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, os scripts e os hooks do harness e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
@@ -225,9 +214,8 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 
 Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado.
 
-1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
-2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill.
-3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
+1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit: o commit de plano só vem depois que o usuário aprova a página de revisão que ela apresenta. O passo a passo está na skill.
+2. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
 **Os formatos são da skill.** Os do plano (o critério, o arquivo de aceite, a tag do ID no teste, a mensagem do commit de plano e o contrato de rota e de tabela) estão em `.claude/skills/plan-ticket/formatos/`. Siga-os; aqui fica só o que é deste projeto.
 
@@ -260,13 +248,13 @@ Os valores da `/proteger-harness`:
 - **Lista de arquivos protegidos:** `.claude/skills/verificar/arquivos-protegidos.txt`, que o workflow da Guarda do harness passa à Guarda.
 - **Frase de destravar do hook do estado:** a frase do `--ajuda` na linha de comando do hook, no `.claude/settings.json`, igual à `FULL_LOCK_ASK` do script da trava (um teste confere).
 
-O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o script da página da skill com esses valores (a `<issue>` é a issue pai do ticket, que vai no `--pai` do script); use-o nos passos de parada e de commit da skill.
+O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<commit de plano>]` chama o script da página da skill com esses valores.
 
 **Neste projeto**
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
 - **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook da skill de plano (`.claude/skills/plan-ticket/hooks/freeze-acceptance.sh`) nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda. O mapa de testes do ticket não é congelado.
-- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os relatórios JSON do Vitest e do Playwright trazem as tags de cada teste; o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor. Um teste de skill de uso geral não leva o ID de um critério deste projeto: a ligação dele com o critério vai para o mapa de testes do ticket (`mapa-de-testes.txt` na pasta do ticket, formato em `formatos/mapa-de-testes.md` da skill de plano). Os testes em shell do harness também provam critério; como nomear o caso está no cabeçalho de `.claude/skills/verificar/scripts/test/sh-helpers.sh`.
+- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os relatórios JSON do Vitest e do Playwright trazem as tags de cada teste; o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor. Um teste de skill de uso geral não leva o ID de um critério deste projeto: a ligação dele com o critério vai para o mapa de testes do ticket, como diz a `/plan-ticket`. Os testes em shell do harness também provam critério; como nomear o caso está no cabeçalho de `.claude/skills/verificar/scripts/test/sh-helpers.sh`.
 
 ## Skills do ticket
 
