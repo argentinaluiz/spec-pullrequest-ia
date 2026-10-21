@@ -89,17 +89,17 @@ Na conexão entre serviços (banco, storage, e-mail, worker), seja em variável 
 
 Cada ticket pode correr numa **frente**: um checkout próprio, na branch do ticket, com a própria sessão do agente, o próprio ambiente Docker e o próprio PR. A primeira frente pode ser o checkout principal, no slot 0, com as portas da tabela de "Execução no Docker"; da segunda em diante, cada frente é um worktree numa pasta irmã do principal, que se abre com `cd` e o Claude Code, com o slot (de 1 a 3) que dá a ela um bloco próprio de portas. O principal conta como frente quando não está na branch principal (a `main`), e isso inclui o HEAD solto, que não é estado de repouso; o limite é de 3 frentes ao todo. Em repouso, o principal fica na branch principal, atualizada com `git merge --ff-only <base>`. Para trabalhar nele, crie a branch do ticket a partir da base (`git switch -c feature/<ticket> <base>`), e ele vira a primeira frente.
 
-Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos: `novo`, `listar`, `remover`, `abrir` e `sincronizar`. Os três primeiros também rodam no terminal, pelo atalho `.claude/skills/ambiente/scripts/frentes.sh`.
+Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos: `novo`, `listar`, `remover`, `abrir` e `sincronizar`. Os três primeiros também rodam no terminal, pelo núcleo, `.claude/skills/worktree/scripts/frentes.sh`.
 
-- **Criar:** `/worktree novo <ticket> [tipo]` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh novo <ticket> [tipo]`) cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
-- **Listar:** `/worktree listar` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh listar`) mostra o slot, a branch, as portas e o estado do PR de cada frente.
-- **Remover:** `/worktree remover <ticket>` (no terminal, `.claude/skills/ambiente/scripts/frentes.sh remover <ticket>`) desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
+- **Criar:** `/worktree novo <ticket> [tipo]` (no terminal, `.claude/skills/worktree/scripts/frentes.sh novo <ticket> [tipo]`) cria a pasta, a branch, o `.env` do slot e o ambiente, e imprime o comando para abrir a sessão.
+- **Listar:** `/worktree listar` (no terminal, `.claude/skills/worktree/scripts/frentes.sh listar`) mostra o slot, a branch, as portas e o estado do PR de cada frente.
+- **Remover:** `/worktree remover <ticket>` (no terminal, `.claude/skills/worktree/scripts/frentes.sh remover <ticket>`) desmonta a frente depois do merge do PR, com a pasta limpa. O `--forcar` abandona um ticket sem merge e é só do usuário: o agente não o usa, e um hook o nega. Depois que o usuário mergeia o PR, o agente só roda o `remover` se ele pedir.
 
 **Abrir as frentes de uma spec:** use o `/worktree abrir` com o identificador da spec. Ela lê os tickets e os bloqueios no Linear, escolhe os que já podem começar, confirma a lista com o usuário e cria uma frente por ticket. A sessão de cada frente é aberta pelo usuário na pasta dela.
 
 **Trazer a `main` para a frente:** use o `/worktree sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
 
-O `.claude/skills/ambiente/scripts/frentes.sh` é o atalho (o "Comando das frentes" dos valores do `/worktree`): chama o núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) com os valores deste projeto, o limite de 3, o ambiente por slot (`.claude/skills/ambiente/scripts/frente-ambiente.sh`) e os pontos de convergência. As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"): o limite de 3, o ambiente por slot da frente (`.claude/skills/ambiente/scripts/frente-ambiente.sh`) e os pontos de convergência; o modo `sincronizar` lê dele os comandos do ambiente. Mudar o limite é editar esse arquivo. As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente, e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente, um perfil por slot.
 
@@ -227,7 +227,7 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 **Valores das skills do ticket**
 
-Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor que não está aqui vale o padrão que a skill diz. Os valores da `/plan-ticket`:
+Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor que não está aqui vale o padrão que a skill diz. A `/worktree` é a exceção: os valores dela estão no `.config/worktree`. Os valores da `/plan-ticket`:
 
 - **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
 - **Pasta dos documentos:** `docs`.
@@ -243,22 +243,13 @@ Os valores da `/revisao-conformidade`:
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
 - **Desvio do contrato:** `.claude/skills/contrato/scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
-Os valores do `/worktree`:
-
-- **Base:** a mesma da `/revisao-conformidade`: a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`).
-- **Comando das frentes:** `.claude/skills/ambiente/scripts/frentes.sh`, o atalho que chama o núcleo com o limite, o ambiente por slot da frente e os pontos de convergência deste projeto.
-- **Limite de frentes:** 3. A variável `FRENTES_LIMITE` o ajusta, pelo atalho.
-- **Arquivo dos pontos de convergência:** `.claude/skills/ambiente/pontos-de-convergencia.txt`.
-- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
-- **Status e tipo da branch:** os padrões da skill ("In Progress", "In Review" e "Done"; `bugfix` para a label `Bug`, `feature` para o resto).
-- **Atualizar o ambiente, recriar o banco, gerar uma migração, subir as aplicações e regenerar o gerado:** os comandos da seção "Commands the sync uses" da `/ambiente` (`.claude/skills/ambiente/SKILL.md`). O único arquivo gerado é `apps/api/openapi.json`.
-- **Verificação completa:** `.claude/skills/verificar/scripts/verify.sh full`, em segundo plano. Se a branch altera `apps/`, ele recebe o corpo do pull request, com a seção `## Aceite`, em `ACCEPTANCE_BODY_FILE=<arquivo>`.
+Os valores do `/worktree` moram em `.config/worktree`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`: a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`); os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
 
 Os valores da `/implement`:
 
 - **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
 - **Código que pede revisão:** o da `/revisao-conformidade`, acima.
-- **Verificação completa:** a dos valores do `/worktree`, acima.
+- **Verificação completa:** a chave `verificacao.completa` do `.config/worktree`.
 
 Os valores da `/proteger-harness`:
 
@@ -282,6 +273,8 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
+**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Hoje só a `/worktree` lê o dela (`.config/worktree`); as outras ainda leem a lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
+
 **Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). A verificação completa acha e roda os testes de todas as skills sem lista à mão.
 
 **Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
@@ -297,7 +290,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que o `/worktree sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
-- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
+- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `.config/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas
 

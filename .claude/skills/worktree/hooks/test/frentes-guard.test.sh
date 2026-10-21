@@ -29,8 +29,8 @@ expect 2 "nega ao agente o remover com a opção de abandono, com ela em qualque
   "$(command_input 'scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
 expect 2 "nega a opção antes do ticket e embrulhada no bash -c" \
   "$(command_input "bash -c 'cd /repo && ./scripts/frentes.sh remover --forcar LUI-186'")" "só o usuário abandona uma frente"
-expect 2 "nega a opção no atalho do projeto, que também se chama frentes.sh" \
-  "$(command_input '.claude/skills/ambiente/scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
+expect 2 "nega a opção pelo caminho completo do núcleo, seja qual for a pasta" \
+  "$(command_input '.claude/skills/worktree/scripts/frentes.sh remover LUI-186 --forcar')" "só o usuário abandona uma frente"
 expect 0 "libera o remover sem a opção, o novo e o listar" \
   "$(command_input 'scripts/frentes.sh remover LUI-186 && scripts/frentes.sh novo LUI-187 && scripts/frentes.sh listar')"
 

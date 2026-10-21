@@ -47,7 +47,7 @@ for path in \
   .claude/skills/proteger-harness/hooks/state-guard.sh \
   .claude/skills/qualquer-skill-nova/hooks/test/y.test.sh \
   .claude/skills/verificar/arquivos-protegidos.txt \
-  .claude/skills/ambiente/pontos-de-convergencia.txt \
+  .config/worktree \
   .claude/skills/verificar/genericidade.txt \
   .claude/agents/revisor-conformidade.md \
   .claude/skills/verificar/hooks/push-verify.sh \

@@ -60,9 +60,17 @@ AMBIENTE="$work/ambiente-falso"
 export HARNESS_TEST=1 FRENTES_GH="$work/gh"
 export HARNESS_BASE_REF=origin/main
 
-# A classificação dos pontos de convergência deste teste, no formato do núcleo: tipo, tabulação, padrão.
-printf '%s\t%s\n' gerado apps/api/openapi.json migracoes 'apps/api/prisma/migrations/*' registros apps/api/src/app.module.ts \
-  documentos docs/lld.md manual apps/api/prisma/schema.prisma manual apps/api/.env.example >"$work/pontos.txt"
+# A seção dos pontos de convergência deste teste, no formato do arquivo de configuração: o tipo é a chave e o padrão, o
+# valor. O `config pontos` a põe no arquivo do caso.
+cat >"$work/pontos.conf" <<'CONF'
+[convergencia]
+	gerado = apps/api/openapi.json
+	migracoes = apps/api/prisma/migrations/*
+	registros = apps/api/src/app.module.ts
+	documentos = docs/lld.md
+	manual = apps/api/prisma/schema.prisma
+	manual = apps/api/.env.example
+CONF
 
 # Um PATH só com o que o núcleo usa, sem o `docker`: o repositório de fora tem o Git e pouco mais.
 mkdir -p "$work/so-git"
@@ -96,6 +104,22 @@ fresh() {
   mkdir -p "$work/$1"
   git clone -q "$remote" "$work/$1/principal"
   repo="$work/$1/principal"
+}
+
+# config [limite=<n>] [ambiente=<comando>] [pontos]: grava a configuração do caso em $work/worktree.conf, no formato do
+# núcleo, e faz as $OPTS a usarem. O `pontos` põe nela a seção dos pontos de convergência deste teste.
+config() {
+  local arg
+  {
+    echo '[frentes]'
+    for arg in "$@"; do
+      case "$arg" in limite=* | ambiente=*) printf '\t%s = %s\n' "${arg%%=*}" "${arg#*=}" ;; esac
+    done
+    for arg in "$@"; do
+      [[ "$arg" != pontos ]] || cat "$work/pontos.conf"
+    done
+  } >"$work/worktree.conf"
+  OPTS=(--config "$work/worktree.conf")
 }
 
 # pr <branch> <número> <ABERTO|MERGEADO|FECHADO> [commit]: o `gh` passa a responder esse PR para a branch, com a
@@ -156,7 +180,7 @@ git_only() {
   line="$(grep 'feature/lui-1 ' <<<"$out")"
   [[ "$line" == *" 1 "* && "$line" == *"#5 aberto"* && "$line" == *" - "* ]] || return 1
   # O limite se ajusta pela opção.
-  OPTS=(--limite 1)
+  config limite=1
   PATH="$work/so-git" frentes "$repo" novo LUI-2
   [[ $code -ne 0 ]] && contains "limite de 1 frentes" || return 1
   OPTS=()
@@ -171,7 +195,7 @@ check "o núcleo cria, lista e remove frentes num repositório só com o Git, co
 environment_contract() {
   local front="$work/contrato/principal-lui-1"
   fresh contrato
-  OPTS=(--ambiente "$AMBIENTE")
+  config ambiente="$AMBIENTE"
   frentes "$repo" novo LUI-1
   [[ $code -eq 0 ]] || return 1
   # O `verificar` vem com o slot antes de a pasta existir (só o principal está na lista), e o `criar` depois, com a pasta e o slot.
@@ -225,9 +249,10 @@ check "o número da frente fica nela, apagar a pasta o libera e duas criações 
 concurrent_creations() {
   local a b slots
   fresh simultaneas
-  (cd "$repo" && ENV_SLOW=1 "$FRENTES" --ambiente "$AMBIENTE" novo LUI-1 >"$work/simultaneas-a.out" 2>&1) &
+  config ambiente="$AMBIENTE"
+  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo LUI-1 >"$work/simultaneas-a.out" 2>&1) &
   a=$!
-  (cd "$repo" && ENV_SLOW=1 "$FRENTES" --ambiente "$AMBIENTE" novo LUI-2 >"$work/simultaneas-b.out" 2>&1) &
+  (cd "$repo" && ENV_SLOW=1 "$FRENTES" "${OPTS[@]}" novo LUI-2 >"$work/simultaneas-b.out" 2>&1) &
   b=$!
   wait "$a" "$b" || { cat "$work"/simultaneas-?.out; return 1; }
   # Slots diferentes: uma frente tem o 1 e a outra, o 2, em qualquer ordem.
@@ -262,7 +287,7 @@ check "o novo cria a pasta e a branch a partir da base buscada, escolhe o menor 
 listing() {
   local line
   fresh listagem
-  OPTS=(--ambiente "$AMBIENTE")
+  config ambiente="$AMBIENTE"
   git -C "$repo" checkout -q -b feature/principal-da-vez
   frentes "$repo" novo LUI-10 && [[ $code -eq 0 ]] || return 1
   frentes "$repo" novo LUI-11 && [[ $code -eq 0 ]] || return 1
@@ -306,7 +331,7 @@ limit() {
 
   # O limite se ajusta pela opção: com 1, a segunda frente é recusada.
   fresh limite-um
-  OPTS=(--limite 1)
+  config limite=1
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
   frentes "$repo" novo LUI-2
   [[ $code -ne 0 ]] && contains "limite de 1 frentes"
@@ -317,7 +342,7 @@ check "o novo recusa a quarta frente, contando o principal fora da main, e mostr
 removal() {
   local front
   fresh remocao
-  OPTS=(--ambiente "$AMBIENTE")
+  config ambiente="$AMBIENTE"
   front="$work/remocao/principal-lui-1"
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
   : >"$ENV_LOG"
@@ -361,7 +386,7 @@ check "o remover recusa o PR não mergeado e a pasta suja, recusa o principal, e
 forced_removal() {
   local front
   fresh forcada
-  OPTS=(--ambiente "$AMBIENTE")
+  config ambiente="$AMBIENTE"
   front="$work/forcada/principal-lui-1"
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
   : >"$ENV_LOG"
@@ -416,16 +441,19 @@ invalid_input() {
   # O tipo da branch é um dos quatro da convenção.
   frentes "$repo" novo LUI-1 feture
   [[ $code -ne 0 ]] && contains "feature, bugfix, hotfix ou docs" && [[ ! -e "$work/invalidas/principal-lui-1" ]] || return 1
-  # As opções do núcleo: uma que não existe, uma sem valor e um limite que não é número.
+  # As opções do núcleo: uma que não existe, a --config sem valor, um arquivo que não existe e um limite que não é número.
   OPTS=(--nada)
   frentes "$repo" listar
-  [[ $code -ne 0 ]] && contains "--limite, --ambiente e --pontos" || return 1
-  OPTS=(--limite)
+  [[ $code -ne 0 ]] && contains "a única opção é --config" || return 1
+  OPTS=(--config)
   frentes "$repo"
   [[ $code -ne 0 ]] && contains "pede um valor" || return 1
-  OPTS=(--limite tres)
+  OPTS=(--config "$work/nao-existe.conf")
   frentes "$repo" listar
-  [[ $code -ne 0 ]] && contains "número inteiro" || return 1
+  [[ $code -ne 0 ]] && contains "nao-existe.conf" && contains "não existe" || return 1
+  config limite=tres
+  frentes "$repo" listar
+  [[ $code -ne 0 ]] && contains "frentes.limite" && contains "número inteiro" || return 1
   OPTS=()
   # O remover recusa um ticket a mais e uma opção que não conhece, em vez de escolher um deles.
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
@@ -480,7 +508,7 @@ check "o listar mostra, para cada par de frentes e para cada frente contra a mai
 convergence_split() {
   local a="$work/pontos/principal-lui-1" b="$work/pontos/principal-lui-2" mechanical attention file
   fresh pontos
-  OPTS=(--pontos "$work/pontos.txt")
+  config pontos
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
   frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
   # As duas frentes mudam, cada uma do seu jeito, um arquivo de cada tipo e um de código.
@@ -512,6 +540,39 @@ convergence_split() {
   [[ $code -eq 0 && "$out" != *"regra mecânica"* ]] && contains "apps/api/openapi.json" && [[ "$out" != *"(documentos)"* ]]
 }
 check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção" convergence_split
+
+# --- O núcleo acha a configuração do projeto em .config/worktree do checkout, sem opção ---
+default_config() {
+  fresh configuracao
+  mkdir -p "$repo/.config" "$repo/bin"
+  cp "$AMBIENTE" "$repo/bin/ambiente"
+  # O caminho do comando de ambiente é relativo à raiz do checkout, e o limite e os pontos vêm do mesmo arquivo.
+  printf '[frentes]\n\tlimite = 1\n\tambiente = bin/ambiente\n' >"$repo/.config/worktree"
+  frentes "$repo" novo LUI-1
+  [[ $code -eq 0 ]] && grep -q '^criar' "$ENV_LOG" || return 1
+  frentes "$repo" novo LUI-2
+  [[ $code -ne 0 ]] && contains "limite de 1 frentes" || return 1
+  # A opção --config vale mais que o arquivo do checkout.
+  config limite=3
+  frentes "$repo" novo LUI-2
+  [[ $code -eq 0 ]]
+}
+check "o núcleo lê o limite e o comando de ambiente de .config/worktree do checkout, com o caminho relativo à raiz dele, e a opção --config vale mais" default_config
+
+# --- Na classificação dos pontos vale o primeiro padrão que casa ---
+first_match_wins() {
+  local a="$work/ordem/principal-lui-1" b="$work/ordem/principal-lui-2"
+  fresh ordem
+  printf '[convergencia]\n\tdocumentos = docs/*\n\tmanual = docs/lld.md\n' >"$work/ordem.conf"
+  OPTS=(--config "$work/ordem.conf")
+  frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
+  frentes "$repo" novo LUI-2 && [[ $code -eq 0 ]] || return 1
+  change "$a" docs/lld.md "versao do um"
+  change "$b" docs/lld.md "versao do dois"
+  frentes "$repo" listar
+  [[ $code -eq 0 ]] && contains "docs/lld.md (documentos)" && [[ "$out" != *"(manual)"* ]]
+}
+check "na classificação dos pontos de convergência vale o primeiro padrão que casa, na ordem do arquivo" first_match_wins
 
 # --- Um erro ao calcular o merge é dito, e não passa por "sem conflito"; o nome com acento sai sem aspas ---
 conflict_errors() {
@@ -558,7 +619,7 @@ check "a frente com a pasta apagada à mão não conta para o limite de três, e
 remove_tip() {
   local front tip
   fresh ponta
-  OPTS=(--ambiente "$AMBIENTE")
+  config ambiente="$AMBIENTE"
   front="$work/ponta/principal-lui-1"
   frentes "$repo" novo LUI-1 && [[ $code -eq 0 ]] || return 1
   tip="$(git -C "$front" rev-parse HEAD)"

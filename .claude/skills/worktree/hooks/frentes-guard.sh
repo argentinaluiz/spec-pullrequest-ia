@@ -4,8 +4,8 @@
 # frentes que são só do usuário: o `remover --forcar`, que abandona uma frente sem merge e apaga o trabalho dela, e o
 # `frentes.sh` com as variáveis do modo de teste (`HARNESS_TEST`, `FRENTES_GH`, `FRENTES_DOCKER`, `FRENTES_PORT_OWNER` e `FRENTES_GIT_VERSION`), que trocam o `gh`, o comando de
 # ambiente e as conferências do script e fariam o `remover` remover uma frente sem o merge. O padrão olha o nome do
-# script (`frentes.sh`), então vale também para o atalho que um projeto ponha na frente do núcleo. É uma guarda para um
-# agente que coopera, e não uma barreira de segurança.
+# script (`frentes.sh`), seja qual for o caminho dele. É uma guarda para um agente que coopera, e não uma barreira de
+# segurança.
 #
 # Sai com 0 para deixar o comando rodar e com 2 para negá-lo. No 2, o que foi escrito na saída de erro volta para o agente.
 
