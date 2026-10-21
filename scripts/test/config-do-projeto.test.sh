@@ -44,6 +44,24 @@ files_exist() {
 }
 check "os arquivos e as pastas que o arquivo nomeia existem" files_exist
 
+literal_paths_exist() {
+  local line path
+  # A chave `convergencia.<tipo>` guarda um caminho por linha; o padrão com `*` casa vários e não precisa existir.
+  while IFS= read -r line; do
+    path="${line#* }"
+    [[ "$path" == *'*'* ]] && continue
+    [[ -e "$ROOT/$path" ]] || { echo "convergencia aponta para $path, que não existe" >&2; return 1; }
+  done < <(git config --file "$CONFIG" --get-regexp '^convergencia\.')
+  # A seção `gerado "<arquivo>"` leva o caminho do arquivo gerado no nome dela.
+  while IFS= read -r line; do
+    path="${line%% *}"
+    path="${path#gerado.}"
+    path="${path%.regenerar}"
+    [[ -e "$ROOT/$path" ]] || { echo "gerado aponta para $path, que não existe" >&2; return 1; }
+  done < <(git config --file "$CONFIG" --get-regexp '^gerado\..*\.regenerar$')
+}
+check "os caminhos fixos de convergencia e de gerado existem" literal_paths_exist
+
 shortcut_exists() {
   local command
   command="$(get plano.atalho)"

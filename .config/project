@@ -36,7 +36,8 @@
 # A revisão de conformidade. A base é a HARNESS_BASE_REF, com `origin/main` por padrão (o agente expande a expressão e a
 # passa ao script dos insumos, que não lê a variável). O código que pede revisão: toda mudança que casa com `sempre`
 # (`**` atravessa as barras), com ou sem ticket, e a que casa com `com-aceite` só num ticket com aceite. Uma mudança só
-# de documento não pede revisão.
+# de documento não pede revisão. O revisor vale o padrão da skill, `revisor-conformidade`, instalado em
+# .claude/agents/revisor-conformidade.md (a cópia do modelo da skill; um teste confere que ela é o modelo).
 [revisao]
 	base = ${HARNESS_BASE_REF:-origin/main}
 	sempre = apps/**
