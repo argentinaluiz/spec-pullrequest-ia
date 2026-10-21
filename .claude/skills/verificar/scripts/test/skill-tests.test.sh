@@ -87,4 +87,12 @@ gives_the_project_folder() {
 }
 check "o full do projeto dá a pasta de scripts da raiz à busca nos três usos" gives_the_project_folder
 
+# A pasta de scripts da raiz de verdade tem mecanismo e testes, e a busca a acha: se ela for esvaziada ou renomeada, a verificação
+# deixaria de vigiá-la e de rodar os testes dela em silêncio.
+finds_the_real_root_scripts() {
+  [[ "$("$FINDER" dirs "$ROOT/.claude/skills" "$ROOT/scripts")" == *"$ROOT/scripts"* ]] &&
+    "$FINDER" sh "$ROOT/.claude/skills" "$ROOT/scripts" | grep -qF "$ROOT/scripts/test/node-in-api.test.sh"
+}
+check "a busca acha a pasta de scripts da raiz de verdade e os testes dela" finds_the_real_root_scripts
+
 finish "da busca dos testes das skills"
