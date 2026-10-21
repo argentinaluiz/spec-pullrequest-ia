@@ -34,6 +34,11 @@ commands_exist() {
     path="$(get "$key")"
     [[ -x "$ROOT/$path" ]] || { echo "$key aponta para $path, que não é um arquivo executável" >&2; return 1; }
   done
+  # A verificação completa vem com variáveis e argumentos: o executável é a primeira palavra que não é uma atribuição.
+  for path in $(get verificacao.completa); do
+    [[ "$path" == *=* ]] || break
+  done
+  [[ -x "$ROOT/$path" ]] || { echo "verificacao.completa aponta para $path, que não é um arquivo executável" >&2; return 1; }
 }
 check "os comandos que o arquivo nomeia existem e são executáveis" commands_exist
 

@@ -56,7 +56,7 @@ jobs:
           # Num pull request, o checkout é o merge da branch na base, e o desvio do plano contaria as
           # mudanças da base como da branch. Ele compara com o último commit da branch.
           HARNESS_HEAD_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || '' }}
-        run: .claude/skills/verificar/scripts/verify.sh full --start-apps
+        run: scripts/verify.sh full --start-apps
 
       - name: Logs dos contêineres
         if: failure()

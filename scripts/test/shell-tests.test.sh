@@ -10,13 +10,13 @@
 # do `jq`. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor e o teste dele precisam dele."; exit 2; }
 
-RUNNER="$ROOT/.claude/skills/verificar/scripts/test/shell-tests.sh"
+RUNNER="$ROOT/scripts/test/shell-tests.sh"
 mkdir -p "$ROOT/apps/api/reports"
 work="$(mktemp -d -p "$ROOT/apps/api/reports" shell-tests.XXXXXX)"
 trap 'rm -rf "$work"' EXIT

@@ -9,9 +9,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
-source "$HERE/../../../__tests__/helpers.sh"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$HERE/../../.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o teste dos mapas precisa dele."; exit 2; }
 
@@ -45,14 +45,11 @@ links_are_real() {
   done <"$links"
 }
 
-# Um teste de uma skill do kit (os da pasta __tests__ e os de qualquer outra skill, menos a verificar, que é deste
-# projeto) não traz o ID de um critério deste projeto: os IDs de fixture (PROJ-*) valem.
+# Um teste de uma skill (os do kit, na pasta __tests__, e os de qualquer outra skill) não traz o ID de um critério
+# deste projeto: os IDs de fixture (PROJ-*) valem.
 skill_tests_have_no_project_ids() {
-  local found dir dirs
-  dirs=()
-  for dir in .claude/skills/__tests__ .claude/skills/*/scripts/test .claude/skills/*/hooks/test; do
-    [[ "$dir" == .claude/skills/verificar/* ]] || dirs+=("$dir")
-  done
+  local found dirs
+  dirs=(.claude/skills/__tests__ .claude/skills/*/scripts/test .claude/skills/*/hooks/test)
   found="$(grep -rhoE '@[A-Z][A-Z0-9]*-[0-9]+-CA[0-9]+' "${dirs[@]}" | grep -v '^@PROJ-' || true)"
   [[ -z "$found" ]] || { echo "ID deste projeto em teste de skill do kit: $found"; return 1; }
 }

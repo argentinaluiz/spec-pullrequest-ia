@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Testes do hook das frentes (hooks/frentes-guard.sh), pela entrada que o Claude Code entrega a ele (um JSON pela entrada
-# padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam na máquina, como o hook, porque ele usa o `jq`, que o
-# contêiner `api` não tem. Os casos de aceite se ligam aos critérios pelo mapa de testes, e não pelo nome.
+# padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam onde o hook roda, porque ele usa o `jq`. Os casos de aceite se ligam aos critérios pelo mapa de testes, e não pelo nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

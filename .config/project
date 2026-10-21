@@ -106,4 +106,4 @@
 # O comando da verificação completa, que roda uma vez, em segundo plano (a /implement e o modo sincronizar da /worktree). O <arquivo> é o corpo do pull request, com a
 # seção `## Aceite`: o comando o recebe quando a branch altera `apps/`.
 [verificacao]
-	completa = ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full
+	completa = ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Verificação do projeto. É a única definição de "passou": a CI chama o modo completo,
-# e os hooks chamam o modo rápido e o de antes do push. Mora na skill do projeto /verificar e roda da raiz
-# do repositório: .claude/skills/verificar/scripts/verify.sh <modo>. Abaixo, `verify.sh` é esse caminho.
+# e os hooks chamam o modo rápido e o de antes do push. Roda da raiz do repositório: scripts/verify.sh <modo>.
+# Abaixo, `verify.sh` é esse caminho.
 #
 #   verify.sh fast [app...]                        tipos e lint das apps citadas (todas, se nenhuma)
 #   verify.sh full [--start-apps]                  o grupo completo de todas as apps, os testes do
@@ -36,13 +36,29 @@
 # anterior à mais recente da base (HARNESS_BASE_REF), porque o Prisma aplica as migrações na ordem do
 # nome, e diz como recriá-la com um nome posterior.
 #
+# As peças da verificação, com os testes em scripts/test/:
+#
+#   scripts/verify/                o grupo de cada app (<app>.sh) e a busca dos testes (skill-tests.sh)
+#   scripts/full-lock.sh           a trava das reprovações repetidas do modo completo
+#   scripts/full-semaphore.sh      a espera do modo completo entre os checkouts da máquina
+#   scripts/git-mount.sh           o que o contêiner da varredura de segredos precisa para ler o histórico de um worktree
+#   scripts/check-report.cjs       a conferência dos relatórios dos testes
+#   scripts/test/shell-tests.sh    o executor das suítes em shell (node-test-report.cjs é o repórter das em Node)
+#   scripts/node-in-api.sh         o Node do projeto, no contêiner `api`, para os scripts do harness
+#   scripts/contract-lib.sh        o contrato do projeto, para o aviso do desvio do plano
+#   .claude/hooks/                 o hook de fim de turno (stop-verify.sh), o dos arquivos tocados (record-touched.sh) e
+#                                  o de antes do comando (push-verify.sh), ligados no .claude/settings.json
+#
+# Das skills do kit vêm o conferidor do aceite e o commit de plano (plan-ticket), a base e a pasta das travas da
+# máquina (worktree) e a pasta de estado do harness (proteger-harness).
+#
 # Sai com 0 se tudo passou, 1 se alguma verificação falhou e 2 se não deu para verificar.
 
 set -uo pipefail
-cd "$(dirname "$0")/../../../.."
+cd "$(dirname "$0")/.."
 
 # As apps verificadas. O nome é o da pasta em apps/ e o do serviço no Compose. O grupo de cada
-# uma fica em .claude/skills/verificar/scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports.
+# uma fica em scripts/verify/<app>.sh, que define <app>_fast, <app>_full e <app>_reports.
 APPS=(api web)
 
 COMPOSE=(docker compose -f compose.dev.yaml)
@@ -54,10 +70,10 @@ START_APPS=no
 GITLEAKS_IMAGE=ghcr.io/gitleaks/gitleaks:v8.30.1
 # A base da comparação (BASE_REF), que a varredura de segredos, a ordem das migrações e o desvio do plano
 # usam, vem do .claude/skills/worktree/scripts/harness-base.sh, o mesmo que o núcleo das frentes (.claude/skills/worktree/scripts/frentes.sh) carrega.
-# shellcheck source=../../worktree/scripts/harness-base.sh
+# shellcheck source=../.claude/skills/worktree/scripts/harness-base.sh
 source .claude/skills/worktree/scripts/harness-base.sh
 # O commit que criou um arquivo (`added_by`), que acha o commit de plano, é da skill de plano.
-# shellcheck source=../../plan-ticket/scripts/plan-git.sh
+# shellcheck source=../.claude/skills/plan-ticket/scripts/plan-git.sh
 source .claude/skills/plan-ticket/scripts/plan-git.sh
 # O fim da branch, para o desvio do plano. Na CI de um pull request, a pasta de trabalho é o merge da
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
@@ -74,30 +90,31 @@ PROJECT_SCRIPTS=scripts
 TICKETS_DIR="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas (a configuração do projeto entre elas, que escolhe a pasta dos tickets e os comandos que a verificação
-# chama), entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo deles, que a
-# verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
-VERIFIED_PATHS=(apps compose.dev.yaml .config ${TICKETS_DIR:+"$TICKETS_DIR"})
+# chama, e a dos hooks do projeto), entram as de scripts e de hooks de todas as skills, a dos testes do kit e a de
+# scripts do projeto (o mecanismo deles, que a verificação confere), achadas por skill-tests.sh; o texto de uma skill
+# não entra.
+VERIFIED_PATHS=(apps compose.dev.yaml .config .claude/hooks ${TICKETS_DIR:+"$TICKETS_DIR"})
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
-done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
+done < <(scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
 # O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
 # o .claude/skills/proteger-harness/scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
 # estado a exigem, com o `require_state`.
-# shellcheck source=../../proteger-harness/scripts/harness-dir.sh
+# shellcheck source=../.claude/skills/proteger-harness/scripts/harness-dir.sh
 source .claude/skills/proteger-harness/scripts/harness-dir.sh
 # Onde o modo completo registra o que aprovou.
 APPROVAL_FILE="$HARNESS_DIR/full-ok"
 # A trava das reprovações repetidas do modo completo, com as funções do full-lock.sh.
 FULL_LOCK_FILE="$HARNESS_DIR/full-lock"
 # shellcheck source=full-lock.sh
-source .claude/skills/verificar/scripts/full-lock.sh
+source scripts/full-lock.sh
 # O semáforo do modo completo, com as funções do full-semaphore.sh.
 # shellcheck source=full-semaphore.sh
-source .claude/skills/verificar/scripts/full-semaphore.sh
+source scripts/full-semaphore.sh
 # O que o contêiner da varredura de segredos precisa para ler o histórico num worktree, com a função
 # `gitleaks_git_args` do git-mount.sh.
 # shellcheck source=git-mount.sh
-source .claude/skills/verificar/scripts/git-mount.sh
+source scripts/git-mount.sh
 failures=()
 
 usage() {
@@ -108,12 +125,12 @@ usage() {
 
 # Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node (`scripts/node-in-api.sh`), que o grupo da API
 # também carrega.
-# shellcheck source=../../../scripts/contract-lib.sh
+# shellcheck source=contract-lib.sh
 source scripts/contract-lib.sh
 
 for app in "${APPS[@]}"; do
   # shellcheck source=/dev/null
-  source ".claude/skills/verificar/scripts/verify/$app.sh"
+  source "scripts/verify/$app.sh"
 done
 
 # Sai com o uso se algum nome não é de uma app registrada.
@@ -136,7 +153,7 @@ abort() {
 require_state() {
   [[ -n "$HARNESS_DIR" ]] ||
     abort "não foi possível definir a pasta de estado do harness: a raiz do checkout não é uma pasta que se alcança." \
-      "rode o .claude/skills/verificar/scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
+      "rode o scripts/verify.sh de um checkout do repositório e, se o CLAUDE_PROJECT_DIR está definido, confira que ele aponta para a raiz dele."
 }
 
 # Aborta se o .config/project não diz a pasta dos tickets. Só o modo completo e o de antes do push a pedem.
@@ -181,7 +198,7 @@ require_container() {
 # Confere o relatório JSON de uma suíte dentro do contêiner, onde está o Node.
 check_report() {
   local service="$1" kind="$2" file="$3"
-  in_container "$service" node - "$kind" "$file" <.claude/skills/verificar/scripts/check-report.cjs
+  in_container "$service" node - "$kind" "$file" <scripts/check-report.cjs
 }
 
 responds() {
@@ -237,24 +254,24 @@ HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 # Roda os testes do harness: os do conferidor e do renderizador do contrato e os das skills (o parser e a
 # página do plano, por exemplo) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
 # completo, os modos do verify.sh e as das skills) na máquina, pelo executor que grava o relatório delas. Os
-# testes das skills e os da pasta de scripts do projeto são achados por skill-tests.sh, sem lista à mão: uma skill
-# nova (ou um script novo da raiz) com um teste ao lado do script entra sozinho. Os dois relatórios passam pelo `check_report`, e um grupo que falha
+# testes das skills e os da pasta de scripts do projeto são achados por skill-tests.sh, sem lista à mão: um teste
+# novo em `.claude/skills/__tests__/<skill>/` ou em `scripts/test/` entra sozinho. Os dois relatórios passam pelo `check_report`, e um grupo que falha
 # não impede o outro de rodar.
 harness_tests() {
   local code=0
   local -a skill_node_tests skill_shell_tests
-  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
-  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh "$SKILLS_DIR" "$PROJECT_SCRIPTS")
+  mapfile -t skill_node_tests < <(scripts/verify/skill-tests.sh cjs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
+  mapfile -t skill_shell_tests < <(scripts/verify/skill-tests.sh sh "$SKILLS_DIR" "$PROJECT_SCRIPTS")
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.
   node_in_api --test --test-reporter=spec --test-reporter-destination=stdout \
-    --test-reporter=./.claude/skills/verificar/scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
+    --test-reporter=./scripts/test/node-test-report.cjs --test-reporter-destination="/app/$HARNESS_REPORT" \
     "${skill_node_tests[@]}" &&
     check_report api vitest "$HARNESS_REPORT" || code=1
   # As suítes em shell usam o `git` e o `jq`, que o contêiner não tem, e a trava é do verify.sh, que
   # roda na máquina: elas rodam aqui. O relatório é o que faz um caso delas provar um critério.
-  .claude/skills/verificar/scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" "${skill_shell_tests[@]}" &&
+  scripts/test/shell-tests.sh "apps/api/$HARNESS_SHELL_REPORT" "${skill_shell_tests[@]}" &&
     check_report api vitest "$HARNESS_SHELL_REPORT" || code=1
   return $code
 }
@@ -333,7 +350,7 @@ acceptance() {
       report="apps/$app/${spec#*:}"
       if [[ ! -f "$report" ]]; then
         printf '\nO relatório %s não existe.\n' "$report" >&2
-        printf 'Como corrigir: a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `.claude/skills/verificar/scripts/verify.sh full` de novo.\n' >&2
+        printf 'Como corrigir: a suíte que o grava não rodou ou parou antes: veja o passo dela acima e rode `scripts/verify.sh full` de novo.\n' >&2
       fi
       specs+=("${spec%%:*}:/repo/$report")
     done
@@ -410,7 +427,7 @@ run_prepush() {
     "tire o segredo do código e reescreva o commit que o trouxe. Ele ainda não saiu da máquina." \
     secret_scan
   step "Aprovação do modo completo" \
-    "faça o commit de tudo, salve o corpo do pull request num arquivo e rode \`ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full\`. Se mudar algo em ${VERIFIED_PATHS[*]} depois, rode de novo." \
+    "faça o commit de tudo, salve o corpo do pull request num arquivo e rode \`ACCEPTANCE_BODY_FILE=<arquivo> scripts/verify.sh full\`. Se mudar algo em ${VERIFIED_PATHS[*]} depois, rode de novo." \
     approval
 }
 
@@ -437,7 +454,7 @@ run_full() {
   done
 
   step "Testes do harness" \
-    "corrija o script ou o teste que falhou, nas pastas \`scripts/\` e \`hooks/\` de uma skill (os testes dela ficam na pasta \`test/\` ao lado), e rode \`.claude/skills/verificar/scripts/verify.sh full\` de novo." \
+    "corrija o script ou o teste que falhou: o de uma skill do kit (os testes delas ficam em \`.claude/skills/__tests__/\`) ou o do projeto (em \`scripts/\` e \`.claude/hooks/\`, com os testes em \`scripts/test/\`), e rode \`scripts/verify.sh full\` de novo." \
     harness_tests
 
   # A cobertura dos critérios roda sempre. A seção "Aceite" só é conferida quando há um corpo de
@@ -545,7 +562,7 @@ fi
 
 if [[ ${#apps[@]} -gt 0 ]]; then
   printf '\nAPROVADO (%s %s).\n' "$mode" "${apps[*]}"
-  printf 'Isto não libera o push: rode `.claude/skills/verificar/scripts/verify.sh full`, sem apps, antes de enviar.\n'
+  printf 'Isto não libera o push: rode `scripts/verify.sh full`, sem apps, antes de enviar.\n'
   exit 0
 fi
 

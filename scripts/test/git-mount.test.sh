@@ -7,11 +7,11 @@
 # os argumentos. Rodam na máquina, porque usam o `git`. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 # shellcheck source=../git-mount.sh
-source "$ROOT/.claude/skills/verificar/scripts/git-mount.sh"
+source "$ROOT/scripts/git-mount.sh"
 
 command -v git >/dev/null || { echo "Falta o \`git\` na máquina: o teste precisa dele."; exit 2; }
 
@@ -52,4 +52,4 @@ check "o worktree está com o .git absoluto" grep -q "^gitdir: $repo/" "$work/ab
 check "num worktree com o .git absoluto, pede o mesmo" \
   test "$(args_in "$work/absoluto")" = "$(expected_for_worktree absoluto)"
 
-finish "do .claude/skills/verificar/scripts/git-mount.sh"
+finish "do scripts/git-mount.sh"

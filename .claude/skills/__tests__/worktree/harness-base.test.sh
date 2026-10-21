@@ -24,7 +24,7 @@ base_of() {
     cd "$repo" || exit 1
     unset HARNESS_BASE_REF
     [[ -z "${1:-}" ]] || export HARNESS_BASE_REF="$1"
-    # shellcheck source=../harness-base.sh
+    # shellcheck source=../../worktree/scripts/harness-base.sh
     source "$SCRIPTS/harness-base.sh" || exit 1
     printf '%s %s %s' "$BASE_REF" "$BASE_REMOTE" "$BASE_BRANCH"
   )
@@ -49,7 +49,7 @@ check "com HARNESS_BASE_REF, vale a variável, mesmo quando o remoto de origem d
 lock_dir_of() {
   (
     cd "$1" || exit 1
-    # shellcheck source=../harness-base.sh
+    # shellcheck source=../../worktree/scripts/harness-base.sh
     source "$SCRIPTS/harness-base.sh" && harness_lock_dir
   )
 }

@@ -2,7 +2,7 @@
 #
 # Roda o Node no contêiner `api`, que o tem, sobre o repositório que o serviço monta só para leitura
 # em /repo, sem o .git (compose.dev.yaml). É o comando do Node deste projeto para a skill de plano (o
-# .config/project o declara em `node.comando`) e o do `node_in_api` do .claude/skills/verificar/scripts/verify.sh, que o
+# .config/project o declara em `node.comando`) e o do `node_in_api` do scripts/verify.sh, que o
 # usa para o conferidor e os testes do harness (o contract-view.sh o usa para o renderizador).
 #
 #   scripts/node-in-api.sh <argumentos do node>...

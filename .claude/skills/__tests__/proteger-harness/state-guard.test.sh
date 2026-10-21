@@ -2,8 +2,8 @@
 #
 # Testes do hook do estado (hooks/state-guard.sh): o que ele nega num comando de shell que lê, grava ou
 # apaga na pasta de estado do harness, pela entrada que o Claude Code entrega a ele (um JSON pela
-# entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam na máquina, como o hook, porque
-# ele usa o `jq`, que o contêiner `api` não tem. Os casos de aceite se ligam aos critérios pelo mapa de testes, e não pelo nome.
+# entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam onde o hook roda, porque
+# ele usa o `jq`. Os casos de aceite se ligam aos critérios pelo mapa de testes, e não pelo nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

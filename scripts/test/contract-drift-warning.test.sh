@@ -8,11 +8,11 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
-source "$HERE/../../../__tests__/helpers.sh"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$HERE/../../.claude/skills/__tests__/helpers.sh"
 
-VERIFY="$ROOT/.claude/skills/verificar/scripts/verify.sh"
+VERIFY="$ROOT/scripts/verify.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -66,6 +66,6 @@ check "$name: o verify.sh lê o comando do desvio do contrato da configuração,
   bash -c 'grep -q "contrato.desvio" "$1" && [[ "$(git config --file "$2" --get contrato.desvio)" == scripts/contract-drift.sh ]]' \
   _ "$VERIFY" "$ROOT/.config/project"
 check "$name: nenhuma app declara mais uma função de desvio" \
-  bash -c '! grep -rq "_contract_drift" "$1"/verify.sh "$1"/verify/' _ "$ROOT/.claude/skills/verificar/scripts"
+  bash -c '! grep -rq "_contract_drift" "$1"/verify.sh "$1"/verify/' _ "$ROOT/scripts"
 
 finish "do aviso de desvio do contrato"

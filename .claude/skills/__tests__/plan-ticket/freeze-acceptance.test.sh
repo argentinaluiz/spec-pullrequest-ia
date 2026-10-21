@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Testes do hook de congelamento do aceite (hooks/freeze-acceptance.sh), pela entrada que o Claude Code entrega
-# a ele (um JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam na máquina, como o
-# hook, porque ele usa o `git` e o `jq`, que o contêiner `api` não tem. Os casos de aceite levam o ID no mapa de testes do ticket, e não no nome.
+# a ele (um JSON pela entrada padrão) e pela decisão que ele devolve (0 libera, 2 nega). Rodam onde o
+# hook roda, porque ele usa o `git` e o `jq`. Os casos de aceite levam o ID no mapa de testes do ticket, e não no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"

@@ -5,7 +5,7 @@
 # `derrubar` derruba o Compose com os volumes e o `portas` imprime as portas do slot. Só o `docker` e a sonda de portas
 # são trocados, pelo modo de teste do harness (HARNESS_TEST=1): programas deste teste, que registram o que receberam ou
 # respondem o que o caso combinou. O contrato do `.env` é o do docs/lld.md, seção 6, "Ambiente local por slot". Rodam na
-# máquina. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
+# máquina. Quem chama é o scripts/verify.sh.
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

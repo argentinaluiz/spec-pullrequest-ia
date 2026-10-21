@@ -3,7 +3,7 @@
 # Acha o mecanismo das skills sem lista à mão, para a verificação completa rodar os testes de todas elas e
 # para a aprovação dela valer só enquanto esse mecanismo não muda. Uma skill com mecanismo tem uma pasta
 # `scripts/` ou `hooks/`. Os testes das skills do kit ficam fora delas, na pasta `__tests__`, uma subpasta por skill e
-# o auxiliar comum na raiz dela; os de uma skill do projeto ficam numa pasta `test/` ao lado dos scripts ou dos hooks:
+# o auxiliar comum na raiz dela; os de uma skill que não é do kit ficam numa pasta `test/` ao lado dos scripts ou dos hooks:
 #
 #   .claude/skills/__tests__/<skill>/*.test.sh|cjs
 #   .claude/skills/<skill>/scripts/test/*.test.sh|cjs
@@ -40,7 +40,7 @@ case "$mode" in
     done | LC_ALL=C sort
     ;;
   *)
-    echo 'Uso: .claude/skills/verificar/scripts/verify/skill-tests.sh sh|cjs|dirs [pasta das skills [pasta de scripts do projeto]]' >&2
+    echo 'Uso: scripts/verify/skill-tests.sh sh|cjs|dirs [pasta das skills [pasta de scripts do projeto]]' >&2
     exit 2
     ;;
 esac

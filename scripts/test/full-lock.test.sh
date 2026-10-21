@@ -7,8 +7,8 @@
 # como o verify.sh. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 state="$(mktemp -d)"
@@ -28,7 +28,7 @@ lock() {
     export CI="$ci"
     FULL_LOCK_FILE="$file"
     # shellcheck source=../full-lock.sh
-    source "$ROOT/.claude/skills/verificar/scripts/full-lock.sh"
+    source "$ROOT/scripts/full-lock.sh"
     "$@"
   )
 }
@@ -98,7 +98,7 @@ check "um CLAUDE_PROJECT_DIR que não é uma pasta deixa a pasta de estado vazia
   env CLAUDE_PROJECT_DIR="$state/nao-existe" bash -c 'source "$HARNESS_DIR_SH" && [[ -z "$HARNESS_DIR" ]]' _ "$ROOT"
 # verify <CI> <argumentos...>: o STATE_ROOT, quando definido, troca a raiz do checkout do estado.
 verify() {
-  CI="$1" CLAUDE_PROJECT_DIR="${STATE_ROOT:-$repo}" GIT_DIR="$repo/.git" GIT_WORK_TREE="$repo" HARNESS_BASE_REF=nao-existe "$ROOT/.claude/skills/verificar/scripts/verify.sh" "${@:2}"
+  CI="$1" CLAUDE_PROJECT_DIR="${STATE_ROOT:-$repo}" GIT_DIR="$repo/.git" GIT_WORK_TREE="$repo" HARNESS_BASE_REF=nao-existe "$ROOT/scripts/verify.sh" "${@:2}"
 }
 
 # Travado: o `full` recusa com 2, antes de tudo, e manda pedir o destravamento ao usuário.
@@ -108,8 +108,8 @@ done
 out="$(verify "" full 2>&1)"
 code=$?
 check "travado, o full sai com 2 @LUI-195-CA2" test "$code" = 2
-check "travado, o full manda parar e pedir ao usuário o \`! .claude/skills/verificar/scripts/verify.sh unlock\`" \
-  bash -c '[[ "$1" == *"! .claude/skills/verificar/scripts/verify.sh unlock"* && "$1" != *"referência"* ]]' _ "$out"
+check "travado, o full manda parar e pedir ao usuário o \`! scripts/verify.sh unlock\`" \
+  bash -c '[[ "$1" == *"! scripts/verify.sh unlock"* && "$1" != *"referência"* ]]' _ "$out"
 
 # Na CI, a trava gravada não recusa: o full segue, e para só na base que não existe.
 out="$(verify true full 2>&1)"

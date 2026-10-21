@@ -23,7 +23,7 @@
 set -uo pipefail
 
 if [[ $# -lt 2 ]]; then
-  echo 'Uso: .claude/skills/verificar/scripts/test/shell-tests.sh <relatório> <suíte>...' >&2
+  echo 'Uso: scripts/test/shell-tests.sh <relatório> <suíte>...' >&2
   exit 2
 fi
 command -v jq >/dev/null || {

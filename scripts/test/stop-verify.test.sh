@@ -8,9 +8,9 @@
 # `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-HOOK="$ROOT/.claude/skills/verificar/hooks/stop-verify.sh"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+HOOK="$ROOT/.claude/hooks/stop-verify.sh"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 for tool in git jq; do
@@ -291,7 +291,7 @@ code=0
 env -u HARNESS_TEST "$HOOK" <<<'{"session_id":"I"}' >"$work/stdout" 2>"$work/stderr" || code=$?
 out="$(cat "$work/stdout")"
 err="$(cat "$work/stderr")"
-expect_stop "sem HARNESS_TEST, o HARNESS_VERIFY é ignorado e o hook usa o .claude/skills/verificar/scripts/verify.sh" 2 "não roda" "lista de apps"
+expect_stop "sem HARNESS_TEST, o HARNESS_VERIFY é ignorado e o hook usa o scripts/verify.sh" 2 "não roda" "lista de apps"
 
 finish "do hook de fim de turno"
 echo "Todos os testes do hook de fim de turno passaram."

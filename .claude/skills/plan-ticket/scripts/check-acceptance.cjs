@@ -10,7 +10,7 @@
 // como a tag desse caso. Reprova a linha cujo ID não está em nenhum aceite, a mal formada e a que liga um caso
 // que não aparece nos relatórios. O formato é o de formatos/mapa-de-testes.md, da skill de plano.
 //
-// Roda no contêiner `api`, sobre o repositório montado (ver o `node_in_api`, no verify.sh da skill verificar):
+// Quem o chama é a verificação do projeto, pelo comando do Node dele, da raiz do repositório:
 //   node check-acceptance.cjs <--required|--optional> - <pasta dos tickets> <vitest|playwright>:<relatório>...
 //   node check-acceptance.cjs --cited - <pasta dos tickets>
 // O `-` é o corpo do PR, que chega pela entrada padrão; a entrada vazia conta como sem corpo. A pasta dos tickets
@@ -20,7 +20,7 @@
 // pasta dos tickets não é lido, e a pasta de trabalho sem ticket (`sem-ticket/<nome>/`), que não tem aceite, passa
 // sem ser notada.
 //
-// O segundo modo só imprime o arquivo de aceite citado na seção, para o verify.sh achar o commit de plano e a pasta
+// O segundo modo só imprime o arquivo de aceite citado na seção, para a verificação achar o commit de plano e a pasta
 // do ticket, e nada quando a seção diz "nenhum", não existe ou não há corpo.
 //
 // O parser do arquivo de aceite (`parseAcceptanceFile`), as marcas (`CHECKS`), o nome do arquivo de aceite e o
