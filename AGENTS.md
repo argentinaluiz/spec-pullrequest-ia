@@ -226,10 +226,10 @@ O Linear é o gerenciador de issues do projeto, acessado pelo servidor MCP `line
 Cada ticket é planejado no início dele, e não na criação dos tickets, e só então implementado.
 
 1. **Planejar:** rode a `/plan-ticket` com o identificador do ticket. Ela escreve o plano e para, sem commit.
-2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano, que traz também a visão legível do contrato e do schema, sem versionar nenhuma das duas; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill.
+2. **Aprovar pela página:** a `/plan-ticket` para com a mensagem proposta do commit de plano e a página de revisão do plano; o usuário lê a página e responde no chat, e só depois da aprovação vem o commit de plano, com essa mensagem. O passo a passo e as abas da página estão na skill.
 3. **Implementar:** numa sessão nova, a partir do commit de plano e do arquivo de aceite, com a skill `tdd`. Os seams e a lista de testes já vêm do plano. Num ticket sem critério de teste, como o de design, não há `tdd`: cada critério é entregue como o cenário dele descreve, e a definição de pronto só vale se o ticket alterar código.
 
-**Os formatos são da skill.** A skill de plano, em `.claude/skills/plan-ticket/`, é a dona dos formatos do plano: o ID e a marca do critério, o arquivo de aceite e a tag do ID no teste (`formatos/aceite.md`), a mensagem do commit de plano (`formatos/mensagem.md`) e o contrato de rota e de tabela, com a saída do comando do contrato (`formatos/contrato.md`). Siga-os; aqui fica só o que é deste projeto.
+**Os formatos são da skill.** Os do plano (o critério, o arquivo de aceite, a tag do ID no teste, a mensagem do commit de plano e o contrato de rota e de tabela) estão em `.claude/skills/plan-ticket/formatos/`. Siga-os; aqui fica só o que é deste projeto.
 
 **Valores das skills do ticket**
 
@@ -243,17 +243,15 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 
 Os valores da `/revisao-conformidade`:
 
-- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
 - **Base:** a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`). O script dos insumos, `.claude/skills/revisao-conformidade/scripts/review-inputs.sh`, não lê a variável: passe `--base "${HARNESS_BASE_REF:-origin/main}"`.
 - **Código que pede revisão:** toda mudança no código em `apps/`, com ou sem ticket, e a mudança no harness (`.claude/hooks/`, `.github/`, `.config/`, a pasta `scripts/` da raiz, os scripts e os hooks das skills) de um ticket com aceite. Uma mudança só de documento não pede revisão.
 - **Revisor:** `revisor-conformidade`, instalado em `.claude/agents/revisor-conformidade.md`: a cópia do modelo da skill (`revisor.md`) com o cabeçalho do agente e a ferramenta do Linear. Um teste confere que a cópia é o modelo.
 - **Desvio do contrato:** `scripts/contract-drift.sh`, que mostra o desvio do snapshot e do schema desde o commit de plano e só avisa (a entrada e a saída estão no cabeçalho). É também o que o aviso do modo completo da verificação chama.
 
-Os valores do `/worktree` moram em `.config/worktree`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`: a `HARNESS_BASE_REF`, com `origin/main` por padrão (`.claude/skills/worktree/scripts/harness-base.sh`); os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
+Os valores do `/worktree` moram em `.config/worktree`, e não nesta lista (ver "Configuração do projeto", em "Skills do ticket"). A base é a mesma da `/revisao-conformidade`; os status do Linear, o tipo da branch e a pasta dos tickets valem o padrão da skill.
 
 Os valores da `/implement`:
 
-- **Pasta dos tickets:** a mesma da `/plan-ticket`, `docs/tickets`.
 - **Código que pede revisão:** o da `/revisao-conformidade`, acima.
 - **Verificação completa:** a chave `verificacao.completa` do `.config/worktree`.
 
@@ -266,9 +264,9 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 
 **Neste projeto**
 
-- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe. A lista de arquivos e interfaces e a mudança de dados (seed, backfill) ficam na mensagem do commit de plano, como diz a skill em `formatos/mensagem.md`.
+- **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da skill se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
 - **Congelamento:** o agente não altera um arquivo de aceite já em commit. Um hook da skill de plano (`.claude/skills/plan-ticket/hooks/freeze-acceptance.sh`) nega a edição pelo agente, e a guarda do harness avisa no PR quando um aceite existente muda. O mapa de testes do ticket não é congelado.
-- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os dois relatórios JSON, o do Vitest e o do Playwright, trazem as tags de cada teste. O `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor: um ID que não está em nenhum arquivo de aceite reprova. Um teste de skill de uso geral não leva o ID de um critério deste projeto: a ligação dele com o critério vai para o mapa de testes do ticket (`mapa-de-testes.txt` na pasta do ticket, formato em `formatos/mapa-de-testes.md` da skill de plano). Os testes em shell do harness também provam critério: como nomear o caso e onde fica o relatório está no cabeçalho de `.claude/skills/verificar/scripts/test/sh-helpers.sh`.
+- **Cobertura:** a CI confere o ID na tag do teste, como descrito em "Aceite no pull request". O ID vai na tag, e não no título, porque os relatórios JSON do Vitest e do Playwright trazem as tags de cada teste; o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID é o conferidor. Um teste de skill de uso geral não leva o ID de um critério deste projeto: a ligação dele com o critério vai para o mapa de testes do ticket (`mapa-de-testes.txt` na pasta do ticket, formato em `formatos/mapa-de-testes.md` da skill de plano). Os testes em shell do harness também provam critério; como nomear o caso está no cabeçalho de `.claude/skills/verificar/scripts/test/sh-helpers.sh`.
 
 ## Skills do ticket
 
