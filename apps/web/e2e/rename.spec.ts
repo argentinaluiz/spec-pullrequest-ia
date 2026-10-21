@@ -111,11 +111,11 @@ test(
     await page.reload();
 
     await rowOf(page, "Fotos").getByRole("button", { name: "Mais ações" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Renomear"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Renomear", "Mover para…"]);
     await page.keyboard.press("Escape");
 
     await rowOf(page, "relatorio.txt").getByRole("button", { name: "Mais ações" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Baixar", "Renomear"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Baixar", "Renomear", "Mover para…"]);
     await expect(page.getByRole("menuitem", { name: "Excluir" })).toHaveCount(0);
   },
 );

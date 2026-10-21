@@ -71,6 +71,13 @@ export function itemRoutes(app: INestApplication<App>) {
     );
   };
 
+  /** `PATCH /items/{id}` com o novo pai, com o token de acesso no cabeçalho quando ele é passado. */
+  const move = (
+    id: string,
+    accessToken: string | undefined,
+    parentId: string,
+  ) => rename(id, accessToken, { parentId });
+
   /**
    * O id da Pasta raiz do Usuário. Ela nasce pelo caminho real, a primeira
    * listagem pelo atalho `root`, e só então é lida no banco.
@@ -125,6 +132,7 @@ export function itemRoutes(app: INestApplication<App>) {
     get,
     createFolder,
     rename,
+    move,
     rootId,
     seed,
   };

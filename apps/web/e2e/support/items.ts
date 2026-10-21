@@ -80,6 +80,28 @@ export async function seedFolder(
   return id;
 }
 
+/** Grava pastas ativas irmãs, dentro de `parentId`, e devolve os ids delas na ordem recebida. */
+export async function seedFoldersIn(
+  email: string,
+  parentId: string,
+  names: string[],
+): Promise<string[]> {
+  return withDatabase(async (client) => {
+    const { ownerId } = await findFolderOwner(client, email);
+    const ids: string[] = [];
+    for (const name of names) {
+      const id = randomUUID();
+      ids.push(id);
+      await client.query(
+        `INSERT INTO items (id, owner_id, parent_id, type, name, status, updated_at)
+         VALUES ($1, $2, $3, 'folder', $4, 'active', now())`,
+        [id, ownerId, parentId, name],
+      );
+    }
+    return ids;
+  });
+}
+
 /** Grava uma cadeia de pastas, cada uma dentro da anterior, e devolve os ids, do topo ao fim. */
 export async function seedFolderChain(
   email: string,

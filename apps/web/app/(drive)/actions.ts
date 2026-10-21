@@ -6,7 +6,7 @@ import { toFileRow } from "@/components/files/format";
 import type { LoadMoreResult } from "@/components/files/load-more";
 import * as authApi from "@/lib/api/auth";
 import { errorMessage } from "@/lib/api/error-messages";
-import type { ApiResult } from "@/lib/api/types";
+import type { ApiResult, ItemTrailEntry } from "@/lib/api/types";
 import { completeFailureReason } from "@/lib/uploads/complete-failure";
 import type {
   CancelUploadResult,
@@ -15,7 +15,13 @@ import type {
   StartUploadInput,
   StartUploadResult,
 } from "@/lib/uploads/types";
-import { createFolder as makeFolder, getFolderItems, renameItem as changeName } from "@/lib/dal/items";
+import {
+  createFolder as makeFolder,
+  getFolder,
+  getFolderItems,
+  moveItem as relocateItem,
+  renameItem as changeName,
+} from "@/lib/dal/items";
 import {
   discardUpload,
   finishUpload,
@@ -150,6 +156,71 @@ export async function renameItem(
   return runNameAction(id, name, "Informe um nome.", (itemId, n) =>
     changeName(itemId, { name: n }),
   );
+}
+
+/** Um nível do seletor de "Mover para…": as pastas dele e, na primeira página, o caminho até ele. */
+export type MoveLevelResult =
+  | {
+      ok: true;
+      /** Do topo, "Meus arquivos", até o nível. Nulo nas páginas seguintes, que só trazem pastas. */
+      trail: ItemTrailEntry[] | null;
+      folders: ItemTrailEntry[];
+      nextCursor: string | null;
+    }
+  | { ok: false; message: string };
+
+/**
+ * Um nível do seletor de "Mover para…" (`root` ou o id de uma pasta): as pastas dele, sem os
+ * arquivos, e o caminho até ele. Com `cursor`, só a página seguinte das pastas.
+ */
+export async function loadMoveLevel(
+  folderId: string,
+  cursor?: string,
+): Promise<MoveLevelResult> {
+  const parsedFolder = itemIdSchema.safeParse(folderId);
+  const parsedCursor = cursor === undefined ? undefined : cursorSchema.safeParse(cursor);
+  if (!parsedFolder.success || (parsedCursor && !parsedCursor.success)) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const [folder, page] = await Promise.all([
+    parsedCursor ? null : getFolder(parsedFolder.data),
+    getFolderItems(parsedFolder.data, parsedCursor?.data, true),
+  ]);
+  if (folder && !folder.ok) {
+    return { ok: false, message: errorMessage(folder.error.code) };
+  }
+  if (!page.ok) {
+    return { ok: false, message: errorMessage(page.error.code) };
+  }
+  return {
+    ok: true,
+    trail: folder?.ok ? folder.data.trail : null,
+    folders: page.data.items.map(({ id, name }) => ({ id, name })),
+    nextCursor: page.data.nextCursor,
+  };
+}
+
+/** O que o "Mover" devolve ao diálogo: o Item movido ou o erro, em português. */
+export type MoveItemResult = { ok: true } | { ok: false; message: string };
+
+/**
+ * Move um Item (pasta ou arquivo) para `parentId` (`root` ou o id de uma pasta). É uma Server
+ * Action, um endpoint público: os ids são conferidos aqui, e a Sessão, pela chamada à API.
+ */
+export async function moveItem(
+  id: string,
+  parentId: string,
+): Promise<MoveItemResult> {
+  const parsedId = itemIdSchema.safeParse(id);
+  const parsedParent = itemIdSchema.safeParse(parentId);
+  if (!parsedId.success || !parsedParent.success) {
+    return { ok: false, message: errorMessage("validation_error") };
+  }
+  const result = await relocateItem(parsedId.data, parsedParent.data);
+  if (!result.ok) {
+    return { ok: false, message: errorMessage(result.error.code) };
+  }
+  return { ok: true };
 }
 
 /** A Server Action é um endpoint público: o que vem do navegador é conferido antes de ir à API. */

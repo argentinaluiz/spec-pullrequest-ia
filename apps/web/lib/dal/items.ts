@@ -26,8 +26,11 @@ import { withSession } from "@/lib/dal/session";
 export function getFolderItems(
   folderId: string,
   cursor?: string,
+  foldersOnly = false,
 ): Promise<ApiResult<ItemPage>> {
-  return withSession((token) => listChildren(token, folderId, cursor));
+  return withSession((token) =>
+    listChildren(token, folderId, cursor, foldersOnly),
+  );
 }
 
 /** A pasta e o caminho do topo até ela, ou `not_found`. */
@@ -46,6 +49,11 @@ export function renameItem(
   input: UpdateItemInput,
 ): Promise<ApiResult<Item>> {
   return withSession((token) => updateItem(token, id, input));
+}
+
+/** Move um Item do Usuário da Sessão para a pasta `parentId` (`root` ou o id de uma pasta). */
+export function moveItem(id: string, parentId: string): Promise<ApiResult<Item>> {
+  return withSession((token) => updateItem(token, id, { parentId }));
 }
 
 /** A URL assinada de download de um arquivo do Usuário da Sessão. */

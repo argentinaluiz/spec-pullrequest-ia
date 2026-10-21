@@ -17,6 +17,7 @@ import {
   NewPendingFile,
 } from './entities/item.entity.js';
 import { InputValidationError } from '../../common/errors/input-validation.error.js';
+import { InvalidMoveError } from './errors/invalid-move.error.js';
 import { ItemNotFoundError } from './errors/item-not-found.error.js';
 import { MaxDepthExceededError } from './errors/max-depth-exceeded.error.js';
 import { decodeItemCursor, encodeItemCursor } from './item-cursor.js';
@@ -139,6 +140,54 @@ export class ItemsService {
           { field: 'id', messages: ['A Pasta raiz não pode ser renomeada.'] },
         ]);
       case 'not_found':
+        throw new ItemNotFoundError();
+    }
+  }
+
+  /**
+   * Muda o nome, o pai, ou os dois, de um Item ativo do Usuário. Sem nenhum
+   * dos campos, é entrada inválida.
+   */
+  async update(
+    ownerId: string,
+    id: string,
+    changes: { name?: string; parentId?: string },
+  ): Promise<Item> {
+    if (changes.parentId !== undefined) {
+      return this.move(ownerId, id, changes.parentId, changes.name);
+    }
+    if (changes.name === undefined) {
+      throw new InputValidationError([
+        { field: 'name', messages: ['name ou parentId é obrigatório.'] },
+      ]);
+    }
+    return this.rename(ownerId, id, changes.name);
+  }
+
+  /**
+   * Move um Item ativo do Usuário para `parentId` (`root` ou uma pasta ativa
+   * do Usuário), renomeando-o junto se vier um `name`.
+   */
+  private async move(
+    ownerId: string,
+    id: string,
+    parentId: string,
+    name?: string,
+  ): Promise<Item> {
+    const result = await this.items.moveActive(ownerId, {
+      id: await this.folderIdOf(ownerId, id),
+      parentId: await this.folderIdOf(ownerId, parentId),
+      name,
+    });
+    switch (result.status) {
+      case 'moved':
+        return result.item;
+      case 'cycle':
+        throw new InvalidMoveError();
+      case 'too_deep':
+        throw new MaxDepthExceededError();
+      case 'item_not_found':
+      case 'destination_not_found':
         throw new ItemNotFoundError();
     }
   }
