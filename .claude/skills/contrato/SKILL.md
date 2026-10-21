@@ -3,7 +3,7 @@ name: contrato
 description: "The contract of this project (the OpenAPI snapshot and the Prisma schema) as two commands: the readable view of the contract and the schema between two points of Git, and the drift since the plan commit. Use to read what a change does to the contract, to draw the contract of a plan, or to see the drift of a branch."
 ---
 
-The skill of this project that holds how the contract and the schema are read. The contract is the OpenAPI snapshot (`apps/api/openapi.json`), which owns the routes, and the schema of Prisma (`apps/api/prisma/schema.prisma`), which owns the tables that exist. Both are commands, run from any folder (they go to the root of the repository), and both need the `docker` on the machine (the oasdiff). The view needs the `api` container up (the Node runs in it, through `/ambiente`), and the drift needs it only to build the view.
+The skill of this project that holds how the contract and the schema are read. The contract is the OpenAPI snapshot (`apps/api/openapi.json`), which owns the routes, and the schema of Prisma (`apps/api/prisma/schema.prisma`), which owns the tables that exist. Both are commands, run from any folder (they go to the root of the repository), and both need the `docker` on the machine (the oasdiff). The view needs the `api` container up (the Node runs in it, through `scripts/node-in-api.sh` of the root), and the drift needs it only to build the view.
 
 ## The view
 

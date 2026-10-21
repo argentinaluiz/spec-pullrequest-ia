@@ -9,7 +9,7 @@
 # por slot: o frente-ambiente.sh aceita os slots de 0 a 3 (docs/lld.md, seção 6), então subir daqui de 3 pede mudar lá.
 [frentes]
 	limite = 3
-	ambiente = .claude/skills/ambiente/scripts/frente-ambiente.sh
+	ambiente = scripts/frente-ambiente.sh
 
 # Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. O tipo é a
 # chave e o caminho é o valor, que aceita `*` (casa também as barras). Vale o primeiro padrão que casa, na ordem

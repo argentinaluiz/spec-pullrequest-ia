@@ -48,6 +48,24 @@ check "uma pasta de skills que não existe não acha nada @LUI-194-CA5" \
 "$FINDER" xyz "$skills" >/dev/null 2>&1
 check "o modo desconhecido sai com o código 2 @LUI-194-CA5" exits_with $? 2
 
+# A pasta de scripts do projeto, dada como terceiro argumento: seus testes (em `test/`, ao lado dos scripts) entram na busca
+# junto com os das skills, e ela entra na lista das pastas de mecanismo. Sem o argumento, a busca só olha as skills.
+project="$tmp/zprojeto"
+mkdir -p "$project/test/fundo" "$tmp/vazia/test"
+printf '#!/usr/bin/env bash\necho "ok: caso do projeto"\n' >"$project/test/do-projeto.test.sh"
+echo 'test("p", () => {});' >"$project/test/do-projeto.test.cjs"
+echo 'x' >"$project/test/helpers.sh"
+echo 'x' >"$project/test/fundo/dentro.test.sh"
+echo 'x' >"$project/mecanismo.sh"
+check "a busca acha também os testes em shell da pasta de scripts do projeto, quando ela é dada" \
+  equals "$("$FINDER" sh "$skills" "$project")" "$skills/a/scripts/test/passa.test.sh"$'\n'"$skills/b/hooks/test/falha.test.sh"$'\n'"$project/test/do-projeto.test.sh"
+check "a busca acha também os testes em Node da pasta de scripts do projeto" \
+  equals "$("$FINDER" cjs "$skills" "$project")" "$skills/d/scripts/test/no.test.cjs"$'\n'"$project/test/do-projeto.test.cjs"
+check "a pasta de scripts do projeto entra na lista das pastas de mecanismo, e a vazia ou que não existe não entra" \
+  equals "$("$FINDER" dirs "$skills" "$project")" "$skills/a/scripts"$'\n'"$skills/b/hooks"$'\n'"$skills/d/scripts"$'\n'"$project"
+check "a pasta de scripts do projeto sem arquivo ou que não existe não entra em nenhuma busca" \
+  equals "$("$FINDER" dirs "$skills" "$tmp/vazia")$("$FINDER" sh "$tmp/nao-existe" "$tmp/nao-existe")" "$skills/a/scripts"$'\n'"$skills/b/hooks"$'\n'"$skills/d/scripts"
+
 # O executor, com os testes que a busca achou: o que falha reprova, e sem ele aprova.
 mapfile -t all <<<"$found"
 "$RUNNER" "$tmp/reprovado.json" "${all[@]}" >/dev/null 2>&1
@@ -61,5 +79,12 @@ uses_finder_in_both_groups() {
   grep -q 'skill-tests.sh cjs' "$ROOT/.claude/skills/verificar/scripts/verify.sh" && grep -q 'skill-tests.sh sh' "$ROOT/.claude/skills/verificar/scripts/verify.sh"
 }
 check "o full do projeto usa a busca nos testes em Node e nos em shell @LUI-194-CA5" uses_finder_in_both_groups
+
+# A verificação dá a pasta de scripts do projeto à busca nas três chamadas (testes em shell, em Node e pastas vigiadas).
+gives_the_project_folder() {
+  [[ "$(grep -c 'skill-tests.sh \(sh\|cjs\|dirs\) .*"\$PROJECT_SCRIPTS"' "$ROOT/.claude/skills/verificar/scripts/verify.sh")" -ge 3 ]] &&
+    grep -q '^PROJECT_SCRIPTS=scripts$' "$ROOT/.claude/skills/verificar/scripts/verify.sh"
+}
+check "o full do projeto dá a pasta de scripts da raiz à busca nos três usos" gives_the_project_folder
 
 finish "da busca dos testes das skills"

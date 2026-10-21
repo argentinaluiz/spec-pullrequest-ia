@@ -8,11 +8,11 @@
 # máquina. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
-AMBIENTE="$ROOT/.claude/skills/ambiente/scripts/frente-ambiente.sh"
+AMBIENTE="$ROOT/scripts/frente-ambiente.sh"
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 

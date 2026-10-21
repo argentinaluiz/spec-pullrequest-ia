@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# Teste do Node no contêiner (.claude/skills/ambiente/scripts/node-in-api.sh), que é o comando do Node deste projeto: o `docker` é trocado
+# Teste do Node no contêiner (scripts/node-in-api.sh), que é o comando do Node deste projeto: o `docker` é trocado
 # por um falso, que registra os argumentos e a entrada padrão que recebe e responde o que o caso combinou, então nenhum
 # contêiner entra no caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
-NODE="$ROOT/.claude/skills/ambiente/scripts/node-in-api.sh"
+NODE="$ROOT/scripts/node-in-api.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
@@ -48,7 +48,7 @@ name="o Node roda no contêiner pelo caminho novo, repassa a entrada e diz como 
 
 run_node 'entrada do Node' scripts/x.cjs - docs/tickets
 check "$name: chama o node no contêiner api, na raiz /repo, com os argumentos como estão" \
-  grep -qF -- "compose -f $ROOT/.claude/skills/ambiente/scripts/../../../../compose.dev.yaml exec -T -w /repo api node scripts/x.cjs - docs/tickets" "$tmp/args"
+  grep -qF -- "compose -f $ROOT/scripts/../compose.dev.yaml exec -T -w /repo api node scripts/x.cjs - docs/tickets" "$tmp/args"
 check "$name: repassa a entrada padrão ao Node" test "$(cat "$tmp/stdin")" = 'entrada do Node'
 check "$name: sai com 0 quando o Node sai com 0" test "$code" -eq 0
 

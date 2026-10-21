@@ -6,13 +6,13 @@
 # digitar opção nenhuma. Rodam na máquina. Os casos levam a tag do critério de aceite no nome.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 CORE="$ROOT/.claude/skills/worktree/scripts/frentes.sh"
 CONFIG="$ROOT/.config/worktree"
-ENV_COMMAND=.claude/skills/ambiente/scripts/frente-ambiente.sh
+ENV_COMMAND=scripts/frente-ambiente.sh
 work="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 name="o arquivo de configuração do projeto dá ao núcleo os valores deste projeto, sem a pessoa digitar opção @LUI-199-CA6"
