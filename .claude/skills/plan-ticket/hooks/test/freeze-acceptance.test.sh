@@ -77,6 +77,10 @@ expect 0 "libera a edição do mapa de testes de um ticket que já tem aceite em
 other="planos/PROJ-100/PROJ-1"
 mkdir -p "$project/$other"
 echo congelado >"$project/$other/aceite.md"
+# O formato da skill de plano também se chama aceite.md, mas não está na pasta de um ticket.
+format=".claude/skills/plan-ticket/formatos/aceite.md"
+mkdir -p "$project/${format%/*}"
+echo formato >"$project/$format"
 git -C "$project" add -A
 git -C "$project" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m "outra pasta" || exit 2
 
@@ -99,5 +103,12 @@ freeze_case() {
   want 2 "$t/aceite.md" && want 2 "$other/aceite.md"
 }
 check "nega editar o aceite em commit, em qualquer pasta e com qualquer configuração, e libera o mapa de testes" freeze_case
+
+# Só o aceite de um ticket fica congelado: o arquivo do formato, em commit, continua livre, também na entrada ilegível.
+format_case() {
+  want 0 "$format" || return 1
+  printf 'isto não é json %s' "$format" | "$HOOK" >/dev/null 2>&1 || { echo "  a entrada ilegível com o formato foi negada" >&2; return 1; }
+}
+check "libera o formato da skill de plano, que também se chama aceite.md" format_case
 
 finish "do hook"
