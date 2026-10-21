@@ -108,7 +108,7 @@ usage() {
   exit 2
 }
 
-# Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node, da pasta de scripts da raiz, que o grupo da API
+# Os caminhos do contrato (o snapshot da OpenAPI e o schema do Prisma) e o comando do Node (`scripts/node-in-api.sh`), que o grupo da API
 # também carrega.
 # shellcheck source=../../../scripts/contract-lib.sh
 source scripts/contract-lib.sh

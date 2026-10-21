@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Teste do comando do desvio do contrato (scripts/contract-drift.sh): o desvio desde o commit de plano, que só avisa. O
-# comando roda numa cópia da skill num repositório temporário, com o `docker` trocado por um falso (o oasdiff compara os
+# comando roda numa cópia dos scripts num repositório temporário, com o `docker` trocado por um falso (o oasdiff compara os
 # snapshots como o caso combinou, e o Node no contêiner devolve o Markdown de mentira), então nenhum contêiner entra no
 # caso. Roda na máquina. O caso leva a tag do critério de aceite no nome.
 
