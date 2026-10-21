@@ -142,7 +142,7 @@ O Figma é a ferramenta de design do projeto, acessada pelo servidor MCP do plug
 
 Uma mudança no código está pronta quando:
 
-1. O `.claude/skills/verificar/scripts/verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no cabeçalho e nos grupos de `.claude/skills/verificar/scripts/verify.sh`.
+1. O `verify.sh full` aprova. Ele é a definição de "passou": tipos, lint, todas as suítes, o build da web, o aceite e os segredos. O que cada passo confere está no cabeçalho do script.
 2. Em mudança de interface, a validação visual descrita em `docs/design-system.md` foi feita. É a única exigência que o script não confere.
 
 Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
@@ -151,15 +151,13 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 .claude/skills/verificar/scripts/verify.sh full
 ```
 
-- **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos de um arquivo ou de um teste do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `.claude/skills/verificar/scripts/verify.sh fast`. O `.claude/skills/verificar/scripts/verify.sh full <app>` continua no script, mas não é o feedback do dia a dia.
-- **O `full` roda uma vez, no fim da tarefa,** depois do commit do trabalho e do `/worktree sincronizar`, e quem o roda é quem fecha a tarefa. No fluxo de ticket, é a sessão do ticket, na frente, e nunca um subagente, depois da `/simplify`, da `/code-review` e da revisão de conformidade (ver "Revisão de conformidade"). Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
-- **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `.claude/skills/verificar/scripts/verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
-- **Subagente não roda o `full`.** Se você recebeu a tarefa de outro agente (implementar, corrigir achados, revisar), termine com os testes do que mudou e devolva o resultado, dizendo o que rodou: o `full` é de quem o chamou, mesmo que a tarefa pareça terminada.
+- **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `verify.sh fast`.
+- **O `full` roda uma vez, no fim da tarefa,** depois das revisões (a ordem está em "Revisão de conformidade"). Quem o roda é quem fecha a tarefa: no fluxo de ticket, a sessão do ticket, na frente, e nunca um subagente. Quem recebeu a tarefa de outro agente (implementar, corrigir achados, revisar) termina com os testes do que mudou e devolve o resultado, dizendo o que rodou. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
+- **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
 - **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
-- **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request. Passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta.
+- **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request, então passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta. Depois de duas reprovações da CI no mesmo PR, pare e avise o usuário, em vez de tentar a terceira correção.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
-- **Depois de duas reprovações da CI no mesmo PR, pare** e avise o usuário, em vez de tentar a terceira correção.
 
 **Antes do push**
 
@@ -170,35 +168,25 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`), na pasta `scripts/` da raiz ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, os scripts e os hooks do harness e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
 
-Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Aceite`, que diz qual arquivo de aceite o PR cumpre:
+Todo pull request que altera código em `apps/` traz, no corpo, a seção `## Aceite`, com uma destas duas linhas:
 
-```markdown
-## Aceite
+- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano: `docs/tickets/<issue>/<ticket>/aceite.md`.
+- **Sem aceite novo:** `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
 
-docs/tickets/<issue>/<ticket>/aceite.md
-```
+A CI confere, em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket, que todo critério com marca de teste tem um teste com o ID numa tag (ou ligado a ele pelo mapa de testes do ticket) que rodou e passou, e que nenhum teste cita um ID inexistente ou foi pulado. Critério com marca de revisão humana ou de documento não exige teste. O resto está no cabeçalho do `check-acceptance.cjs`.
 
-- **Com ticket:** o caminho do arquivo de aceite do ticket, criado pelo commit de plano: `docs/tickets/<issue>/<ticket>/aceite.md`. Os critérios e os testes não se repetem no PR.
-- **Sem aceite novo:** escreva `nenhum` seguido do motivo, como "nenhum: refatoração sem mudança de comportamento". Vale para refatoração, mudança no harness e documento.
-- **O que a CI confere,** em todos os arquivos de aceite de `docs/tickets/` e não só no do ticket: todo critério com marca de teste tem ao menos um teste com o ID numa tag, ou ligado a ele por uma linha do mapa de testes do ticket, que rodou e passou; o teste que ainda traz o ID no título e não tem tag reprova; nenhum teste cita um ID que não está num arquivo de aceite; nenhum teste com ID foi pulado; o arquivo citado existe. Critério com marca de revisão humana ou de documento não exige teste.
-- **Critério sem teste:** escreva o teste, com o ID numa tag (formato em `.claude/skills/plan-ticket/formatos/aceite.md`, seção "Teste de aceite"). Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
-
-O aceite é conferido na máquina antes do push, como descrito em "Antes do push".
+**Critério sem teste:** escreva o teste, com o ID numa tag (formato em `.claude/skills/plan-ticket/formatos/aceite.md`, seção "Teste de aceite"). Não cite um teste que não tenha relação com o critério: a CI só prova que ele existe e passou, e quem julga se ele prova o critério é o revisor.
 
 **Revisão de conformidade**
 
-Quem escreveu o código não é quem o confere. Toda mudança que altera o código que pede revisão (o valor de mesmo nome da lista "Valores das skills do ticket": o código em `apps/` e, em ticket com aceite, o harness) passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado: o aceite, os testes contra os cenários, o contrato e o schema contra o commit de plano e os documentos donos. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
+Quem escreveu o código não é quem o confere. Toda mudança que altera o "Código que pede revisão" (valor da lista "Valores das skills do ticket") passa pelo subagente `revisor-conformidade`, que não viu a implementação e confere se ela entrega o que foi planejado. O que ele confere está no `REVIEW.md` da raiz, que o Copilot e o Claude Code Review também leem no PR. Os defeitos gerais de código ficam com a `/code-review`, e uma revisão feita na mesma sessão que escreveu o código não substitui esta.
 
-No fluxo do ticket, ela vem depois do `/worktree sincronizar`, da `/simplify` e da `/code-review`, e antes do `full`, para as revisões verem o resultado do merge e as correções entrarem na única verificação completa: implementação, commit, `/worktree sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. Como preparar a revisão, chamar o subagente, tratar os achados e publicar o comentário está na skill `revisao-conformidade`.
-
-Os comandos de teste, de lint e de formatação de cada projeto estão no `AGENTS.md` dele.
-
-Rode todos eles dentro do contêiner do projeto, como descrito em [Execução no Docker](#execução-no-docker).
+No fluxo do ticket, a ordem é: implementação, commit, `/worktree sincronizar`, `/simplify`, `/code-review`, revisão de conformidade, correções, `full` e push. A revisão vem depois da sincronização e das outras revisões para ver o resultado do merge, e antes do `full` para as correções entrarem na única verificação completa. Ela não é um gate mecânico: não impede o `full` nem o PR, todo achado, corrigido ou não, vai para um comentário no PR, e a decisão sobre o que ficou sem corrigir é do usuário no merge. A exceção é o achado de severidade alta que o agente não corrigiria: ele pergunta ao usuário antes de seguir. O passo a passo está na skill `revisao-conformidade`.
 
 ## Issues e tickets no Linear
 
