@@ -75,11 +75,16 @@ export function MoveDialog({ id, loadLevel, move, onClose }: MoveDialogProps) {
         setError(result.message);
         return;
       }
-      setLevel({
-        ...current,
-        folders: [...current.folders, ...result.folders],
-        nextCursor: result.nextCursor,
-      });
+      // Se a pessoa já abriu outro nível, a página que chegou atrasada não é dele.
+      setLevel((now) =>
+        now?.trail.at(-1)?.id === folderId
+          ? {
+              ...now,
+              folders: [...now.folders, ...result.folders],
+              nextCursor: result.nextCursor,
+            }
+          : now,
+      );
     });
   }
 

@@ -151,17 +151,20 @@ export class ItemsService {
   async update(
     ownerId: string,
     id: string,
-    changes: { name?: string; parentId?: string },
+    changes: { name?: string | null; parentId?: string | null },
   ): Promise<Item> {
-    if (changes.parentId !== undefined) {
-      return this.move(ownerId, id, changes.parentId, changes.name);
+    // Um `null` no JSON passa pelo `@IsOptional()` do DTO: vale como campo ausente.
+    const name = changes.name ?? undefined;
+    const parentId = changes.parentId ?? undefined;
+    if (parentId !== undefined) {
+      return this.move(ownerId, id, parentId, name);
     }
-    if (changes.name === undefined) {
+    if (name === undefined) {
       throw new InputValidationError([
         { field: 'name', messages: ['name ou parentId é obrigatório.'] },
       ]);
     }
-    return this.rename(ownerId, id, changes.name);
+    return this.rename(ownerId, id, name);
   }
 
   /**

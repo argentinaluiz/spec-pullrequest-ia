@@ -249,7 +249,10 @@ export class ItemsRepository {
         return { status: 'moved', item: toItem(fields) };
       }
       // O caminho do destino traz a raiz, que não conta como nível.
-      const height = await this.subtreeHeight(ownerId, move.id, tx);
+      const height =
+        current.type === 'file'
+          ? 0
+          : await this.subtreeHeight(ownerId, move.id, tx);
       if (path.length - 1 + height > MAX_FOLDER_DEPTH) {
         return { status: 'too_deep' };
       }

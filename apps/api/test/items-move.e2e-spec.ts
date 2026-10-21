@@ -379,5 +379,20 @@ describe('Mover Itens', () => {
         }
       },
     );
+
+    it('trata um null no corpo como campo ausente', async () => {
+      const { accessToken, userId, rootId } = await signedInUser();
+      const [folderId] = await items.seed(userId, rootId, [
+        { name: 'Fotos', type: 'folder' },
+      ]);
+
+      const response = await items.rename(folderId, accessToken, {
+        name: null,
+        parentId: null,
+      });
+
+      expect(response.status).toBe(400);
+      expect((response.body as { code: string }).code).toBe('validation_error');
+    });
   });
 });
