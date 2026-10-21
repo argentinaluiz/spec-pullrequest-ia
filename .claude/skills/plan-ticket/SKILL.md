@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 Plan one ticket, passed as an identifier (for example `PROJ-123`). The plan exists so a human approves how each criterion will be proved before code exists. That is why you stop at the end without committing, and why you never edit an acceptance file that is already committed.
 
-This skill owns the plan formats, in its `formatos/` folder: the criterion and the acceptance file (`formatos/aceite.md`), the plan commit message (`formatos/mensagem.md`), and the route and table contract, with the output of the contract command (`formatos/contrato.md`). The project owns its values, declared in its `AGENTS.md` in the list "Valores das skills do ticket", and the rules around the plan (who unfreezes, how the plan is checked). Read the project's `AGENTS.md` first and follow it where it adds to this skill.
+This skill owns the plan formats, in its `formatos/` folder: the criterion and the acceptance file (`formatos/aceite.md`), the plan commit message (`formatos/mensagem.md`), and the route and table contract, with the output of the contract command (`formatos/contrato.md`). The project owns its values, declared in its agent instructions file, in the list "Valores das skills do ticket", and the rules around the plan (who unfreezes, how the plan is checked). Read the project's agent instructions file first and follow it where it adds to this skill.
 
 This skill also owns the pieces that depend on those formats, which live in its folder: the acceptance checker (`scripts/check-acceptance.cjs`), the freeze hook (`hooks/freeze-acceptance.sh`) and the test map (`formatos/mapa-de-testes.md`). See "The test map" below.
 
@@ -14,7 +14,7 @@ The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash
 
 ## Steps
 
-0. **Project values.** Read, in the project's `AGENTS.md`, the list "Valores das skills do ticket", the entries of this skill. The skill uses these values, and each has a default for when the list does not give it:
+0. **Project values.** Read, in the project's agent instructions file, the list "Valores das skills do ticket", the entries of this skill. The skill uses these values, and each has a default for when the list does not give it:
 
    | Value | Default | Used in |
    | --- | --- | --- |
@@ -24,7 +24,7 @@ The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash
    | Contract command | `nenhum` | steps 4 and 5.3: the readable view of the contract |
    | Contract files | `nenhum` | steps 4 and 5.3: the files that own the contract |
 
-   Say in the chat which values came from the default, in one line. A value that is `nenhum` skips the step that uses it (no contract command or no contract files: no contract step, and the page says the project declares none; no documents folder: no flag for documents). Ask the user only for a value that has no default, and once agreed, propose the entry for the list in the `AGENTS.md`. The values mean:
+   Say in the chat which values came from the default, in one line. A value that is `nenhum` skips the step that uses it (no contract command or no contract files: no contract step, and the page says the project declares none; no documents folder: no flag for documents). Ask the user only for a value that has no default, and once agreed, propose the entry for the list in the agent instructions file. The values mean:
    - **Node command:** called as `<command> <script> -`, from the repository root, with the script's path relative to it (absolute when the skill folder is outside the repository), the page sources on standard input (their format is in the header of `scripts/page.cjs`), and prints the script's output. `node` when Node runs on the machine; a wrapper when it runs in a container, which must pass standard input through and see the script at that path. A wrapper that only sees the repository does not fit a skill installed outside it: use another Node command there, such as `node` on the machine.
    - **Contract:** the contract command is called as `<command> <from> <to>` with two git points (two commits, or `HEAD` and the index tree), and prints the Markdown of `formatos/contrato.md`; the contract files are the ones that own it (an OpenAPI snapshot, a database schema). A project with routes or tables to plan declares both; one without declares neither.
 
@@ -34,7 +34,7 @@ The scripts are in `scripts/`, in this skill's folder. They need `git` and `bash
 
 3. **Acceptance file.** Create the ticket's acceptance file, where and in the format `formatos/aceite.md` says: an introduction and, for each ID, the check, the scenario (Dado, Quando, Então) and, for test checks, the planned test (layer, file, name). Use the highest seam that proves the criterion and the fewest seams overall. Do not copy the criterion text.
 
-4. **Design.** Write the contract changes straight into the contract files, which own them, and nothing into a parallel document. Every new or changed route and table follows `formatos/contrato.md`, with the project's details from the document its `AGENTS.md` points to. The conventions and what does not exist yet stay in the project's documents. With the contract `nenhum`, skip this step.
+4. **Design.** Write the contract changes straight into the contract files, which own them, and nothing into a parallel document. Every new or changed route and table follows `formatos/contrato.md`, with the project's details from the document its agent instructions file points to. The conventions and what does not exist yet stay in the project's documents. With the contract `nenhum`, skip this step.
 
 5. **Stop.** Do not commit.
    1. Write the proposed plan commit message to `<tickets folder>/<parent>/<ticket>/plano.msg`, in the format of `formatos/mensagem.md`. It is the exact message the commit will get, so write it complete, with the attribution lines the project uses.
