@@ -1,16 +1,16 @@
 # Formato do critério e do arquivo de aceite
 
-A skill de plano é a dona deste formato. A página do plano lê o arquivo de aceite com o parser da skill (`scripts/plan.cjs`), e o conferidor do aceite de um projeto pode importar o mesmo parser. O projeto declara a pasta dos tickets em `tickets.pasta` do `.config/project`.
+A `<pasta dos tickets>` é a da chave `tickets.pasta` do `.config/project`.
 
 ## Critério do ticket
 
-- **ID:** `CA<n>` no ticket, e `<ticket>-CA<n>` fora do gerenciador de issues, como `PROJ-123-CA3`. O identificador do ticket tem a forma `PREFIXO-N`: letras maiúsculas e algarismos, começando por uma letra, um hífen e um número, como `PROJ-123`; o parser e o script da página só reconhecem essa forma. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago.
+- **ID:** `CA<n>` no ticket, e `<ticket>-CA<n>` fora do gerenciador de issues, como `PROJ-123-CA3`. O identificador do ticket tem a forma `PREFIXO-N`: letras maiúsculas e algarismos, começando por uma letra, um hífen e um número, como `PROJ-123`; o parser, o script da página e o hook de congelamento só reconhecem essa forma. O número nunca muda: critério novo pega o próximo, e critério removido deixa o número vago.
 - **Marca de conferência:** teste HTTP, teste no Playwright, teste de unidade, teste de integração, revisão humana ou documento. Só as quatro primeiras são provadas por teste. A definição de pronto do projeto não é critério de ticket.
 - **Formato no ticket:** `- [ ] **CA3** · Texto do critério (teste HTTP).`
 
 ## Arquivo de aceite
 
-- **Onde:** `<pasta dos tickets>/<pai>/<ticket>/aceite.md`, um por ticket, permanente. A pasta do ticket fica dentro da pasta da issue pai dele no gerenciador de issues (`<pai>`, com a forma do identificador do ticket, como `PROJ-1`), que é a mesma da spec que o passo 1 da skill lê e que vai no argumento `--pai` do script da página. É o único arquivo versionado da pasta do ticket, junto com o mapa de testes, se houver (`formatos/mapa-de-testes.md`): o projeto ignora o resto dela (a página do plano, a mensagem proposta e o que mais ele puser ali), e o script da página confere isso, na profundidade `<pasta dos tickets>/<pai>/<ticket>/`. O texto do critério fica só no ticket.
+- **Onde:** `<pasta dos tickets>/<pai>/<ticket>/aceite.md`, um por ticket, permanente. O `<pai>` é o identificador da issue pai do ticket, como `PROJ-1`. É o único arquivo versionado da pasta do ticket, junto com o mapa de testes, se houver (`formatos/mapa-de-testes.md`): o projeto ignora o resto dela (a página do plano, a mensagem proposta e o que mais ele puser ali), e o script da página confere isso. O texto do critério fica só no ticket.
 - **Introdução:** o texto antes do primeiro critério, sem os títulos: o que prova cada marca neste ticket e o porquê das decisões que os cenários supõem. A página mostra a introdução antes dos critérios.
 - **O que traz, por ID:** um título `## <ticket>-CA<n>` e, abaixo dele, as linhas `**Marca:**` (uma das seis), `**Cenário:**` (Dado, Quando, Então) e, nos critérios de teste, `**Teste previsto:**` (camada, arquivo e nome do teste). O texto de cada linha rotulada vai até a próxima linha rotulada ou o próximo título, e pode ter mais de um parágrafo. Um subtítulo dentro do critério não o encerra: só o título do próximo critério encerra.
 - **Sem o texto do critério:** o cenário diz como o critério é provado, e não repete o texto dele.
@@ -43,7 +43,7 @@ O arquivo de aceite não muda depois do commit de plano. Descongelar é do usuá
 
 Cada teste de aceite leva o ID do critério numa tag, `@<ticket>-CA<n>`, com o `@`, como `@PROJ-123-CA3`, e não no título. O nome e o arquivo do teste podem mudar durante a implementação, porque a ligação com o critério é o ID. Um teste que prova mais de um critério leva uma tag por critério. O token no título não vale como ID.
 
-Um teste de uma skill não leva o ID de um critério do projeto, porque vai com a skill para outros projetos. A ligação dele com o critério vai para o mapa de testes do ticket, ao lado do arquivo de aceite (`formatos/mapa-de-testes.md`).
+O teste de uma skill não leva a tag: ele se liga ao critério pelo mapa de testes do ticket (`formatos/mapa-de-testes.md`).
 
 No Vitest, a tag vai nas opções do teste:
 

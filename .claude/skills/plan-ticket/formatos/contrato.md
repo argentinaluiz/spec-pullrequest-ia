@@ -1,6 +1,6 @@
 # Formato do contrato de rota e de tabela
 
-A skill de plano é a dona deste formato. O plano escreve o desenho de cada rota e de cada tabela que muda direto no dono dele (os arquivos do contrato que o projeto declara em `contrato.arquivos` do `.config/project`, como um snapshot da OpenAPI ou o schema do banco), e não num documento à parte.
+Os donos do contrato são os arquivos da chave `contrato.arquivos` do `.config/project`, como um snapshot da OpenAPI ou o schema do banco.
 
 ## Rota
 
@@ -40,4 +40,4 @@ O comando do contrato do projeto é chamado como `<comando> <de> <até>`, da rai
 
 ## Projeto sem contrato
 
-Quando o projeto não tem rotas nem tabelas para planejar, o arquivo de configuração dele não declara o comando nem os arquivos do contrato. A página então diz, nas abas Contrato e Schema, que o projeto não declara contrato, e o passo de desenho do `SKILL.md` é pulado.
+Quando o projeto não tem rotas nem tabelas para planejar, o arquivo de configuração dele não declara o comando nem os arquivos do contrato, e a página diz, nas abas Contrato e Schema, que o projeto não declara contrato.

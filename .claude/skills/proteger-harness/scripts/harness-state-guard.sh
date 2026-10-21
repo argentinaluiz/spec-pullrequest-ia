@@ -2,6 +2,11 @@
 # padrões e a leitura das aspas e dos heredocs. Quem carrega este arquivo com `source` é o hook
 # do estado (hooks/state-guard.sh), e qualquer outro hook que precise ler as aspas de um comando de shell
 # (`split_quotes`). O que a regra deixa passar de propósito está nos testes do hook do estado.
+#
+# Um hook que guarda um comando escolhe a leitura pelo risco. A pasta de estado, que mensagens de commit e buscas citam
+# o tempo todo, é lida através das aspas e dos heredocs, para um texto não negar trabalho. Um comando que só a pessoa
+# pode rodar é casado no texto inteiro do comando, para um invólucro (`timeout`, `nohup`, `bash -c`) não escondê-lo, ao
+# custo de negar uma mensagem que o cita.
 
 # A pasta de estado como componente de caminho (`.harness`, `.harness/x`, `/.harness`, `./.harness`),
 # mas não `.harness-x`, `x.harness` nem `\.harness` (o ponto escapado de um padrão de busca).
