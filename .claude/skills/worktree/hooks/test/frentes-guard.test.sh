@@ -43,8 +43,8 @@ expect 2 "nega a entrada ilegível que cita o frentes.sh e a opção de abandono
   "isto não é json frentes.sh remover x --forcar" "só o usuário abandona uma frente"
 expect 0 "libera o HARNESS_TEST em outro comando, como o dos testes do harness" \
   "$(command_input 'HARNESS_TEST=1 bash scripts/test/frentes.test.sh')"
-expect 0 "libera o frentes.sh com uma variável que não é do modo de teste, como o limite" \
-  "$(command_input 'FRENTES_LIMITE=1 scripts/frentes.sh novo LUI-1')"
+expect 0 "libera o frentes.sh com uma variável que não é do modo de teste" \
+  "$(command_input 'LANG=C scripts/frentes.sh novo LUI-1')"
 expect 0 "libera um comando que só cita a palavra do abandono" "$(command_input 'git commit -m "documenta o abandono"')"
 expect 0 "libera um comando qualquer" "$(command_input 'git status --short')"
 

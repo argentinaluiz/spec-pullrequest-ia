@@ -13,7 +13,7 @@ How to open the parallel fronts of a spec. The mode prepares the places where th
 
 ## Steps
 
-1. **The tickets of the spec.** Fetch the spec and its sub-issues from the issue tracker, each one with its description, its blocking relations ("blocked by"), its status and its type label. Run `scripts/frentes.sh listar` (the core script of the skill) and `git fetch` once, now: the steps below reuse them. If the person passed tickets instead of a spec, fetch those and their blockers. The dependencies are the native relation of the tracker, not text in the description.
+1. **The tickets of the spec.** Fetch the spec and its sub-issues from the issue tracker, each one with its description, its blocking relations ("blocked by"), its status and its type label. Run `listar` of the core script of the skill (`scripts/frentes.sh`, from the folder of the skill) and `git fetch` once, now: the steps below reuse them. If the person passed tickets instead of a spec, fetch those and their blockers. The dependencies are the native relation of the tracker, not text in the description.
 
 2. **Sort them.** Put each ticket in one group:
    - **Done:** leave out.
@@ -31,7 +31,7 @@ How to open the parallel fronts of a spec. The mode prepares the places where th
 
 5. **Confirm.** Show the proposal: for each ticket, its identifier, title, kind of branch (the value of the kind of branch; `hotfix` and `docs` only if the person says) and the vaga it will probably take. Say that each front may start a whole environment, which takes minutes. **Stop and wait** for the person to confirm or change the list. Do not run `novo` for any ticket before the answer.
 
-6. **Create the fronts.** For each confirmed ticket, one after the other, run `scripts/frentes.sh novo <ticket> [kind]` in the background (`run_in_background`), because the first start of an environment takes minutes and the commands are not allowed to wait. One after the other, not together: each start builds images and loads the machine. Wait for each to end before the next. If a `novo` refuses (limit, a ticket that already has a front, a busy vaga), do not work around it: report the refusal as the script prints it, skip that ticket and go on with the others. If it fails halfway, run `listar` and say what state the front is in; do not delete anything.
+6. **Create the fronts.** For each confirmed ticket, one after the other, run `novo <ticket> [kind]` of the core script in the background (`run_in_background`), because the first start of an environment takes minutes and the commands are not allowed to wait. One after the other, not together: each start builds images and loads the machine. Wait for each to end before the next. If a `novo` refuses (limit, a ticket that already has a front, a busy vaga), do not work around it: report the refusal as the script prints it, skip that ticket and go on with the others. If it fails halfway, run `listar` and say what state the front is in; do not delete anything.
 
 7. **Report.** When all have ended, run `listar` once and answer in the chat with one row per front: ticket and title, folder, number of the front and ports, and the command that `novo` printed to open the session. Then, for each ticket, the first thing to run in its session:
    - the plan skill on the ticket, when the base has no acceptance file for it (`git ls-tree -r --name-only <base> <tickets folder>/<spec>` does not list `<ticket>/aceite.md`). A new front starts from the base, so this is the usual case.
