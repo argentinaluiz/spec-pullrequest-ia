@@ -2,11 +2,12 @@
 #
 # Testes do script dos insumos da revisão de conformidade (scripts/review-inputs.sh): os argumentos, o diff da branch com os
 # arquivos novos sem mexer no índice, a base pelo ponto em que a branch saiu dela, o commit de plano exigido e a mensagem
-# dele, o desvio do contrato gravado sempre e a mudança sem ticket, que exige os critérios. O script roda copiado num
-# repositório temporário, só com os arquivos das skills que ele carrega (a base da worktree e o diff da skill de plano): a
-# base chega pela HARNESS_BASE_REF e o comando do desvio, pelo .config/project do repositório, e o comando do desvio é um
-# falso (a comparação real tem os próprios testes). Não carrega arquivo de projeto. Roda na máquina. Os casos de aceite se
-# ligam aos critérios pelo mapa de testes do ticket, e não pelo nome.
+# dele, o desvio do contrato gravado sempre, a mudança sem ticket, que exige os critérios, e se a mudança pede revisão. O
+# script roda copiado num repositório temporário, só com os arquivos das skills que ele carrega (a base da worktree, o diff
+# da skill de plano e o padrão de caminho da proteger-harness): a base chega pela HARNESS_BASE_REF e o resto, pelo
+# .config/project do repositório, e o comando do desvio é um falso (a comparação real tem os próprios testes). Não carrega
+# arquivo de projeto. Roda na máquina. Os casos de aceite se ligam aos critérios pelo mapa de testes do ticket, e não pelo
+# nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,7 +30,8 @@ contains() {
 SKILLS="$(cd "$HERE/../../.." && pwd)"
 install_kit() {
   local file
-  for file in revisao-conformidade/scripts/review-inputs.sh worktree/scripts/harness-base.sh plan-ticket/scripts/plan-git.sh; do
+  for file in revisao-conformidade/scripts/review-inputs.sh worktree/scripts/harness-base.sh plan-ticket/scripts/plan-git.sh \
+    proteger-harness/scripts/path-pattern.sh; do
     mkdir -p "$1/.claude/skills/$(dirname "$file")"
     cp "$SKILLS/$file" "$1/.claude/skills/$file"
   done
@@ -40,7 +42,7 @@ install_kit() {
 SK=.claude/skills/revisao-conformidade
 mkdir -p "$repo/apps/api" "$repo/docs/tickets/PROJ-1/PROJ-3" "$repo/.config"
 install_kit "$repo"
-printf '[tickets]\n\tpasta = docs/tickets\n[contrato]\n\tdesvio = %s\n' "$tmp/desvio" >"$repo/.config/project"
+printf '[tickets]\n\tpasta = docs/tickets\n[contrato]\n\tdesvio = %s\n[revisao]\n\tsempre = apps/**\n' "$tmp/desvio" >"$repo/.config/project"
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' '!docs/tickets/*/*/mapa-de-testes.txt' >"$repo/.gitignore"
 # O comando do desvio do contrato, falso, chamado como o do contrato da raiz: <commit de plano> <para, ou vazio> <arquivo do desvio>.
 # Com FAKE_DRIFT, há desvio, e ele faz como o de verdade (acrescenta a visão ao arquivo e avisa); sem ela, diz que o contrato está
@@ -246,7 +248,7 @@ check "sem ticket, um .gitignore que ignora só o diff e os critérios basta" mi
 
 no_tickets_folder() {
   cp "$repo/.config/project" "$tmp/project"
-  printf '[contrato]\n\tdesvio = %s\n' "$tmp/desvio" >"$repo/.config/project"
+  printf '[contrato]\n\tdesvio = %s\n[revisao]\n\tsempre = apps/**\n' "$tmp/desvio" >"$repo/.config/project"
   review PROJ-1 PROJ-2
   cp "$tmp/project" "$repo/.config/project"
   [[ $code -eq 2 && "$err" == *"tickets.pasta"* ]]
@@ -258,7 +260,7 @@ check "sem a pasta dos tickets no .config/project, recusa e diz qual chave falta
 outside="$tmp/fora"
 mkdir -p "$outside/docs/tickets/EX-1/EX-2" "$outside/.config"
 install_kit "$outside"
-printf '[tickets]\n\tpasta = docs/tickets\n' >"$outside/.config/project"
+printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = **\n' >"$outside/.config/project"
 printf '%s\n' 'docs/tickets/*/*/*' '!docs/tickets/*/*/aceite.md' >"$outside/.gitignore"
 git -C "$outside" init -q -b main
 git -C "$outside" config user.email teste@exemplo.com
@@ -283,7 +285,7 @@ outside_run() {
 }
 # outside_config [desvio]: a configuração do repositório de fora, com o comando do desvio dado ou sem nenhum.
 outside_config() {
-  printf '[tickets]\n\tpasta = docs/tickets\n' >"$outside/.config/project"
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = **\n' >"$outside/.config/project"
   [[ -z "${1:-}" ]] || printf '[contrato]\n\tdesvio = %s\n' "$1" >>"$outside/.config/project"
 }
 outside_defaults() {
@@ -333,5 +335,35 @@ outside_command_with_arguments() {
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == "recebi: um-argumento "* ]]
 }
 check "o comando do desvio com argumentos próprios os recebe antes do commit de plano" outside_command_with_arguments
+
+# --- se a mudança pede revisão: os padrões de revisao.sempre e, num ticket com aceite, os bloqueado da lista de protegidos
+
+need_case() {
+  local result=0
+  printf 'bloqueado\tscripts/**\n' >"$outside/.config/protegidos"
+  printf '[tickets]\n\tpasta = docs/tickets\n[revisao]\n\tsempre = apps/**\n[protegidos]\n\tlista = .config/protegidos\n' \
+    >"$outside/.config/project"
+  rm -f "$outside/docs/tickets/EX-1/EX-2/review.diff"
+  # Só um arquivo fora dos padrões (o novo.txt da raiz): não pede revisão, sai com 3 e não grava nada.
+  outside_run EX-1 EX-2
+  [[ $code -eq 3 && "$out" == *"não pede revisão"* && ! -e "$outside/docs/tickets/EX-1/EX-2/review.diff" ]] || result=1
+  # Um script do harness, com ticket: pede revisão pelo bloqueado da lista, e diz o arquivo e o padrão.
+  mkdir -p "$outside/scripts" && echo 'echo x' >"$outside/scripts/x.sh"
+  outside_run EX-1 EX-2
+  [[ $code -eq 0 && "$out" == *'scripts/x.sh casa com `scripts/**` (bloqueado de .config/protegidos)'* ]] || result=1
+  # Sem ticket, o bloqueado da lista não pede revisão.
+  mkdir -p "$outside/docs/tickets/sem-ticket/harness"
+  printf '1. Um critério.\n' >"$outside/docs/tickets/sem-ticket/harness/criterios.md"
+  outside_run sem-ticket harness
+  [[ $code -eq 3 ]] || result=1
+  # Um arquivo de apps/ pede revisão com ou sem ticket.
+  mkdir -p "$outside/apps" && echo x >"$outside/apps/a.ts"
+  outside_run sem-ticket harness
+  [[ $code -eq 0 && "$out" == *'apps/a.ts casa com `apps/**` (revisao.sempre)'* ]] || result=1
+  rm -rf "$outside/scripts" "$outside/apps" "$outside/docs/tickets/sem-ticket" "$outside/.config/protegidos"
+  outside_config
+  return $result
+}
+check "pede revisão pelo revisao.sempre com ou sem ticket e pelo bloqueado da lista só com ticket, e sem nenhum sai com 3 sem gravar nada" need_case
 
 finish "do script dos insumos da revisão"

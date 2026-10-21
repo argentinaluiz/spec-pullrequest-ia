@@ -63,26 +63,6 @@ literal_paths_exist() {
 }
 check "os caminhos fixos de convergencia e de gerado existem" literal_paths_exist
 
-# O arquivo é o dono único: o que o resto do harness ainda escreve por conta própria tem de bater com ele.
-VERIFY="$ROOT/.claude/skills/verificar/scripts/verify.sh"
-
-# value_of <arquivo> <variável>: o valor atribuído a `NOME=valor` numa linha do arquivo.
-value_of() {
-  sed -n "s/^$2=//p" "$1" | head -n 1
-}
-
-no_copy_of_the_tickets_folder() {
-  ! grep -q -E '^(TICKETS_DIR=docs/tickets|VERIFIED_PATHS=\(.*docs/tickets)' "$VERIFY"
-}
-check "o verify.sh lê a pasta dos tickets do arquivo, e não a tem escrita" no_copy_of_the_tickets_folder
-
-same_contract_values() {
-  [[ "$(value_of "$VERIFY" CONTRACT_DRIFT)" == "$(get contrato.desvio)" ]] || { echo "CONTRACT_DRIFT do verify.sh difere de contrato.desvio" >&2; return 1; }
-  [[ "$(value_of "$ROOT/scripts/contract-lib.sh" CONTRACT_NODE)" == "$(get node.comando)" ]] || { echo "CONTRACT_NODE do contract-lib.sh difere de node.comando" >&2; return 1; }
-  [[ "$(value_of "$ROOT/scripts/contract-lib.sh" API_SNAPSHOT) $(value_of "$ROOT/scripts/contract-lib.sh" API_SCHEMA)" == "$(get contrato.arquivos)" ]] || { echo "API_SNAPSHOT e API_SCHEMA do contract-lib.sh diferem de contrato.arquivos" >&2; return 1; }
-}
-check "o desvio, o Node e os arquivos do contrato que os scripts escrevem batem com o arquivo" same_contract_values
-
 # Toda chave que uma skill do kit documenta no passo 0 existe no arquivo, menos o revisor, que vale o padrão da skill.
 documented_keys_exist() {
   local key

@@ -18,6 +18,10 @@ cp "$ROOT"/scripts/contract-*.sh "$ROOT/scripts/contract-view.cjs" "$ROOT/script
 # O diff legível que o contract-lib.sh carrega, da skill de plano.
 mkdir -p "$repo/.claude/skills/plan-ticket/scripts"
 cp "$ROOT/.claude/skills/plan-ticket/scripts/plan-git.sh" "$repo/.claude/skills/plan-ticket/scripts/"
+# Os valores do contrato que o contract-lib.sh lê: o snapshot e o schema, nessa ordem, e o comando do Node.
+mkdir -p "$repo/.config"
+printf '[contrato]\n\tarquivos = apps/api/openapi.json apps/api/prisma/schema.prisma\n[node]\n\tcomando = scripts/node-in-api.sh\n' \
+  >"$repo/.config/project"
 
 # O `docker` falso: o oasdiff (`run`) responde o changelog; o Node no contêiner (`compose ... exec ... node`) grava a entrada
 # que recebeu e imprime o Markdown de mentira; `exec api true` diz se o contêiner está no ar (FAKE_UP).

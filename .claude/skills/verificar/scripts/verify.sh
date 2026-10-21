@@ -63,9 +63,9 @@ source .claude/skills/plan-ticket/scripts/plan-git.sh
 # branch na main, e a main traria as próprias mudanças como desvio: a CI aponta o commit da branch.
 # Vazio, o desvio compara com a pasta de trabalho.
 HEAD_REF="${HARNESS_HEAD_REF:-}"
-# O desvio do contrato, o único dono da comparação com o commit de plano, é um comando da pasta de scripts da raiz:
-# acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
-CONTRACT_DRIFT=scripts/contract-drift.sh
+# O desvio do contrato, o único dono da comparação com o commit de plano, é o comando que o .config/project declara
+# (contrato.desvio): acrescenta a visão do desvio ao arquivo que recebe e avisa no PR, sem bloquear.
+CONTRACT_DRIFT="$(git config --file .config/project --get contrato.desvio 2>/dev/null)"
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
@@ -283,7 +283,9 @@ plan_commit() {
 # apaga no começo. Só avisa: nunca falha.
 contract_drift() {
   local file plan drift
-  if [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
+  if [[ -z "$CONTRACT_DRIFT" ]]; then
+    echo "O .config/project não declara o comando do desvio do contrato (contrato.desvio): não há desvio a conferir."
+  elif [[ -n "$HEAD_REF" ]] && ! git rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
     echo "HARNESS_HEAD_REF aponta \`$HEAD_REF\`, que não é um commit deste clone, e o desvio não foi conferido. Aponte o commit da branch, ou deixe a variável vazia para comparar com a pasta de trabalho."
   elif ! file="$(cited_acceptance)"; then
     echo "Não deu para ler a seção \"Aceite\" do corpo do PR, pelo motivo acima, e o desvio não foi conferido."

@@ -12,8 +12,9 @@
 [node]
 	comando = scripts/node-in-api.sh
 
-# O contrato: a visão legível dele entre dois pontos do Git, os arquivos que são o dono dele (separados por espaço) e o
-# que mostra o desvio dele desde o commit de plano (só avisa, e é também o aviso do modo completo da verificação).
+# O contrato: a visão legível dele entre dois pontos do Git, os arquivos que são o dono dele (separados por espaço: o
+# snapshot da OpenAPI e o schema do Prisma, nessa ordem, que os scripts do contrato leem por posição) e o que mostra o
+# desvio dele desde o commit de plano (só avisa, e é também o aviso do modo completo da verificação).
 [contrato]
 	comando = scripts/contract-view.sh
 	arquivos = apps/api/openapi.json apps/api/prisma/schema.prisma

@@ -12,6 +12,14 @@
 #   [tickets] pasta = <pasta>      a pasta dos tickets, relativa à raiz (obrigatória)
 #   [contrato] desvio = <comando>  o comando do desvio do contrato, chamado como `<comando> <commit de plano> <para, ou
 #                                  vazio> <arquivo>` (sem ele, o arquivo do desvio diz que nenhum foi declarado)
+#   [revisao] sempre = <padrão>    o código que pede revisão com ou sem ticket, um padrão por linha
+#   [protegidos] lista = <arquivo> a lista de arquivos protegidos: num ticket com aceite, os `bloqueado` dela (o harness)
+#                                  também pedem revisão
+#
+# Antes de tudo, o script decide se a mudança pede revisão: pede quando um arquivo que a branch muda (até a pasta de
+# trabalho) casa com um padrão de `revisao.sempre` ou, com ticket, com um `bloqueado` da lista, no padrão de caminho da
+# skill proteger-harness. Diz qual arquivo casou com qual padrão; sem nenhum, diz que a mudança não pede revisão, não
+# grava nada e sai com 3.
 #
 # A base da comparação é a do harness-base.sh da skill worktree, e o diff e o commit de plano, os do plan-git.sh da skill
 # de plano.
@@ -22,8 +30,9 @@
 # contract-drift.txt (com ticket, sempre: o que o comando do desvio disse, ou que ele não pôde ser conferido). Os insumos não
 # podem ir para um commit, então só grava se o `.gitignore` os ignora.
 #
-# Sai com 0 se preparou os insumos e com 2 se não deu (uso errado, configuração sem a pasta dos tickets, base inexistente,
-# ticket sem commit de plano, sem os critérios, insumo que iria para um commit), dizendo como resolver.
+# Sai com 0 se preparou os insumos, com 3 se a mudança não pede revisão e com 2 se não deu (uso errado, configuração sem a
+# pasta dos tickets, base inexistente, ticket sem commit de plano, sem os critérios, insumo que iria para um commit), dizendo
+# como resolver.
 
 set -uo pipefail
 
@@ -53,9 +62,15 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || abort "esta pasta não est�
 
 # A base (BASE_REF), da skill worktree, e o diff legível e o commit que criou um arquivo, da skill de plano.
 # shellcheck source=../../worktree/scripts/harness-base.sh
-source "$SCRIPT_DIR/../../worktree/scripts/harness-base.sh"
+source "$SCRIPT_DIR/../../worktree/scripts/harness-base.sh" ||
+  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
 # shellcheck source=../../plan-ticket/scripts/plan-git.sh
-source "$SCRIPT_DIR/../../plan-ticket/scripts/plan-git.sh"
+source "$SCRIPT_DIR/../../plan-ticket/scripts/plan-git.sh" ||
+  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
+# O padrão de caminho dos padrões de revisão, da skill proteger-harness.
+# shellcheck source=../../proteger-harness/scripts/path-pattern.sh
+source "$SCRIPT_DIR/../../proteger-harness/scripts/path-pattern.sh" ||
+  abort "falta um arquivo de outra skill do kit, que este script carrega." "instale o kit inteiro: o script carrega a base da worktree, o diff da skill de plano e o padrão de caminho da proteger-harness."
 git rev-parse --verify --quiet "$BASE_REF" >/dev/null ||
   abort "a base \`$BASE_REF\` não existe neste clone." \
     "rode \`git fetch origin\`, ou aponte outra base com a variável HARNESS_BASE_REF."
@@ -68,23 +83,48 @@ tickets="${tickets%/}"
     "acrescente ao .config/project a seção \`[tickets]\` com \`pasta = <pasta dos tickets>\` e rode de novo."
 drift_command="$(git config --file .config/project --get contrato.desvio 2>/dev/null)"
 
-# O diff que o revisor lê: tudo o que a branch mudou desde que saiu da base, até a pasta de trabalho, com os arquivos novos que o
-# Git não ignora. Compara com o ponto em que a branch saiu da base, e não com a ponta dela, para uma base que andou não trazer as
-# mudanças alheias como se fossem da branch. Usa um índice temporário para contar os arquivos novos sem mexer no índice de quem
-# trabalha. Grava também a lista dos arquivos que o diff acrescenta, em commit ou não.
-# review_diff <arquivo do diff> <arquivo da lista dos acrescentados>
-review_diff() {
-  local fork_point dir code=0
-  fork_point="$(git merge-base "$BASE_REF" HEAD)" || return 1
-  dir="$(mktemp -d)" || return 1
-  (
-    export GIT_INDEX_FILE="$dir/index"
-    git read-tree HEAD && git add -A &&
-      plain_diff --cached "$fork_point" >"$1" &&
-      plain_diff --cached --name-only --diff-filter=A "$fork_point" >"$2"
-  ) || code=1
-  rm -rf "$dir"
-  return $code
+# O que a branch tem até a pasta de trabalho, num índice temporário: o HEAD mais as mudanças e os arquivos novos que o Git
+# não ignora, sem mexer no índice de quem trabalha. A comparação é com o ponto em que a branch saiu da base, e não com a
+# ponta dela, para uma base que andou não trazer as mudanças alheias como se fossem da branch.
+work="$(mktemp -d)" || abort "não deu para criar uma pasta temporária." "confira o espaço e as permissões da pasta temporária."
+trap 'rm -rf "$work"' EXIT
+fork_point="$(git merge-base "$BASE_REF" HEAD)" &&
+  GIT_INDEX_FILE="$work/index" git read-tree HEAD && GIT_INDEX_FILE="$work/index" git add -A ||
+  abort "não deu para montar o diff da branch contra $BASE_REF." \
+    "confira se o repositório do Git está íntegro, com \`git status\`, e se a base existe."
+
+# O diff da branch, no índice temporário.
+# branch_diff <argumentos do git diff...>
+branch_diff() {
+  GIT_INDEX_FILE="$work/index" plain_diff --cached "$@" "$fork_point"
+}
+
+# Por que a mudança pede revisão: o primeiro arquivo dela que casa com um padrão de `revisao.sempre` ou, com ticket, com um
+# `bloqueado` da lista de arquivos protegidos. Não imprime nada quando nenhum casa.
+# review_reason <com ticket: sim|nao>
+review_reason() {
+  local key pattern list type file i
+  local -a origins=() patterns=() regexes=()
+  while IFS= read -r pattern; do
+    [[ -n "$pattern" ]] && origins+=(revisao.sempre) && patterns+=("$pattern")
+  done < <(git config --file .config/project --get-all revisao.sempre 2>/dev/null)
+  list="$(git config --file .config/project --get protegidos.lista 2>/dev/null)"
+  if [[ "$1" == sim && -n "$list" && -r "$list" ]]; then
+    while IFS=$'\t' read -r type pattern; do
+      [[ "$type" == bloqueado && -n "$pattern" ]] && origins+=("bloqueado de $list") && patterns+=("$pattern")
+    done <"$list"
+  fi
+  for pattern in "${patterns[@]}"; do
+    regexes+=("$(pattern_regex "$pattern")")
+  done
+  while IFS= read -r file; do
+    for i in "${!regexes[@]}"; do
+      if [[ "$file" =~ ${regexes[i]} ]]; then
+        printf '%s casa com `%s` (%s)' "$file" "${patterns[i]}" "${origins[i]}"
+        return 0
+      fi
+    done
+  done < <(branch_diff --name-only)
 }
 
 # O desvio do contrato desde o commit de plano, pelo comando do .config/project. O comando só grava o arquivo quando há desvio;
@@ -103,6 +143,14 @@ review_drift() {
     printf 'O desvio do contrato não pôde ser conferido. O que o comando disse:\n\n%s\n' "$out" >>"$drift"
   fi
 }
+
+if [[ "$1" == sem-ticket ]]; then with_ticket=nao; else with_ticket=sim; fi
+reason="$(review_reason "$with_ticket")"
+if [[ -z "$reason" ]]; then
+  printf 'A mudança não pede revisão de conformidade: nenhum arquivo dela casa com um padrão de revisao.sempre%s.\n' \
+    "$([[ $with_ticket == sim ]] && echo ' nem com um bloqueado da lista de arquivos protegidos')"
+  exit 3
+fi
 
 dir="$tickets/$1/$2"
 plan=""
@@ -132,9 +180,8 @@ for file in "${written[@]}"; do
       "confira as regras de $tickets no .gitignore: ele deve ignorar tudo na pasta do ticket, salvo o aceite.md e o mapa de testes."
 done
 
-added="$(mktemp)" || abort "não deu para criar um arquivo temporário." "confira o espaço e as permissões da pasta temporária."
-trap 'rm -f "$added"' EXIT
-review_diff "$dir/review.diff" "$added" ||
+added="$work/acrescentados"
+branch_diff >"$dir/review.diff" && branch_diff --name-only --diff-filter=A >"$added" ||
   abort "não deu para montar o diff da branch contra $BASE_REF." \
     "confira se o repositório do Git está íntegro, com \`git status\`, e se a base existe."
 if [[ -n "$plan" ]]; then
@@ -143,6 +190,7 @@ if [[ -n "$plan" ]]; then
   review_drift "$plan" "$dir/contract-drift.txt"
 fi
 
+printf 'Pede revisão de conformidade: %s.\n\n' "$reason"
 printf 'Insumos do revisor de conformidade em %s:\n' "$dir"
 printf -- '- diff: %s\n' "$dir/review.diff"
 if [[ -n "$plan" ]]; then

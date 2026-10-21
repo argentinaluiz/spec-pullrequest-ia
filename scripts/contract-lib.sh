@@ -6,12 +6,16 @@
 # Versão fixa, para o mesmo contrato dar sempre o mesmo resultado.
 OASDIFF_IMAGE=tufin/oasdiff:v1.33.0
 
-# O snapshot da OpenAPI e o schema do Prisma, que a visão do contrato e o desvio do plano comparam.
-API_SNAPSHOT=apps/api/openapi.json
-API_SCHEMA=apps/api/prisma/schema.prisma
-
-# O Node no contêiner, que roda o renderizador, e o renderizador: o comando do Node deste projeto é o `scripts/node-in-api.sh` da raiz.
-CONTRACT_NODE=scripts/node-in-api.sh
+# O snapshot da OpenAPI e o schema do Prisma, que a visão do contrato e o desvio do plano comparam, e o comando do Node que
+# roda o renderizador vêm do .config/project, o dono deles: `contrato.arquivos` traz o snapshot e o schema, nessa ordem, e
+# `node.comando`, o Node no contêiner. Sem eles, quem carrega este arquivo para, dizendo o que falta.
+read -r API_SNAPSHOT API_SCHEMA _ <<<"$(git config --file .config/project --get contrato.arquivos 2>/dev/null)"
+CONTRACT_NODE="$(git config --file .config/project --get node.comando 2>/dev/null)"
+if [[ -z "$API_SCHEMA" || -z "$CONTRACT_NODE" ]]; then
+  printf 'O .config/project não diz os arquivos do contrato (contrato.arquivos: o snapshot e o schema) ou o comando do Node (node.comando).\n' >&2
+  printf 'Como corrigir: declare as duas chaves no .config/project e rode de novo.\n' >&2
+  exit 2
+fi
 CONTRACT_RENDERER=scripts/contract-view.cjs
 
 # O `git diff` que se lê (`plain_diff`), o mesmo da página do plano, é da skill de plano.
