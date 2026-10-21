@@ -69,8 +69,8 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 # No contêiner `api`, os scripts das skills ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
-# A pasta de scripts do projeto, fora das skills: os scripts que várias skills compartilham, com os testes em test/.
-# Ela é dada à busca de skill-tests.sh, que a trata como mais uma pasta de mecanismo.
+# As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
+SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo
@@ -78,7 +78,7 @@ PROJECT_SCRIPTS=scripts
 VERIFIED_PATHS=(apps compose.dev.yaml docs/tickets)
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
-done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs .claude/skills "$PROJECT_SCRIPTS")
+done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
 # O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
 # o .claude/skills/proteger-harness/scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
 # estado a exigem, com o `require_state`.
@@ -238,8 +238,8 @@ HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 harness_tests() {
   local code=0
   local -a skill_node_tests skill_shell_tests
-  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs .claude/skills "$PROJECT_SCRIPTS")
-  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh .claude/skills "$PROJECT_SCRIPTS")
+  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
+  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh "$SKILLS_DIR" "$PROJECT_SCRIPTS")
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.

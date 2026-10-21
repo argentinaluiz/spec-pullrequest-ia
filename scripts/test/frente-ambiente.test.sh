@@ -9,7 +9,7 @@
 
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=../.claude/skills/verificar/scripts/test/sh-helpers.sh
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 AMBIENTE="$ROOT/scripts/frente-ambiente.sh"
