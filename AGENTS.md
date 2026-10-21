@@ -138,14 +138,14 @@ Uma mudança no código está pronta quando:
 Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêineres), com a web e a API no ar:
 
 ```bash
-.claude/skills/verificar/scripts/verify.sh full
+scripts/verify.sh full
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `verify.sh fast`.
 - **Um subagente não roda o `full`:** um hook o nega. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
 - **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
-- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
+- **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
 - **O veredito é o da CI.** Ela roda esse mesmo comando em todo pull request, então passar na máquina é condição para abrir o PR, e não prova de que a mudança está pronta. Depois de duas reprovações da CI no mesmo PR, pare e avise o usuário, em vez de tentar a terceira correção.
 - **Não contorne uma verificação.** Não pule teste (`.skip`, `.only`, `.todo`, `.fixme`), não apague teste que falha e não altere o script nem o workflow para fazer a mudança passar. A CI reprova teste pulado e suíte vazia.
 
@@ -153,7 +153,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 
 Um hook confere todo `git push` que você faz e o nega em dois casos: quando os commits da branch trazem um segredo, e quando o modo completo não aprovou o conteúdo do último commit. A aprovação vale para o que foi verificado, e o push envia o que está em commit, então faça o commit de tudo antes do `full`. Em branch que altera código em `apps/`, salve o corpo do pull request num arquivo, com a seção `## Aceite`, e rode o `full` com `ACCEPTANCE_BODY_FILE=<arquivo>` na frente; sem a variável, o `full` registra o aceite como pulado e o hook recusa a aprovação.
 
-- **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, a configuração do projeto (`.config/`), os scripts e os hooks do harness e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** uma mudança no código verificado: `apps/`, o `compose.dev.yaml`, a configuração do projeto (`.config/`), os scripts e os hooks do harness, os testes das skills do kit (`.claude/skills/__tests__/`) e os arquivos de aceite. A lista exata é a `VERIFIED_PATHS` do `verify.sh`. Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -197,7 +197,7 @@ As decisões de uma funcionalidade são fechadas com o usuário e registradas no
 ### Plano do ticket neste projeto
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da `/plan-ticket` se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
-- **Cobertura:** o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID de um critério é o conferidor do aceite. Os testes em shell deste projeto também provam critério, pelo token do ID no nome do caso, como diz o cabeçalho do executor deles (`.claude/skills/verificar/scripts/test/shell-tests.sh`).
+- **Cobertura:** o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID de um critério é o conferidor do aceite. Os testes em shell deste projeto também provam critério, pelo token do ID no nome do caso, como diz o cabeçalho do executor deles (`scripts/test/shell-tests.sh`).
 
 ## Convenções de Git
 
@@ -206,7 +206,7 @@ As decisões de uma funcionalidade são fechadas com o usuário e registradas no
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que o `/worktree sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
-- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (o `.config/arquivos-protegidos`, lido pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `.config/`, os scripts e os hooks de qualquer skill, a pasta `scripts/` da raiz só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
+- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (o `.config/arquivos-protegidos`, lido pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `.config/`, os scripts e os hooks de qualquer skill, os testes das skills do kit (`.claude/skills/__tests__/`), a pasta `scripts/` da raiz só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas
 

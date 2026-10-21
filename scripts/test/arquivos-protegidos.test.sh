@@ -8,9 +8,9 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
 GUARD="$ROOT/.claude/skills/proteger-harness/scripts/harness-guard.sh"
-# shellcheck source=../../../__tests__/helpers.sh
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: a Guarda e o teste dela precisam dele."; exit 2; }
@@ -51,10 +51,10 @@ for path in \
   .config/arquivos-protegidos \
   .config/project \
   .claude/agents/revisor-conformidade.md \
-  .claude/skills/verificar/hooks/push-verify.sh \
+  .claude/hooks/push-verify.sh \
   .claude/settings.json \
   .github/workflows/ci.yml \
-  .claude/skills/verificar/scripts/verify.sh \
+  scripts/verify.sh \
   .claude/skills/__tests__/helpers.sh \
   .claude/skills/__tests__/worktree/frentes.test.sh; do
   check "$name: bloqueia $path" blocked "$path"
@@ -65,7 +65,6 @@ for path in \
   .claude/skills/plan-ticket/formatos/aceite.md \
   .claude/skills/revisao-conformidade/revisor.md \
   .claude/skills/qualquer-skill-nova/SKILL.md \
-  .claude/skills/verificar/SKILL.md \
   docs/hld.md \
   apps/api/src/main.ts; do
   check "$name: deixa $path livre" passes_clean "$path"

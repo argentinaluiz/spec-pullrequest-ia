@@ -3,7 +3,7 @@
 # schema do Prisma, a imagem do oasdiff e as funções que o comparam) é do scripts/contract-lib.sh, que este grupo carrega: a visão e o
 # desvio do plano são comandos dela, e a verificação os chama de lá.
 
-# shellcheck source=../../../../scripts/contract-lib.sh
+# shellcheck source=../contract-lib.sh
 source scripts/contract-lib.sh
 
 # Relatórios que o aceite confere, no formato

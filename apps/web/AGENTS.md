@@ -125,7 +125,7 @@ docker compose -f compose.dev.yaml exec web <comando>
 | `pnpm test -t "nome do teste"` | Um teste pelo nome |
 
 - **Onde ficam:** ao lado do código, em `lib/`, com o sufixo `.spec.ts`. O alias `@/` vale como no resto da web.
-- **Relatório:** o `.claude/skills/verificar/scripts/verify.sh full` grava `reports/unit.json`, fora do Git, e o confere como o das outras suítes.
+- **Relatório:** o `scripts/verify.sh full` grava `reports/unit.json`, fora do Git, e o confere como o das outras suítes.
 
 ## Testes no navegador
 
@@ -142,7 +142,7 @@ docker compose -f compose.dev.yaml exec playwright <comando>
 | `npx playwright test -g "nome do teste"` | Um teste pelo nome |
 
 - **A web e a API têm de estar no ar.** Os testes falam com a aplicação real em `http://web:3000`. Como subir as duas está no `AGENTS.md` da raiz, seção "Execução no Docker".
-- **Dois projetos, pela pasta.** O `playwright.config.ts` separa os arquivos de `e2e/vitrine/` (projeto `vitrine`), que rodam sempre no servidor de desenvolvimento, porque a vitrine não existe no build, dos outros (projeto `build`). Os do `build` rodam contra o build de produção quando a variável `WEB_BUILD_URL` aponta para ele, que é como o `.claude/skills/verificar/scripts/verify.sh full` os roda. Na CI (com a variável `CI`), ela é obrigatória, e a configuração falha sem ela; num teste avulso, sem ela, eles rodam contra o servidor de desenvolvimento.
+- **Dois projetos, pela pasta.** O `playwright.config.ts` separa os arquivos de `e2e/vitrine/` (projeto `vitrine`), que rodam sempre no servidor de desenvolvimento, porque a vitrine não existe no build, dos outros (projeto `build`). Os do `build` rodam contra o build de produção quando a variável `WEB_BUILD_URL` aponta para ele, que é como o `scripts/verify.sh full` os roda. Na CI (com a variável `CI`), ela é obrigatória, e a configuração falha sem ela; num teste avulso, sem ela, eles rodam contra o servidor de desenvolvimento.
 - **Endereço da web nos testes:** use o caminho relativo (`page.goto("/")`, `toHaveURL("/")`) ou o `baseURL` do teste, e não o `WEB_URL`, que é só o do servidor de desenvolvimento.
 - **O relatório** fica em `apps/web/playwright-report/`, e o trace de um teste que falhou, em `apps/web/test-results/`. Os dois ficam fora do Git.
 - **A versão do Playwright é fixa.** A do `@playwright/test`, no `package.json`, e a da imagem do serviço `playwright`, no `compose.dev.yaml`, têm de ser a mesma. Atualize as duas juntas.

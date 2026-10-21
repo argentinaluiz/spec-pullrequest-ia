@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 #
 # Testes dos hooks da verificação como o `settings.json` os chama: cada comando aponta para um arquivo da
-# pasta hooks/ da skill verificar (e não para a pasta .claude/hooks/ de antes), que existe e roda, e o
-# hook chamado por esse comando mantém o comportamento de sempre. O comportamento por inteiro é o das
-# suítes dos hooks, ao lado deste teste. Rodam na máquina, como os hooks, porque eles usam o `git` e o
-# `jq`, que o contêiner `api` não tem. Os casos levam a tag do critério de aceite no nome.
+# pasta .claude/hooks/ do projeto, que existe e roda, e o hook chamado por esse comando mantém o comportamento
+# de sempre. O comportamento por inteiro é o das suítes dos hooks, ao lado deste teste. Rodam na máquina, como
+# os hooks, porque eles usam o `git` e o `jq`, que o contêiner `api` não tem. Os casos levam a tag do critério de aceite no nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
-source "$HERE/../../../__tests__/helpers.sh"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$HERE/../../.claude/skills/__tests__/helpers.sh"
 
 for tool in git jq; do
   command -v "$tool" >/dev/null || { echo "Falta o \`$tool\` na máquina: os hooks e o teste deles precisam dele."; exit 2; }
 done
 
 SETTINGS="$ROOT/.claude/settings.json"
-SKILL_HOOKS=.claude/skills/verificar/hooks
-VERIFY=.claude/skills/verificar/scripts/verify.sh
-name="os hooks do settings.json são os da skill verificar e mantêm o comportamento @LUI-195-CA1"
+HOOKS=.claude/hooks
+VERIFY=scripts/verify.sh
+name="os hooks do settings.json são os de .claude/hooks e mantêm o comportamento @LUI-195-CA1"
 
 # settings_hook <arquivo>: o caminho do hook, relativo à raiz do projeto, que o comando do settings.json
 # chama, ou nada se nenhum comando o cita. O comando traz o caminho depois de "$CLAUDE_PROJECT_DIR".
@@ -30,9 +29,8 @@ settings_hook() {
 
 for hook in stop-verify.sh record-touched.sh push-verify.sh; do
   path="$(settings_hook "$hook")"
-  check "$name: o settings.json chama o $hook pela skill" test "$path" = "$SKILL_HOOKS/$hook"
-  check "$name: o $hook da skill existe e é executável" test -x "$ROOT/$SKILL_HOOKS/$hook"
-  check "$name: o $hook não continua em .claude/hooks" test ! -e "$ROOT/.claude/hooks/$hook"
+  check "$name: o settings.json chama o $hook de .claude/hooks" test "$path" = "$HOOKS/$hook"
+  check "$name: o $hook existe e é executável" test -x "$ROOT/$HOOKS/$hook"
 done
 
 # O hook das frentes é da skill worktree, e o settings.json o chama pelo caminho dela: sem essa ligação, o hook existiria

@@ -6,9 +6,9 @@
 # `git` e o `jq`, que o contêiner `api` não tem. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-HOOK="$ROOT/.claude/skills/verificar/hooks/record-touched.sh"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+HOOK="$ROOT/.claude/hooks/record-touched.sh"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 for tool in git jq; do

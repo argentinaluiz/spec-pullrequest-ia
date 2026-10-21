@@ -6,11 +6,11 @@
 # de trabalho. Rodam na máquina, porque usam o `git`. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 # shellcheck source=../verify/api.sh
-source "$ROOT/.claude/skills/verificar/scripts/verify/api.sh"
+source "$ROOT/scripts/verify/api.sh"
 
 # O que o verify.sh define e a função usa: a base já foi conferida (require_base) e o comando do contêiner.
 require_base() { :; }

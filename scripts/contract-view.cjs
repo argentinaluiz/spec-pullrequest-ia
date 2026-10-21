@@ -33,7 +33,7 @@ const PHRASES = {
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 const LOCATIONS = { path: 'caminho', query: 'consulta', cookie: 'cookie' };
 // O texto de documentação, que não muda o contrato. São os mesmos elementos que o `oasdiff diff`
-// ignora no .claude/skills/verificar/scripts/verify/api.sh.
+// ignora no scripts/verify/api.sh.
 const TEXT = new Set(['description', 'summary', 'example', 'examples']);
 // Os objetos cujas chaves são nomes (de campo, de cabeçalho), e não palavras da OpenAPI: um campo
 // chamado `description` é contrato.

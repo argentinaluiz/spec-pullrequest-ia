@@ -24,15 +24,15 @@ state_unavailable() {
   exit 0
 }
 
-# shellcheck source=../../proteger-harness/scripts/harness-dir.sh
-source "${0%/*}/../../proteger-harness/scripts/harness-dir.sh"
+# shellcheck source=../skills/proteger-harness/scripts/harness-dir.sh
+source "${0%/*}/../skills/proteger-harness/scripts/harness-dir.sh"
 [[ -n "$HARNESS_DIR" ]] || state_unavailable
 cd "${HARNESS_DIR%/.harness}" || state_unavailable
 
 # Depois de tantos bloqueios seguidos, o hook deixa o turno encerrar e avisa o usuário,
 # para um erro que o agente não consegue corrigir não virar um laço sem fim.
 MAX_BLOCKS=3
-VERIFY=".claude/skills/verificar/scripts/verify.sh"
+VERIFY="scripts/verify.sh"
 [[ "${HARNESS_TEST:-}" == 1 && -n "${HARNESS_VERIFY:-}" ]] && VERIFY="$HARNESS_VERIFY"
 
 # Sem a sessão, ou sem o `jq` para lê-la, nada foi anotado nem pode ser conferido. Não bloqueia, mas
@@ -110,8 +110,8 @@ fingerprint() {
 
 # Sem a lista, nenhuma app seria verificada e o turno passaria calado. Por isso a falha bloqueia.
 apps="$("$VERIFY" apps)" ||
-  block "não deu para ler a lista de apps do .claude/skills/verificar/scripts/verify.sh" \
-    "Rode \`.claude/skills/verificar/scripts/verify.sh apps\` e corrija o erro." \
+  block "não deu para ler a lista de apps do scripts/verify.sh" \
+    "Rode \`scripts/verify.sh apps\` e corrija o erro." \
     ""
 
 projects=()
@@ -207,7 +207,7 @@ blocking_reason() {
 if reason="$(blocking_reason)"; then
   # O fim da saída traz o resumo do que falhou e como corrigir.
   block "a verificação rápida de ${projects[*]} não passou" \
-    "Rode \`.claude/skills/verificar/scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
+    "Rode \`scripts/verify.sh fast ${projects[*]}\` para ver o erro." \
     "Leia a saída abaixo, corrija a causa e só então encerre. Não contorne a verificação.
 Motivo do bloqueio: $reason.
 

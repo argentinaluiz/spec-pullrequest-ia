@@ -8,14 +8,13 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
-source "$HERE/../../../__tests__/helpers.sh"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$HERE/../../.claude/skills/__tests__/helpers.sh"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
-SK=.claude/skills/verificar
 name="a aprovação do push confere o que o modo completo aprovou @LUI-195-CA2"
 
 contains() {
@@ -28,9 +27,9 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/docker"
 chmod +x "$tmp/bin/docker"
 
 # O repositório: a verificação copiada, na main.
-mkdir -p "$repo/scripts" "$repo/$SK" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets"
-cp -R "$ROOT/$SK/scripts" "$repo/$SK/"
-rm -rf "$repo/$SK/scripts/test"
+mkdir -p "$repo/scripts" "$repo/.claude/skills/proteger-harness/scripts" "$repo/apps/api" "$repo/docs/tickets"
+cp -R "$ROOT/scripts/verify" "$ROOT/scripts/verify.sh" "$ROOT/scripts/full-lock.sh" "$ROOT/scripts/full-semaphore.sh" \
+  "$ROOT/scripts/git-mount.sh" "$ROOT/scripts/check-report.cjs" "$repo/scripts/"
 mkdir -p "$repo/.claude/skills/worktree/scripts" && cp "$ROOT/.claude/skills/worktree/scripts/harness-base.sh" "$repo/.claude/skills/worktree/scripts/"
 mkdir -p "$repo/.claude/skills/plan-ticket/scripts" && cp "$ROOT/.claude/skills/plan-ticket/scripts/plan-git.sh" "$repo/.claude/skills/plan-ticket/scripts/"
 # A configuração do projeto, com a pasta dos tickets, que a verificação exige.
@@ -56,7 +55,7 @@ commit_file() {
 # Deixa a saída em $out e o código em $code.
 prepush() {
   out="$(cd "$repo" && env -u HARNESS_HEAD_REF CLAUDE_PROJECT_DIR="$repo" PATH="$tmp/bin:$PATH" HARNESS_BASE_REF=main \
-    "$SK/scripts/verify.sh" prepush 2>&1)"
+    scripts/verify.sh prepush 2>&1)"
   code=$?
 }
 
@@ -65,9 +64,9 @@ prepush() {
 head_state() {
   (
     cd "$repo" || exit 1
-    local -a paths=(apps compose.dev.yaml .config docs/tickets)
+    local -a paths=(apps compose.dev.yaml .config .claude/hooks docs/tickets)
     local dir path
-    while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs .claude/skills scripts)
+    while IFS= read -r dir; do paths+=("$dir"); done < <(scripts/verify/skill-tests.sh dirs .claude/skills scripts)
     for path in "${paths[@]}"; do
       git rev-parse --verify --quiet "HEAD:$path" || echo ausente
     done | sha256sum | cut -d' ' -f1
@@ -117,6 +116,14 @@ check "$name: a mudança na pasta de scripts da raiz invalida a aprovação do c
 approve "$(head_state)" checked
 prepush
 check "$name: ... e a nova aprovação do conteúdo dela libera o push" code_is 0
+
+# A pasta dos hooks do projeto também: mudar um hook invalida a aprovação.
+commit_file .claude/hooks/mexe.sh 'echo mexe'
+prepush
+check "$name: a mudança num hook do projeto invalida a aprovação do commit anterior" code_is 1
+approve "$(head_state)" checked
+prepush
+check "$name: ... e a nova aprovação do hook libera o push" code_is 0
 
 # O hook de antes do push, o do settings.json, no repositório temporário: o `git push` passa quando o modo
 # completo aprovou o último commit, e é negado quando não aprovou. Apagar uma branch remota não envia código.

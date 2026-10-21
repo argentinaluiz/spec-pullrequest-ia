@@ -6,10 +6,10 @@
 # ele. Rodam na máquina. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-FINDER="$ROOT/.claude/skills/verificar/scripts/verify/skill-tests.sh"
-RUNNER="$ROOT/.claude/skills/verificar/scripts/test/shell-tests.sh"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+FINDER="$ROOT/scripts/verify/skill-tests.sh"
+RUNNER="$ROOT/scripts/test/shell-tests.sh"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 command -v jq >/dev/null || { echo "Falta o \`jq\` na máquina: o executor dos testes em shell precisa dele."; exit 2; }
@@ -86,14 +86,14 @@ check "o relatório da verificação que reprovou traz o caso que falhou @LUI-19
 check "sem o teste que falha, a verificação aprova @LUI-194-CA5" exits_with $? 0
 
 uses_finder_in_both_groups() {
-  grep -q 'skill-tests.sh cjs' "$ROOT/.claude/skills/verificar/scripts/verify.sh" && grep -q 'skill-tests.sh sh' "$ROOT/.claude/skills/verificar/scripts/verify.sh"
+  grep -q 'skill-tests.sh cjs' "$ROOT/scripts/verify.sh" && grep -q 'skill-tests.sh sh' "$ROOT/scripts/verify.sh"
 }
 check "o full do projeto usa a busca nos testes em Node e nos em shell @LUI-194-CA5" uses_finder_in_both_groups
 
 # A verificação dá a pasta de scripts do projeto à busca nas três chamadas (testes em shell, em Node e pastas vigiadas).
 gives_the_project_folder() {
-  [[ "$(grep -c 'skill-tests.sh \(sh\|cjs\|dirs\) .*"\$PROJECT_SCRIPTS"' "$ROOT/.claude/skills/verificar/scripts/verify.sh")" -ge 3 ]] &&
-    grep -q '^PROJECT_SCRIPTS=scripts$' "$ROOT/.claude/skills/verificar/scripts/verify.sh"
+  [[ "$(grep -c 'skill-tests.sh \(sh\|cjs\|dirs\) .*"\$PROJECT_SCRIPTS"' "$ROOT/scripts/verify.sh")" -ge 3 ]] &&
+    grep -q '^PROJECT_SCRIPTS=scripts$' "$ROOT/scripts/verify.sh"
 }
 check "o full do projeto dá a pasta de scripts da raiz à busca nos três usos" gives_the_project_folder
 

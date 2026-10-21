@@ -7,11 +7,11 @@
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
-source "$HERE/../../../__tests__/helpers.sh"
+ROOT="$(cd "$HERE/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
+source "$HERE/../../.claude/skills/__tests__/helpers.sh"
 
-VERIFY="$ROOT/.claude/skills/verificar/scripts/verify.sh"
+VERIFY="$ROOT/scripts/verify.sh"
 name="a base tem uma definição só, carregada pelo núcleo e pela verificação do projeto, e a variável a ajusta nos dois @LUI-199-CA4 @LUI-192-CA1"
 
 check "$name: a verificação carrega o arquivo da base da skill worktree" \

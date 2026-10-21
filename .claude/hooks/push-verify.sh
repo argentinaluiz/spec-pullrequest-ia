@@ -12,12 +12,12 @@
 # erro volta para o agente.
 
 set -uo pipefail
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
+cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 # A instrução de destravar, a mesma das mensagens do verify.sh (FULL_LOCK_ASK).
-# shellcheck source=../scripts/full-lock.sh
-source .claude/skills/verificar/scripts/full-lock.sh 2>/dev/null
+# shellcheck source=../../scripts/full-lock.sh
+source scripts/full-lock.sh 2>/dev/null
 # A leitura das aspas de um comando de shell, que é da skill proteger-harness.
-# shellcheck source=../../proteger-harness/scripts/harness-state-guard.sh
+# shellcheck source=../skills/proteger-harness/scripts/harness-state-guard.sh
 source .claude/skills/proteger-harness/scripts/harness-state-guard.sh
 
 # Nega o comando com as linhas dadas.
@@ -31,12 +31,12 @@ deny_unlock() {
 }
 
 deny_ci() {
-  deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do .claude/skills/verificar/scripts/verify.sh." \
-    "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`.claude/skills/verificar/scripts/verify.sh\` sem elas."
+  deny "O comando foi negado: \`CI=\` e \`GITHUB_ACTIONS=\` não vão no comando do scripts/verify.sh." \
+    "Na máquina, o modo completo conta as reprovações repetidas e trava; essas variáveis desligariam a trava, e o veredito da CI é só da CI. Rode o \`scripts/verify.sh\` sem elas."
 }
 
 deny_subagent_full() {
-  deny "O comando foi negado: subagente não roda o \`.claude/skills/verificar/scripts/verify.sh full\`, nem o de algumas apps; o \`full\` é de quem o chamou." \
+  deny "O comando foi negado: subagente não roda o \`scripts/verify.sh full\`, nem o de algumas apps; o \`full\` é de quem o chamou." \
     "Termine com os testes ligados aos arquivos que mudou, com os comandos do AGENTS.md do projeto, e devolva o resultado dizendo o que rodou (AGENTS.md da raiz, \"Definição de pronto\")."
 }
 
@@ -106,7 +106,7 @@ if [[ "$command" != *[$';&|\n']* && "$command" =~ [[:space:]]--delete([[:space:]
   exit 0
 fi
 
-output="$(.claude/skills/verificar/scripts/verify.sh prepush 2>&1)" && exit 0
+output="$(scripts/verify.sh prepush 2>&1)" && exit 0
 
 deny "O push foi negado: a verificação de antes do push não passou." \
   "Não contorne o bloqueio. Se o push sem verificação for mesmo necessário, quem o faz é o usuário, no terminal." \

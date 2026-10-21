@@ -8,8 +8,8 @@
 # usam o `git` e o `flock`. Quem chama é o verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../__tests__/helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/__tests__/helpers.sh
 source "$ROOT/.claude/skills/__tests__/helpers.sh"
 
 for tool in git flock; do
@@ -51,7 +51,7 @@ until_true() {
 # holder <checkout> <branch> <arquivo que diz que pegou> <arquivo que manda soltar>
 holder() {
   bash -c '
-    source "$1/.claude/skills/verificar/scripts/full-semaphore.sh"
+    source "$1/scripts/full-semaphore.sh"
     cd "$2" || exit 1
     full_semaphore_acquire "$2" "$3" && : >"$4"
     while [ ! -e "$5" ]; do sleep 0.1; done
@@ -106,7 +106,7 @@ harness="$repo/.harness"
 mkdir -p "$harness"
 
 # shellcheck source=../full-lock.sh
-source "$ROOT/.claude/skills/verificar/scripts/full-lock.sh"
+source "$ROOT/scripts/full-lock.sh"
 FULL_LOCK_FILE="$harness/full-lock"
 
 ca2() {
@@ -124,7 +124,7 @@ ca2() {
 
   # O `verify.sh full` espera a vez, e é interrompido na espera. Fora da CI: sem a variável CI.
   env -u CI -u GITHUB_ACTIONS PATH="$work/bin:$PATH" CLAUDE_PROJECT_DIR="$repo" GIT_DIR="$repo/.git" GIT_WORK_TREE="$repo" HARNESS_BASE_REF=HEAD \
-    "$ROOT/.claude/skills/verificar/scripts/verify.sh" full >"$out" 2>&1 &
+    "$ROOT/scripts/verify.sh" full >"$out" 2>&1 &
   pid=$!
   if ! until_true 10 contains "$out" "Aguardando" || ! contains "$out" "$work/outro"; then
     kill "$pid" 2>/dev/null
@@ -152,7 +152,7 @@ check "a espera, mesmo interrompida, não conta como reprovação nem apaga a ap
 # survivor <prefixo do comando> <arquivo do PID do sobrevivente>
 survivor() {
   bash -c '
-    source "$1/.claude/skills/verificar/scripts/full-semaphore.sh"
+    source "$1/scripts/full-semaphore.sh"
     cd "$2" || exit 1
     full_semaphore_acquire "$2" feature/principal >/dev/null
     $3 bash -c "sleep 30 >/dev/null 2>&1 & echo \$! >\"\$1\"" _ "$4"
