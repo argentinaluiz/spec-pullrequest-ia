@@ -227,20 +227,13 @@ Cada ticket é planejado no início dele, e não na criação dos tickets, e só
 
 ## Skills do ticket
 
-O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
+O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement`, `tdd` e a `/verificar`, que guarda o que depende da stack daqui.
 
-- **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
-- **Skills do projeto**, que guardam o que depende da stack daqui: a `/verificar`.
+**Configuração do projeto.** O que uma skill precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. O que o arquivo não declara vale o padrão da skill. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
-**A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
-
-**Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora no `.config/project`, um arquivo só, na pasta `.config/` da raiz, com uma seção por assunto, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. Cada skill lê as seções de que precisa, e o cabeçalho do arquivo diz quem lê o quê. O que o arquivo não declara vale o padrão da skill. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
-
-**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`), ou quando ela é genérica, do kit, e vai ser copiada para outros projetos; um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
+**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). Um domínio só tem skill quando o agente segue um procedimento nela (o `SKILL.md`); um procedimento raro fica neste arquivo. Os scripts de um domínio sem skill moram na pasta `scripts/` da raiz, com os testes em `scripts/test/`. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
 
 **Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
-
-**Genericidade.** O que a suíte `.claude/skills/verificar/scripts/genericity.sh` reprova está no cabeçalho dela. Ela roda na verificação completa.
 
 **Proteção.** O texto de uma skill (o `SKILL.md`, os formatos, o modelo do revisor) é livre: este arquivo vale mais que qualquer skill, e as regras e os comandos de entrada ficam aqui. O mecanismo dela, ou seja, os scripts e os hooks, é protegido (ver "Arquivos do harness", em "Convenções de Git").
 

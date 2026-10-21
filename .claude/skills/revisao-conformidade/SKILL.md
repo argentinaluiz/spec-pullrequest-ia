@@ -3,7 +3,7 @@ name: revisao-conformidade
 description: "Run the conformance review of a change that needs one: prepare its inputs with the script of this skill, call the reviewer with paths only, record and triage the findings, then publish them as a pull request comment. Use after the code review and before the full verification, and again when the pull request is opened."
 ---
 
-How to run the conformance review that the project requires, and what to do with its result. What the reviewer checks is in the model of the reviewer, `revisor.md` in this folder, and in the project's review rules document, if it has one. The skill names roles, so it works in any repository the folder is copied to.
+How to run the conformance review that the project requires, and what to do with its result. What the reviewer checks is in the model of the reviewer, `revisor.md` in this folder, and in the project's review rules document, if it has one.
 
 The skill has two parts, at two moments: **Review**, after the code review and before the full verification, so the fixes go into the single full verification; and **Publish**, when the pull request exists, which may be in another session.
 

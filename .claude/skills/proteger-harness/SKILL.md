@@ -3,7 +3,7 @@ name: proteger-harness
 description: "Protect the harness of a project from the changes of the agent and of a pull request: the guard that reads a list of protected files and fails a pull request that changes one, and the hook that denies the agent any shell command that touches the verification state folder. Use when setting up or changing what the harness protects, or when a pull request is blocked by the guard."
 ---
 
-How a project protects its harness (the scripts, hooks and workflows that decide what "verified" means) from the very changes that the harness is meant to check. The skill owns the mechanism and the format of the list; the project owns **which** files are protected. It names roles and takes everything else from its caller, so it works in any repository the folder is copied to.
+How a project protects its harness (the scripts, hooks and workflows that decide what "verified" means) from the very changes that the harness is meant to check. The skill owns the mechanism and the format of the list; the project owns **which** files are protected. It names roles and takes everything else from its caller.
 
 ## The guard
 
