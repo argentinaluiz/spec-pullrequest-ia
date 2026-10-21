@@ -50,10 +50,10 @@
 	ambiente = scripts/frente-ambiente.sh
 
 # Os pontos de convergência: arquivos em que duas frentes paralelas costumam esbarrar, em cinco tipos. O tipo é a
-# chave e o caminho é o valor, no padrão de caminho da lista de arquivos protegidos (`*` num nível de pasta, `**`
-# atravessa as barras). Vale o primeiro padrão que casa, na ordem daqui; um arquivo que nenhum casa é código e pede
-# atenção. O núcleo usa a classificação para separar os conflitos do `listar`, o modo sincronizar, para saber o que
-# resolver por regra (a regra de cada tipo é desse modo), e a Guarda do harness, para avisar no PR que muda um deles.
+# chave e o caminho é o valor, no padrão de caminho da skill /proteger-harness. Vale o primeiro padrão que casa, na
+# ordem daqui; um arquivo que nenhum casa é código e pede atenção. O núcleo usa a classificação para separar os
+# conflitos do `listar`, o modo sincronizar, para saber o que resolver por regra (a regra de cada tipo é desse modo),
+# e a Guarda do harness, para avisar no PR que muda um deles.
 #
 #   gerado       o snapshot da OpenAPI, regenerado a partir do código mergeado
 #   migracoes    a pasta de migrações, cuja pasta atrasada se recria com nome novo

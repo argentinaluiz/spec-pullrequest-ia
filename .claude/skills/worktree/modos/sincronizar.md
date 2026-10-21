@@ -12,7 +12,7 @@ How to bring the main branch of the base into the branch of a front, and tell th
 
 **What it never does.** Rebase. Force a push. Change an acceptance file (the plan is frozen after the plan commit). If something in these three seems necessary, stop and ask.
 
-**When it stops and asks.** When what entered the base contradicts a criterion of the ticket, or when resolving a conflict needs a decision that is not in the ticket or in the plan (the escalation rule, step 4 of `/implement`). Say what contradicts what, and wait.
+**When it stops and asks.** When what entered the base contradicts a criterion of the ticket, or when resolving a conflict needs a decision that is not in the ticket or in the plan (the step "Escalate, do not decide" of `/implement`). Say what contradicts what, and wait.
 
 ## Steps
 
@@ -42,6 +42,6 @@ How to bring the main branch of the base into the branch of a front, and tell th
 
 7. **Code review, only if needed.** Used on its own: if the resolution or the adaptation touched logic (step 4), run `/code-review` on the merge; if everything was mechanical, skip it. Called by `/implement` (the second ending): skip it, because `/implement` reviews the merged result right after.
 
-8. **Commit, verify, push.** Commit the merge with everything staged in steps 4 and 5, the regenerated files included (the merge commit message says which base it brings, in one line). Called by `/implement` (the second ending), stop here: no full verification, no push, go to step 9. On its own, run the full verification as step 8 of `/implement` says, with the pull request body saved first when the command receives it (step 0). When it passes, push with a plain `git push` of the branch (never forced). If the full verification fails, fix the cause and run it again, as in any task.
+8. **Commit, verify, push.** Commit the merge with everything staged in steps 4 and 5, the regenerated files included (the merge commit message says which base it brings, in one line). Called by `/implement` (the second ending), stop here: no full verification, no push, go to step 9. On its own, run the full verification as the step "Verify" of `/implement` says, with the pull request body saved first when the command receives it (step 0). When it passes, push with a plain `git push` of the branch (never forced). If the full verification fails, fix the cause and run it again, as in any task.
 
 9. **Report.** In the chat and in a comment of the pull request (`gh pr comment`), say: what entered (the pull requests, the tickets and the criteria that matter to this one); the conflicts, file by file with their type; how each was resolved, and which documents were merged by hand; what was adapted; whether the code review ran; and the result of the full verification, or that it is left to `/implement`. If the pull request does not exist yet, report in the chat and put the same text in its description when it is opened. Called by `/implement`, the report stays in the chat, and `/implement` puts it in the description when the person asks for the pull request.

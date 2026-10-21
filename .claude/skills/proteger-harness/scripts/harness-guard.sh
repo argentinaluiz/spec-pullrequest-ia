@@ -48,7 +48,7 @@ fi
 
 # O padrão da lista como expressão regular inteira (`pattern_regex`), com o significado único do padrão de caminho.
 # shellcheck source=path-pattern.sh
-source "$(dirname "${BASH_SOURCE[0]}")/path-pattern.sh"
+source "${BASH_SOURCE[0]%/*}/path-pattern.sh"
 
 # Lê a lista: os tipos e as expressões, na ordem em que aparecem.
 types=()

@@ -114,8 +114,7 @@ check "nega editar o aceite em commit, libera o mapa de testes e respeita a past
 
 no_folder_case() {
   rm -f "$project/.config/project"
-  # O hook sai sem ler a entrada: ela vai por here-string, para o `jq` não falhar escrevendo num pipe fechado.
-  "$HOOK" >/dev/null 2>&1 <<<"$(jq -n --arg file "$project/$t/aceite.md" '{tool_input: {file_path: $file}}')"
+  jq -n --arg file "$project/$t/aceite.md" '{tool_input: {file_path: $file}}' | "$HOOK" >/dev/null 2>&1
 }
 check "sem a pasta dos tickets na configuração, não há aceite a congelar e o hook libera" no_folder_case
 

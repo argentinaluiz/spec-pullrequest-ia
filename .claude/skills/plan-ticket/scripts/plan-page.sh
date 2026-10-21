@@ -104,12 +104,11 @@ tickets="$(config tickets.pasta)"
 documentos="$(config tickets.documentos)"
 node="$(config node.comando)"
 contrato="$(config contrato.comando)"
-contrato="${contrato:-nenhum}"
 contrato_arquivos="$(config contrato.arquivos)"
 missing=()
 [[ -n "$tickets" ]] || missing+=(tickets.pasta)
 [[ -n "$node" ]] || missing+=(node.comando)
-[[ "$contrato" != nenhum && -z "$contrato_arquivos" ]] && missing+=(contrato.arquivos)
+[[ -n "$contrato" && -z "$contrato_arquivos" ]] && missing+=(contrato.arquivos)
 if [[ ${#missing[@]} -gt 0 ]]; then
   for name in "${missing[@]}"; do
     printf '\nO .config/project não diz %s: %s.\n' "$name" "$(describe "$name")" >&2
@@ -161,7 +160,7 @@ project() {
 # O `git diff` que a página lê (`plain_diff`), com os prefixos fixos para o page.cjs achar o arquivo de
 # cada trecho, é o do plan-git.sh desta pasta.
 # shellcheck source=plan-git.sh
-source "$(dirname "${BASH_SOURCE[0]}")/plan-git.sh"
+source "${BASH_SOURCE[0]%/*}/plan-git.sh"
 
 # A mensagem de um commit, byte a byte: o que vem depois do cabeçalho do objeto.
 # commit_message <commit>
@@ -260,8 +259,8 @@ fi
 sources=(ticket "$ticket" origin "$origin" acceptancePath "$acceptance")
 capture accepted git show "$to:$acceptance" 2>/dev/null && sources+=(acceptance "$accepted")
 
-# O contrato: o Markdown do comando do projeto, ou nada, quando o projeto declara `nenhum`.
-if [[ "$contrato" != nenhum ]]; then
+# O contrato: o Markdown do comando do projeto, ou nada, quando o projeto não declara contrato.
+if [[ -n "$contrato" ]]; then
   capture contract project "$contrato" "$from" "$to" ||
     stop 1 "O comando do contrato (\`$contrato $from $to\`) falhou: o erro dele está acima." \
       "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no \`.config/project\`."

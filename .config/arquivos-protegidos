@@ -1,7 +1,6 @@
 # Os arquivos protegidos do harness deste projeto, lidos pela Guarda da skill /proteger-harness (o formato e os
-# tipos estão no SKILL.md dela). Uma linha por padrão: o tipo, uma tabulação e o caminho, relativo à raiz. O `*`
-# casa dentro de um nível de pasta e o `**` atravessa as barras. Vale o primeiro padrão que casa; o arquivo que
-# nenhum casa é código e passa.
+# tipos estão no SKILL.md dela). Uma linha por padrão: o tipo, uma tabulação e o caminho, relativo à raiz. Vale o
+# primeiro padrão que casa; o arquivo que nenhum casa é código e passa.
 #
 # O workflow passa a cópia desta lista que está na `main`, e nunca a do pull request, seguida dos pontos de
 # convergência do .config/project como `aviso` (scripts/protected-list.sh as junta). Ela mora em .config/, que é

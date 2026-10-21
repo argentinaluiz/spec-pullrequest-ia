@@ -3,7 +3,10 @@
 # origem diz (origin/HEAD), senão `origin/main`. Quem carrega este arquivo com `source` recebe o BASE_REF, o BASE_REMOTE
 # (o que vem antes da primeira barra), o BASE_BRANCH (o que vem depois) e a função `harness_lock_dir`. É o único lugar que
 # lê a variável e que sabe o padrão: o núcleo das frentes, os insumos da revisão de conformidade e a verificação do
-# projeto olham para a mesma base.
+# projeto olham para a mesma base. Carregado mais de uma vez (a verificação o carrega e o semáforo também), só a
+# primeira vale: a base não é lida de novo.
+
+declare -F harness_lock_dir >/dev/null && return 0
 
 BASE_REF="${HARNESS_BASE_REF:-$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)}"
 BASE_REMOTE="${BASE_REF%%/*}"

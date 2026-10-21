@@ -16,7 +16,7 @@ CONTRACT_RENDERER=scripts/contract-view.cjs
 
 # O `git diff` que se lê (`plain_diff`), o mesmo da página do plano, é da skill de plano.
 # shellcheck source=../.claude/skills/plan-ticket/scripts/plan-git.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../.claude/skills/plan-ticket/scripts/plan-git.sh"
+source "${BASH_SOURCE[0]%/*}/../.claude/skills/plan-ticket/scripts/plan-git.sh"
 
 # Os dois snapshots descrevem o mesmo contrato. Descrições, resumos e exemplos não contam: texto de documentação não muda o
 # contrato. Os caminhos são relativos à <pasta>, montada no contêiner.

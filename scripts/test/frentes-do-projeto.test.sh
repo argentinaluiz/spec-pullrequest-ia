@@ -84,15 +84,4 @@ STUB
 }
 check "$name: o novo recusa a porta ocupada sem criar nada, e com a porta livre grava o .env e sobe o Compose @LUI-186-CA1 @LUI-186-CA4" real_new
 
-# A trava dos slots do núcleo e o semáforo da verificação completa ficam na mesma pasta da máquina: os dois a pedem à
-# `harness_lock_dir` do harness-base.sh da skill worktree, e nenhum dos dois escreve o caminho por conta própria.
-same_lock_folder() {
-  local semaphore="$ROOT/.claude/skills/verificar/scripts/full-semaphore.sh" file
-  for file in "$CORE" "$semaphore"; do
-    grep -qE '^source .*harness-base\.sh' "$file" && grep -q 'harness_lock_dir' "$file" &&
-      ! grep -qE '^[^#]*--git-common-dir\)/harness' "$file" || { echo "$file não usa a pasta das travas do harness-base.sh" >&2; return 1; }
-  done
-}
-check "o núcleo das frentes e a verificação completa travam na mesma pasta das travas da máquina" same_lock_folder
-
 finish "das frentes do projeto"

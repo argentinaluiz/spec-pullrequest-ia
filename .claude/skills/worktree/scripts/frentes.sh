@@ -23,9 +23,10 @@
 #                         dizendo por quê, se não.
 #   [convergencia] <tipo> = <padrão>  a classificação dos pontos de convergência (padrão: nenhuma, e todo arquivo é
 #                         código). O tipo é a chave e o caminho, o valor, no padrão de caminho da skill proteger-harness
-#                         (`*` num nível de pasta, `**` atravessa as barras); vale o primeiro padrão que casa, na ordem do arquivo. Os tipos que o núcleo conhece são `gerado`,
-#                         `migracoes` e `registros` (o `listar` os mostra à parte, com regra mecânica) e `documentos` e
-#                         `manual` (pedem atenção, com o tipo ao lado); qualquer outro tipo vale como código.
+#                         (scripts/path-pattern.sh); vale o primeiro padrão que casa, na ordem do arquivo. Os tipos que o
+#                         núcleo conhece são `gerado`, `migracoes` e `registros` (o `listar` os mostra à parte, com regra
+#                         mecânica) e `documentos` e `manual` (pedem atenção, com o tipo ao lado); qualquer outro tipo vale
+#                         como código.
 #
 # Uma frente é um worktree numa pasta irmã do checkout principal, chamada <principal>-<ticket em minúsculas>, na
 # branch <tipo>/<ticket em minúsculas>, com o tipo feature (o padrão), bugfix, hotfix ou docs. O checkout principal
@@ -70,7 +71,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # harness-base.sh, a definição única delas.
 # shellcheck source=harness-base.sh
 source "$SCRIPT_DIR/harness-base.sh"
-# O padrão de caminho dos pontos de convergência (path_matches) é o da lista de arquivos protegidos, da skill
+# O padrão de caminho dos pontos de convergência (pattern_regex) é o da lista de arquivos protegidos, da skill
 # proteger-harness.
 # shellcheck source=../../proteger-harness/scripts/path-pattern.sh
 source "$SCRIPT_DIR/../../proteger-harness/scripts/path-pattern.sh"
@@ -82,8 +83,10 @@ SLOT_FILE=frente-slot
 CONFIG=""
 LIMITE=3
 AMBIENTE=""
-# As linhas `convergencia.<tipo> <padrão>` do arquivo, na ordem dele.
-CONVERGENCE=()
+# Os pontos de convergência do arquivo, na ordem dele: o tipo de cada um e o padrão já como expressão regular,
+# montada uma vez só (pattern_regex).
+CONVERGENCE_TYPES=()
+CONVERGENCE_REGEXES=()
 
 # Os substitutos do modo de teste do harness: só com HARNESS_TEST=1, e nada mais pode trocá-los.
 GH=gh
@@ -108,7 +111,7 @@ require_git_version() {
 
 # Lê o arquivo de configuração do projeto (ver o cabeçalho) e troca os padrões pelos valores dele.
 load_config() {
-  local root file value
+  local root file value key pattern
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   if [[ -n "$CONFIG" ]]; then
     [[ -f "$CONFIG" ]] || die "O arquivo de configuração \`$CONFIG\` não existe."
@@ -130,10 +133,11 @@ load_config() {
     [[ -x "$value" && -f "$value" ]] || die "O comando de ambiente \`$value\` (frentes.ambiente de \`$file\`) não existe ou não é executável."
     AMBIENTE="$value"
   fi
-  mapfile -t CONVERGENCE < <(git config --file "$file" --get-regexp '^convergencia\.')
-  for value in "${CONVERGENCE[@]}"; do
-    [[ "$value" == *" "* ]] || die "A chave \`$value\` de \`$file\` está sem padrão: a linha é \`<tipo> = <padrão>\`."
-  done
+  while read -r key pattern; do
+    [[ -n "$pattern" ]] || die "A chave \`$key\` de \`$file\` está sem padrão: a linha é \`<tipo> = <padrão>\`."
+    CONVERGENCE_TYPES+=("${key#convergencia.}")
+    CONVERGENCE_REGEXES+=("$(pattern_regex "$pattern")")
+  done < <(git config --file "$file" --get-regexp '^convergencia\.')
 }
 
 # O ticket PREFIXO-N em minúsculas (proj-186), no TICKET_KEY. Sai com o uso se o formato não vale.
@@ -257,10 +261,9 @@ COMPUTE_ERROR="@@erro"
 # seção convergencia do arquivo de configuração; nada, se o arquivo é código ou se não há classificação.
 # convergence_type <arquivo>
 convergence_type() {
-  local line key pattern
-  for line in "${CONVERGENCE[@]}"; do
-    read -r key pattern <<<"$line"
-    path_matches "$pattern" "$1" && { echo "${key#convergencia.}"; return 0; }
+  local i
+  for i in "${!CONVERGENCE_REGEXES[@]}"; do
+    [[ "$1" =~ ${CONVERGENCE_REGEXES[i]} ]] && { echo "${CONVERGENCE_TYPES[i]}"; return 0; }
   done
   return 0
 }

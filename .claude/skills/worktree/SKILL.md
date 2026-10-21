@@ -13,7 +13,7 @@ Read only the keys the mode you are going to run uses (the last column), from th
 
 | Value | Key | Used in |
 | --- | --- | --- |
-| Base | none: the variable `HARNESS_BASE_REF`, or the main branch the origin remote names (`scripts/harness-base.sh`) | `abrir` and `sincronizar`: what a front leaves from and what the sync brings |
+| Base | none: `scripts/harness-base.sh` says where it comes from | `abrir` and `sincronizar`: what a front leaves from and what the sync brings |
 | Limit of fronts | `frentes.limite` | `abrir`: step 3, how many fit |
 | Convergence points | `convergencia.<type>`, one pattern per line | `sincronizar`: step 4 |
 | Statuses | `status.em-andamento`, `status.em-revisao`, `status.concluido` | `abrir`: steps 2 and 3, which tickets are taken or finished |
@@ -27,8 +27,8 @@ Read only the keys the mode you are going to run uses (the last column), from th
 | Full verification | `verificacao.completa` | `sincronizar`, when it runs on its own: read it now, before the merge, because step 8 runs it |
 
 A project without an environment for its fronts has no environment commands, and the steps that use them are skipped; a generated file in conflict with no command to regenerate it makes the agent ask. The values mean:
-- **Limit of fronts:** the most fronts at once, counting the main checkout when it is a front.
-- **Convergence points:** a line per pattern, `<type> = <path>`, in the path pattern of the core (`*` stays inside one folder level and `**` crosses the slashes); the first pattern that matches wins, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`, and the rule of each type is in `modos/sincronizar.md`.
+- **Limit of fronts:** the most fronts at once.
+- **Convergence points:** a line per pattern, `<type> = <path>`, in the path pattern of `/proteger-harness` (`scripts/path-pattern.sh`); the first pattern that matches wins, and a file no pattern matches is code. The types are `gerado`, `migracoes`, `registros`, `documentos` and `manual`, and the rule of each type is in `modos/sincronizar.md`.
 - **Update the environment, recreate the database, generate a migration, start the applications, regenerate each generated file:** the commands of the environment step of the sync, run in the order of the file (a repeated key is a list of commands in sequence). Each runs in the folder of the front.
 - **Full verification:** the command that runs the complete verification of the project. If it receives the body of the pull request, it shows where with a placeholder (`<arquivo>`): save the body first and pass it there.
 
@@ -48,5 +48,5 @@ The model may call the skill, because `/implement` calls `sincronizar`; `abrir` 
 
 - **The abandon option is the person's.** Never call `remover` with `--forcar`, which takes a front down without a merge: abandoning a ticket is the person's decision, and a hook denies it to the agent.
 - **A refusal is not worked around.** When the core refuses (the limit, a ticket that already has a front, a busy place, a dirty folder), report the refusal as it is printed. Do not edit a folder, a branch or an environment file of a front by hand to make it pass.
-- **The rules of the flow are the ones of `/implement`.** Escalate a decision as its step 4 says, run the full verification as its step 8 says, and never merge, as its step 9 says. A push comes only when the person asks for it, except where the sync mode says otherwise.
+- **The rules of the flow are the ones of `/implement`.** Escalate a decision as its step "Escalate, do not decide" says, run the full verification as its step "Verify" says, and leave the merge to the person, as its step "Deliver, when the user asks" says. A push comes only when the person asks for it, except where the sync mode says otherwise.
 - **The agent never starts a session in another folder.** Each front has its own session, opened by the person in the folder of the front; the agent says which command opens it.

@@ -13,8 +13,8 @@
 #   [contrato] desvio = <comando>  o comando do desvio do contrato, chamado como `<comando> <commit de plano> <para, ou
 #                                  vazio> <arquivo>` (sem ele, o arquivo do desvio diz que nenhum foi declarado)
 #
-# A base da comparação é a do harness-base.sh da skill worktree (a HARNESS_BASE_REF, ou o ramo principal do remoto de
-# origem), e o diff e o commit de plano, os do plan-git.sh da skill de plano.
+# A base da comparação é a do harness-base.sh da skill worktree, e o diff e o commit de plano, os do plan-git.sh da skill
+# de plano.
 #
 # Com ticket, o plano é o commit da branch que criou o arquivo de aceite (<pasta>/<pai>/<ticket>/aceite.md), e um ticket sem
 # ele não foi planejado e não chega à revisão. Sem ticket, a pasta é <pasta>/sem-ticket/<nome>/ e precisa ter o criterios.md,
@@ -56,9 +56,8 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || abort "esta pasta não est�
 source "$SCRIPT_DIR/../../worktree/scripts/harness-base.sh"
 # shellcheck source=../../plan-ticket/scripts/plan-git.sh
 source "$SCRIPT_DIR/../../plan-ticket/scripts/plan-git.sh"
-base="$BASE_REF"
-git rev-parse --verify --quiet "$base" >/dev/null ||
-  abort "a base \`$base\` não existe neste clone." \
+git rev-parse --verify --quiet "$BASE_REF" >/dev/null ||
+  abort "a base \`$BASE_REF\` não existe neste clone." \
     "rode \`git fetch origin\`, ou aponte outra base com a variável HARNESS_BASE_REF."
 
 # Os valores do projeto, do .config/project.
@@ -76,13 +75,13 @@ drift_command="$(git config --file .config/project --get contrato.desvio 2>/dev/
 # review_diff <arquivo do diff> <arquivo da lista dos acrescentados>
 review_diff() {
   local fork_point dir code=0
-  fork_point="$(git merge-base "$base" HEAD)" || return 1
+  fork_point="$(git merge-base "$BASE_REF" HEAD)" || return 1
   dir="$(mktemp -d)" || return 1
   (
     export GIT_INDEX_FILE="$dir/index"
     git read-tree HEAD && git add -A &&
       plain_diff --cached "$fork_point" >"$1" &&
-      git -c core.quotePath=false diff --cached --name-only --diff-filter=A "$fork_point" >"$2"
+      plain_diff --cached --name-only --diff-filter=A "$fork_point" >"$2"
   ) || code=1
   rm -rf "$dir"
   return $code
@@ -116,11 +115,11 @@ else
   [[ -f "$acceptance" ]] ||
     abort "o arquivo de aceite $acceptance não existe." \
       "confira a issue pai e o ticket; se o ticket não foi planejado, planeje-o antes."
-  plan="$(added_by "$base..HEAD" "$acceptance")" ||
-    abort "não deu para ler o histórico da branch ($base..HEAD) com o \`git log\`." \
+  plan="$(added_by "$BASE_REF..HEAD" "$acceptance")" ||
+    abort "não deu para ler o histórico da branch ($BASE_REF..HEAD) com o \`git log\`." \
       "confira se a base existe (\`git fetch origin\`, ou outra base com a variável HARNESS_BASE_REF) e se o clone tem o histórico inteiro."
   [[ -n "$plan" ]] ||
-    abort "nenhum commit desta branch ($base..HEAD) criou o $acceptance: o ticket não tem commit de plano." \
+    abort "nenhum commit desta branch ($BASE_REF..HEAD) criou o $acceptance: o ticket não tem commit de plano." \
       "planeje o ticket e faça o commit de plano antes da revisão."
 fi
 
@@ -136,7 +135,7 @@ done
 added="$(mktemp)" || abort "não deu para criar um arquivo temporário." "confira o espaço e as permissões da pasta temporária."
 trap 'rm -f "$added"' EXIT
 review_diff "$dir/review.diff" "$added" ||
-  abort "não deu para montar o diff da branch contra $base." \
+  abort "não deu para montar o diff da branch contra $BASE_REF." \
     "confira se o repositório do Git está íntegro, com \`git status\`, e se a base existe."
 if [[ -n "$plan" ]]; then
   git show -s --format=%B "$plan" >"$dir/plano.txt" ||

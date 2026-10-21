@@ -6,9 +6,10 @@
 # script, se a suíte roda sozinha); sem a variável, o teste só imprime. O executor transforma esse log no relatório
 # que o conferidor do aceite (scripts/check-acceptance.cjs) lê, e um caso que não rodou agora não cobre critério nenhum.
 #
-# Um caso prova um critério de aceite de um de dois jeitos. O teste do projeto põe o token `@<ticket>-CA<n>` no nome
-# do caso, e o executor o repete nas tags. O teste de uma skill não leva ID de projeto nenhum, porque vai com a skill
-# para outros projetos: a ligação dele com o critério fica no mapa de testes do ticket (formatos/mapa-de-testes.md).
+# O teste de uma skill não leva o ID de um critério do projeto, porque vai com a skill para outros projetos: a ligação
+# dele com o critério fica no mapa de testes do ticket (formatos/mapa-de-testes.md). Como o caso de um teste do próprio
+# projeto leva o ID é do executor do projeto.
+#
 # Uma suíte com asserção própria dá o veredito pelo `pass_case` e pelo `fail_case`, que imprimem, registram e contam
 # o caso.
 

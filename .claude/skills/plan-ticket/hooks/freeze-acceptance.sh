@@ -17,9 +17,13 @@
 set -uo pipefail
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../../../..}" || exit 0
 
+# O hook recebe um JSON pela entrada padrão, com o arquivo em `tool_input.file_path` (ou em
+# `tool_input.notebook_path`, no NotebookEdit). Ele a lê antes de tudo, mesmo quando sai sem conferir nada.
+input="$(cat)"
+
 # A pasta dos tickets na forma do caminho que o `realpath` devolve abaixo: relativa à raiz do projeto, sem `./`,
-# sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. Fora a leitura da
-# chave, sem forks: o hook roda a cada edição.
+# sem barras repetidas e sem barra no fim. Um caminho absoluto dentro do projeto vira relativo. A normalização não
+# cria processos: o hook roda a cada edição.
 tickets="$(git config --file .config/project --get tickets.pasta 2>/dev/null)"
 [[ -n "$tickets" ]] || exit 0
 tickets="${tickets#"$PWD"/}"
@@ -27,10 +31,6 @@ tickets="${tickets//\/.\//\/}"
 tickets="${tickets#./}"
 while [[ "$tickets" == *//* ]]; do tickets="${tickets//\/\//\/}"; done
 tickets="${tickets%/}"
-
-# O hook recebe um JSON pela entrada padrão, com o arquivo em `tool_input.file_path` (ou em
-# `tool_input.notebook_path`, no NotebookEdit).
-input="$(cat)"
 
 # O que vem depois da pasta dos tickets num caminho relativo à raiz do projeto: um arquivo de aceite de um ticket é
 # `<issue>/<ticket>/aceite.md`, e o de antes da pasta da issue pai, de um nível só, é `<ticket>/aceite.md`.

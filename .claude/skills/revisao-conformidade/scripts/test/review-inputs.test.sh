@@ -274,10 +274,10 @@ printf '# Aceite do EX-2\n' >"$outside/docs/tickets/EX-1/EX-2/aceite.md"
 git -C "$outside" add -A && git -C "$outside" commit -q -m 'plano do EX-2'
 echo mudanca >"$outside/novo.txt"
 
-# outside_run [VAR=valor...] <argumentos...>: roda o script no repositório de fora, sem a HARNESS_BASE_REF de quem roda os
-# testes (a CI a define), salvo a que o caso dá.
+# outside_run <argumentos...>: roda o script no repositório de fora, sem a HARNESS_BASE_REF de quem roda os testes (a CI a
+# define), salvo a que o caso dá em OUTSIDE_BASE.
 outside_run() {
-  out="$(cd "$outside" && env -u HARNESS_BASE_REF "$@" 2>"$tmp/err")"
+  out="$(cd "$outside" && env -u HARNESS_BASE_REF ${OUTSIDE_BASE:+HARNESS_BASE_REF="$OUTSIDE_BASE"} "$SK/scripts/review-inputs.sh" "$@" 2>"$tmp/err")"
   code=$?
   err="$(<"$tmp/err")"
 }
@@ -287,7 +287,7 @@ outside_config() {
   [[ -z "${1:-}" ]] || printf '[contrato]\n\tdesvio = %s\n' "$1" >>"$outside/.config/project"
 }
 outside_defaults() {
-  outside_run "$SK/scripts/review-inputs.sh" EX-1 EX-2 &&
+  outside_run EX-1 EX-2 &&
     [[ $code -eq 0 ]] &&
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/review.diff")" == *"b/novo.txt"* ]] &&
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == *"Nenhum comando do desvio do contrato"* ]]
@@ -298,7 +298,7 @@ outside_given() {
   printf '#!/usr/bin/env bash\necho "desvio de fora: $1 $3"\n' >"$tmp/desvio-fora"
   chmod +x "$tmp/desvio-fora"
   outside_config "$tmp/desvio-fora"
-  outside_run HARNESS_BASE_REF=origin/main "$SK/scripts/review-inputs.sh" EX-1 EX-2
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
   local ok=$code
   outside_config
   [[ $ok -eq 0 ]] &&
@@ -307,7 +307,7 @@ outside_given() {
 check "a base da HARNESS_BASE_REF e o comando do desvio do .config/project são os que o script usa" outside_given
 
 outside_bad_base() {
-  outside_run HARNESS_BASE_REF=naoexiste "$SK/scripts/review-inputs.sh" EX-1 EX-2
+  OUTSIDE_BASE=naoexiste outside_run EX-1 EX-2
   [[ $code -eq 2 && "$err" == *"naoexiste"* ]]
 }
 check "uma base que não existe é recusada, dizendo qual" outside_bad_base
@@ -316,7 +316,7 @@ check "uma base que não existe é recusada, dizendo qual" outside_bad_base
 outside_other_head() {
   git -C "$outside" update-ref refs/remotes/origin/principal "$(git -C "$outside" rev-parse HEAD)"
   git -C "$outside" remote set-head origin principal >/dev/null
-  outside_run "$SK/scripts/review-inputs.sh" EX-1 EX-2
+  outside_run EX-1 EX-2
   [[ $code -eq 2 && "$err" == *"origin/principal..HEAD"* ]]
 }
 check "sem a HARNESS_BASE_REF, a base é o ramo principal que o remoto de origem diz" outside_other_head
@@ -327,7 +327,7 @@ outside_command_with_arguments() {
   printf '#!/usr/bin/env bash\necho "recebi: $*"\n' >"$tmp/desvio-args"
   chmod +x "$tmp/desvio-args"
   outside_config "$tmp/desvio-args um-argumento"
-  outside_run HARNESS_BASE_REF=origin/main "$SK/scripts/review-inputs.sh" EX-1 EX-2
+  OUTSIDE_BASE=origin/main outside_run EX-1 EX-2
   outside_config
   [[ $code -eq 0 ]] &&
     [[ "$(cat "$outside/docs/tickets/EX-1/EX-2/contract-drift.txt")" == "recebi: um-argumento "* ]]

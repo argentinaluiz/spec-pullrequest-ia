@@ -17,7 +17,7 @@
 # A pasta das travas da máquina (`harness_lock_dir`), a mesma em que o núcleo das frentes trava a numeração delas, é
 # definida com a base, na skill worktree.
 # shellcheck source=../../worktree/scripts/harness-base.sh
-source "$(dirname "${BASH_SOURCE[0]}")/../../worktree/scripts/harness-base.sh"
+source "${BASH_SOURCE[0]%/*}/../../worktree/scripts/harness-base.sh"
 
 # full_semaphore_acquire <raiz do checkout> <branch>: espera a vez e pega a trava, dizendo de quem
 # espera, e grava o dono. Sai com 2 se não há `flock` ou se a trava não pôde ser aberta ou consultada.

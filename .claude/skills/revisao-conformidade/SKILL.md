@@ -18,7 +18,7 @@ The skill has two parts, at two moments: **Review**, after the code review and b
    | The harness | the `bloqueado` lines of the protected files list that `protegidos.lista` names | whether to run the review: on a ticket with an acceptance file, a change that matches asks for it too |
    | Reviewer | `revisao.revisor`; without it, `revisor-conformidade` | step 3: the subagent to call |
 
-   The patterns are path patterns: `*` stays inside one folder level and `**` crosses the slashes. A change only to documents asks for no review. If the change does not touch the code that asks for one, say so and stop: there is nothing to review. The script of step 2 reads its own values (the tickets folder, the command of the contract drift and the base); its header says which.
+   The patterns follow the path pattern of `/proteger-harness` (`scripts/path-pattern.sh`). A change only to documents asks for no review. If the change does not touch the code that asks for one, say so and stop: there is nothing to review. The script of step 2 reads its own values (the tickets folder, the command of the contract drift and the base); its header says which.
 
 ## Review
 
@@ -31,7 +31,7 @@ The skill has two parts, at two moments: **Review**, after the code review and b
    <skill folder>/scripts/review-inputs.sh sem-ticket <nome>  # without one
    ```
 
-   It writes, in the review folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written; a drift command that fails leaves there that the drift was not checked). It fails, and says what to do, when the configuration has no tickets folder, when the ticket has no plan commit, when `criterios.md` is missing, when the base does not exist, or when the inputs would not be ignored by Git. The base is the one of the `/worktree` skill: the variable `HARNESS_BASE_REF`, or the main branch the origin remote names. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.
+   It writes, in the review folder, `review.diff` (everything the branch changed since it left the base, up to the working tree, with every new file Git does not ignore) and, with a ticket, `plano.txt` (the plan commit message) and `contract-drift.txt` (the contract and schema drift since the plan commit, always written; a drift command that fails leaves there that the drift was not checked). It fails, and says what to do, when the configuration has no tickets folder, when the ticket has no plan commit, when `criterios.md` is missing, when the base does not exist, or when the inputs would not be ignored by Git. Read the list of files the diff adds, committed or not: a file the change created that is not there is ignored by Git, and stays out of the review.
 
 3. **Call the reviewer.** Call the reviewer subagent of step 0 with only the input lines the script printed: the path of the diff, the ticket identifier and the paths of the plan message and the contract drift, or, without a ticket, the path of `criterios.md` and the notice that there is no plan commit. Do not add your summary of the change, your opinion of it or what you think deserves attention: the value of the review is that it does not start from your conclusions. Run it in the branch checkout, because it reads the branch's acceptance file and test map. The project installs the subagent among its agents, as a copy of `revisor.md` with the agent header and the tracker tool; that copy is the one that runs, so a change to the model must be copied to it.
 
@@ -44,7 +44,7 @@ The skill has two parts, at two moments: **Review**, after the code review and b
 
    When the review runs inside the implementation flow, the session fixes the findings of the code review and the ones accepted here. The commit after the fixes does not go through the reviewer again: the full verification checks it.
 
-6. **Go on** to the full verification, as `/implement` says in its step 8. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
+6. **Go on** to the full verification, as the step "Verify" of `/implement` says. In the implementation flow, that is after this review and the fixes; the sync with the main branch already ran, before the reviews, so the review sees the merged result.
 
 ## Publish
 

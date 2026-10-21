@@ -2,14 +2,12 @@
 #
 # Testes de scripts/harness-base.sh, a base do harness e a pasta das travas da máquina: o arquivo é o dono único da
 # leitura de HARNESS_BASE_REF e do padrão da base (`origin/main`, ou o ramo principal que o remoto de origem diz), e o
-# núcleo das frentes e os insumos da revisão de conformidade o carregam, sem definir o padrão por conta própria. Rodam
-# na máquina, só com o shell e o Git, num repositório temporário. Os casos de aceite se ligam aos critérios pelo mapa de
-# testes, e não pelo nome.
+# núcleo das frentes o carrega, sem definir o padrão por conta própria. Rodam na máquina, só com o shell e o Git, num
+# repositório temporário. Os casos de aceite se ligam aos critérios pelo mapa de testes, e não pelo nome.
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SCRIPTS="$(cd "$HERE/.." && pwd)"
-SKILLS="$(cd "$SCRIPTS/../.." && pwd)"
 # shellcheck source=../../../plan-ticket/scripts/test/helpers.sh
 source "$HERE/../../../plan-ticket/scripts/test/helpers.sh"
 
@@ -61,14 +59,10 @@ check "a pasta das travas da máquina é a mesma no checkout principal e num wor
 check "a pasta das travas da máquina é a harness do diretório comum do Git" \
   test "$(lock_dir_of "$tmp/frente")" = "$(cd "$repo/.git" && pwd -P)/harness"
 
-# Quem usa a base carrega o arquivo com um `source` (e não só o cita num comentário) e não expande a variável: mudar o
-# padrão no arquivo muda em todos.
+# O núcleo carrega o arquivo com um `source` (e não só o cita num comentário) e não expande a variável: mudar o padrão
+# no arquivo muda no núcleo.
 check "o núcleo das frentes carrega o arquivo da base" grep -qE '^source .*harness-base\.sh' "$SCRIPTS/frentes.sh"
 check "o núcleo das frentes não lê a variável da base nem define o padrão por conta própria" \
   bash -c '! grep -qE "^[^#]*[$]\{?HARNESS_BASE_REF" "$1"' _ "$SCRIPTS/frentes.sh"
-INPUTS="$SKILLS/revisao-conformidade/scripts/review-inputs.sh"
-check "os insumos da revisão carregam o arquivo da base" grep -qE '^source .*worktree/scripts/harness-base\.sh' "$INPUTS"
-check "os insumos da revisão não leem a variável da base nem definem o padrão por conta própria" \
-  bash -c '! grep -qE "^[^#]*([$]\{?HARNESS_BASE_REF|origin/main|origin/HEAD)" "$1"' _ "$INPUTS"
 
 finish "da base do harness"

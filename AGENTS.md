@@ -142,7 +142,7 @@ Rode o script da raiz do repositório, na máquina (ele mesmo chama os contêine
 ```
 
 - **Durante o desenvolvimento, só os testes do que mudou.** Rode os testes ligados aos arquivos alterados, com os comandos do `AGENTS.md` do projeto. O hook de fim de turno já confere os tipos e o lint, com o `verify.sh fast`.
-- **O `full` roda uma vez, no fim da tarefa,** e quem o roda é quem fecha a tarefa, nunca um subagente (um hook o nega). Quem recebeu a tarefa de outro agente (implementar, corrigir achados, revisar) termina com os testes do que mudou e devolve o resultado, dizendo o que rodou. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
+- **Um subagente não roda o `full`:** um hook o nega. Uma nova sincronização com a `main`, quando o PR fica velho, pede outro `full`.
 - **Rode o `full` em segundo plano.** Com vários checkouts na máquina, ele espera a vez dos outros (o cabeçalho do `verify.sh` descreve o semáforo), e a espera somada ao `full` pode passar do limite de um comando.
 - **Falha se corrige na causa, na mesma tarefa.** Erro de tipo, de lint ou de teste nunca fica como dívida para uma tarefa futura. Depois de uma reprovação, rode o `full` de novo só depois de corrigir a causa.
 - **Na terceira reprovação seguida nos mesmos passos, o `full` trava.** Pare e peça ao usuário que examine a falha e rode `! .claude/skills/verificar/scripts/verify.sh unlock`; só ele destrava. Não rode o `verify.sh` com `CI=` nem `GITHUB_ACTIONS=`, que desligariam a trava.
@@ -197,7 +197,7 @@ As decisões de uma funcionalidade são fechadas com o usuário e registradas no
 ### Plano do ticket neste projeto
 
 - **Desenho:** o contrato de rotas vai direto para o `apps/api/openapi.json`, e o schema das tabelas implementadas, para o `schema.prisma`: são os donos deles, conferidos por máquina. Como cada item do formato de rota e de tabela da `/plan-ticket` se escreve neles está no `docs/lld.md` (seção 3, "Formato de uma rota no snapshot", e seção 2, "Formato de uma tabela no schema"). O LLD fica com as convenções, as regras e o que ainda não existe.
-- **Cobertura:** o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID de um critério é o conferidor do aceite. Os testes em shell deste projeto também provam critério, pelo token do ID no nome do caso, como diz o cabeçalho dos auxiliares deles (`.claude/skills/plan-ticket/scripts/test/helpers.sh`).
+- **Cobertura:** o `strictTags` do Vitest fica desligado nas configs da API e da web, porque quem valida o ID de um critério é o conferidor do aceite. Os testes em shell deste projeto também provam critério, pelo token do ID no nome do caso, como diz o cabeçalho do executor deles (`.claude/skills/verificar/scripts/test/shell-tests.sh`).
 
 ## Convenções de Git
 
