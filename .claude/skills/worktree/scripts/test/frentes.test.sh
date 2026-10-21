@@ -548,13 +548,13 @@ convergence_split() {
 }
 check "o conflito em ponto de convergência com regra mecânica aparece à parte, com o tipo, e o de código, o de documento e o manual (schema e arquivo de variáveis) pedem atenção" convergence_split
 
-# --- O núcleo acha a configuração do projeto em .config/worktree do checkout, sem opção ---
+# --- O núcleo acha a configuração do projeto em .config/project do checkout, sem opção ---
 default_config() {
   fresh configuracao
   mkdir -p "$repo/.config" "$repo/bin"
   cp "$AMBIENTE" "$repo/bin/ambiente"
   # O caminho do comando de ambiente é relativo à raiz do checkout, e o limite e os pontos vêm do mesmo arquivo.
-  printf '[frentes]\n\tlimite = 1\n\tambiente = bin/ambiente\n' >"$repo/.config/worktree"
+  printf '[frentes]\n\tlimite = 1\n\tambiente = bin/ambiente\n' >"$repo/.config/project"
   frentes "$repo" novo LUI-1
   [[ $code -eq 0 ]] && grep -q '^criar' "$ENV_LOG" || return 1
   frentes "$repo" novo LUI-2
@@ -564,7 +564,7 @@ default_config() {
   frentes "$repo" novo LUI-2
   [[ $code -eq 0 ]]
 }
-check "o núcleo lê o limite e o comando de ambiente de .config/worktree do checkout, com o caminho relativo à raiz dele, e a opção --config vale mais" default_config
+check "o núcleo lê o limite e o comando de ambiente de .config/project do checkout, com o caminho relativo à raiz dele, e a opção --config vale mais" default_config
 
 # --- Na classificação dos pontos vale o primeiro padrão que casa ---
 first_match_wins() {

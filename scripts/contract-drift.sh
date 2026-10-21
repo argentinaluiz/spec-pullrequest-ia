@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # O desvio do plano: se o contrato ou o schema de um ponto é diferente do que está no commit de plano, mostra a visão entre os
-# dois, acrescenta-a ao arquivo do desvio e avisa no pull request. É o "Desvio do contrato" que a revisão de conformidade chama,
+# dois, acrescenta-a ao arquivo do desvio e avisa no pull request. É o `contrato.desvio` do `.config/project`, que a revisão de conformidade chama,
 # e o aviso do modo completo da verificação. Só avisa: nunca bloqueia.
 #
 #   contract-drift.sh <commit de plano> <para, ou vazio> <arquivo do desvio>

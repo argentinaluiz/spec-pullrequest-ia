@@ -3,11 +3,11 @@ name: worktree
 description: "The single entry for the parallel fronts of a project (a Git worktree with its own branch, session and pull request): novo, listar, remover, abrir (the fronts of the ready tickets of a spec) and sincronizar (bring the base into the branch of a front). Use to work on a ticket in its own checkout, to see the open fronts, to start several tickets of a spec at once, at the end of the build of a ticket, and when a pull request is out of date with the base."
 ---
 
-The one place for everything about the parallel fronts. A front is a Git worktree in a folder beside the main checkout, on the branch of a ticket, with its own agent session, its own environment (when the project has one) and its own pull request. The project's agent instructions file owns the rules of a front (how many, when the main checkout counts as one, what the person does and what the agent never does); this skill reads them and never copies them. The core script of this skill owns how a front is created, listed and removed, and its refusals.
+The one place for everything about the parallel fronts. A front is a Git worktree in a folder beside the main checkout, on the branch of a ticket, with its own agent session, its own environment (when the project has one) and its own pull request. The core script of this skill owns how a front is created, listed and removed, and its refusals.
 
 ## Step 0: the project values
 
-The values of the project live in its configuration file for this skill, `.config/worktree`, in the syntax of `git config` (one file per general-purpose skill, with the name of the skill). Read only the keys the mode you are going to run uses (the last column), with `git config --file .config/worktree --get <key>`, `--get-all <key>` for a list of commands and `--get-regexp '^convergencia\.'` for the convergence points. Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
+The values of the project live in its configuration file, `.config/project`, in the syntax of `git config` (one file for the project, with a section for each subject, and each skill reads the sections it uses). Read only the keys the mode you are going to run uses (the last column), with `git config --file .config/project --get <key>`, `--get-all <key>` for a list of commands and `--get-regexp '^convergencia\.'` for the convergence points. Each value has a default for when the file does not give it, and a project with no file (or no such key) runs every value on its default:
 
 | Value | Key | Default | Used in |
 | --- | --- | --- | --- |

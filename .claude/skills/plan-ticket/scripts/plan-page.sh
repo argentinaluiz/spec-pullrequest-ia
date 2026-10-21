@@ -2,7 +2,7 @@
 #
 # Monta a página de revisão do plano de um ticket e a grava em <tickets>/<pai>/<ticket>/plano.html. Faz
 # parte da skill de plano (SKILL.md, passos 5 e 6), e os valores de cada argumento são do projeto,
-# que os declara no arquivo de instruções do agente, na lista "Valores das skills do ticket". O <pai> é a issue pai do ticket no
+# que os declara no arquivo de configuração dele, `.config/project`. O <pai> é a issue pai do ticket no
 # gerenciador de issues, e vem da tarefa, como o ticket.
 #
 #   plan-page.sh --pai <issue pai> --ticket <ticket> --tickets <pasta dos tickets>
@@ -93,7 +93,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
   if [[ "${missing[*]}" == pai || "${missing[*]}" == ticket || "${missing[*]}" == "pai ticket" ]]; then
     printf 'Como corrigir: passe a issue pai e o ticket do plano com --pai e --ticket. A issue pai é a do ticket no gerenciador de issues, a mesma da spec que o passo 1 da skill lê.\n' >&2
   else
-    printf 'Como corrigir: o projeto declara cada valor no arquivo de instruções do agente, na lista "Valores das skills do ticket" ("Plano do ticket"); passe-o com o argumento de mesmo nome. Se esse arquivo não o declara, vale o padrão do passo 0 do SKILL.md da skill, ou a pergunta ao usuário quando o valor não tem padrão.\n' >&2
+    printf 'Como corrigir: o projeto declara cada valor no `.config/project`, nas seções `tickets`, `node` e `contrato`; passe-o com o argumento de mesmo nome. Se o arquivo não o declara, vale o padrão do passo 0 do SKILL.md da skill, ou a pergunta ao usuário quando o valor não tem padrão.\n' >&2
   fi
   exit 2
 fi
@@ -255,7 +255,7 @@ capture accepted git show "$to:$acceptance" 2>/dev/null && sources+=(acceptance 
 if [[ "$contrato" != nenhum ]]; then
   capture contract project "$contrato" "$from" "$to" ||
     stop 1 "O comando do contrato (\`$contrato $from $to\`) falhou: o erro dele está acima." \
-      "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no arquivo de instruções do agente, na lista \"Valores das skills do ticket\"."
+      "corrija o que ele aponta e rode o script da página de novo. Se o comando não é esse, acerte o valor no \`.config/project\`."
   sources+=(contract "$contract")
 fi
 
@@ -272,6 +272,6 @@ sources+=(docsDiff "$docs" message "$message")
 
 printf '%s\0' "${sources[@]}" | project "$node" "$skill/page.cjs" - >"$draft" ||
   stop 1 "A página do plano não pôde ser montada pelo comando do Node (\`$node\`): o erro está acima." \
-    "corrija a fonte que ele aponta e rode o script da página de novo. Se o erro é do próprio comando, acerte o valor no arquivo de instruções do agente, na lista \"Valores das skills do ticket\"."
+    "corrija a fonte que ele aponta e rode o script da página de novo. Se o erro é do próprio comando, acerte o valor no \`.config/project\`."
 mv "$draft" "$dir/plano.html" || stop 2 "Não deu para gravar a página em $dir/plano.html." "confira as permissões da pasta $dir."
 printf 'Página do plano do %s gravada em %s.\n%s\n' "$ticket" "$dir/plano.html" "$origin"

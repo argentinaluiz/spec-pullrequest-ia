@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # A visão legível do contrato e do schema entre dois pontos do Git, em Markdown. É o comando do contrato deste projeto para a
-# skill de plano (o AGENTS.md da raiz o declara em "Valores das skills do ticket"), que lê as seções `# Contrato` e `# Schema`.
+# skill de plano (o `.config/project` o declara em `contrato.comando`), que lê as seções `# Contrato` e `# Schema`.
 #
 #   contract-view.sh [<de> [<para>]]
 #

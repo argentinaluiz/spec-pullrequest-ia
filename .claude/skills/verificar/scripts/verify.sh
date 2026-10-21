@@ -72,10 +72,17 @@ CONTRACT_DRIFT=scripts/contract-drift.sh
 # As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
 SKILLS_DIR=.claude/skills
 PROJECT_SCRIPTS=scripts
+# O valor de uma chave do .config/project (o dono dos valores que o harness usa), ou o padrão quando ela falta.
+# config_value <chave> [<padrão>]
+config_value() {
+  git config --file .config/project --get "$1" 2>/dev/null || printf '%s' "${2:-}"
+}
+# A pasta dos tickets.
+TICKETS_DIR="$(config_value tickets.pasta docs/tickets)"
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
 # pastas fixas, entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo
 # deles, que a verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
-VERIFIED_PATHS=(apps compose.dev.yaml docs/tickets)
+VERIFIED_PATHS=(apps compose.dev.yaml "$TICKETS_DIR")
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
 done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
@@ -97,9 +104,6 @@ source .claude/skills/verificar/scripts/full-semaphore.sh
 # `gitleaks_git_args` do git-mount.sh.
 # shellcheck source=git-mount.sh
 source .claude/skills/verificar/scripts/git-mount.sh
-# A pasta dos tickets.
-TICKETS_DIR=docs/tickets
-
 failures=()
 
 usage() {
@@ -460,15 +464,19 @@ run_full() {
 }
 
 # O atalho do modo `plan`: o plan-page.sh da skill de plano, com os valores deste projeto. O dono dos
-# valores é o AGENTS.md da raiz ("Plano do ticket", "Valores das skills do ticket"); o atalho só os passa.
-# A lógica e as mensagens são do script.
+# valores é o .config/project (as chaves tickets.*, node.comando e contrato.*); o atalho só os passa, e a chave
+# que falta vale o padrão da skill de plano. A lógica e as mensagens são do script.
 # run_plan <pai> <ticket> [<commit>]
 run_plan() {
+  local documents files
   local args=(
-    --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR" --documentos docs
-    --node "$CONTRACT_NODE" --contrato scripts/contract-view.sh
-    --contrato-arquivos "$API_SNAPSHOT $API_SCHEMA"
+    --pai "$1" --ticket "$2" --tickets "$TICKETS_DIR"
+    --node "$(config_value node.comando node)" --contrato "$(config_value contrato.comando nenhum)"
   )
+  documents="$(config_value tickets.documentos)"
+  [[ -n "$documents" ]] && args+=(--documentos "$documents")
+  files="$(config_value contrato.arquivos)"
+  [[ -n "$files" ]] && args+=(--contrato-arquivos "$files")
   [[ -n "${3:-}" ]] && args+=(--commit "$3")
   "$PLAN_SKILL_SCRIPTS/plan-page.sh" "${args[@]}"
 }
