@@ -38,6 +38,7 @@ git -C "$repo" init -q -b main
 git -C "$repo" config user.email teste@exemplo.com
 git -C "$repo" config user.name Teste
 printf 'export const a = 1;\n' >"$repo/apps/api/existente.ts"
+printf 'echo base\n' >"$repo/scripts/base.sh"
 git -C "$repo" add -A && git -C "$repo" commit -q -m base
 git -C "$repo" switch -q -c trabalho
 
@@ -63,7 +64,7 @@ head_state() {
     cd "$repo" || exit 1
     local -a paths=(apps compose.dev.yaml docs/tickets)
     local dir path
-    while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs)
+    while IFS= read -r dir; do paths+=("$dir"); done < <("$SK/scripts/verify/skill-tests.sh" dirs .claude/skills scripts)
     for path in "${paths[@]}"; do
       git rev-parse --verify --quiet "HEAD:$path" || echo ausente
     done | sha256sum | cut -d' ' -f1
@@ -105,6 +106,14 @@ check "$name: ... e diz que o aceite não foi conferido" contains "$out" "sem co
 approve "$(head_state)" checked
 prepush
 check "$name: a aprovação com o aceite conferido libera a branch que altera apps/" code_is 0
+
+# A pasta de scripts da raiz também é mecanismo que a verificação lê: mudar um arquivo dela invalida a aprovação.
+commit_file scripts/mexe.sh 'echo mexe'
+prepush
+check "$name: a mudança na pasta de scripts da raiz invalida a aprovação do commit anterior" code_is 1
+approve "$(head_state)" checked
+prepush
+check "$name: ... e a nova aprovação do conteúdo dela libera o push" code_is 0
 
 # O hook de antes do push, o do settings.json, no repositório temporário: o `git push` passa quando o modo
 # completo aprovou o último commit, e é negado quando não aprovou. Apagar uma branch remota não envia código.

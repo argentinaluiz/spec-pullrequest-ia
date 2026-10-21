@@ -61,10 +61,10 @@ git -C "$repo" init -q -b main
 FAKE_ARGS="$tmp/args" env -u CLAUDE_PROJECT_DIR bash -c 'cd "$1" && .claude/skills/verificar/scripts/verify.sh plan PROJ-1 PROJ-2 abc1234' _ "$repo" >/dev/null 2>&1
 args="$(cat "$tmp/args" 2>/dev/null)"
 name="o atalho plan passa à página o Node e a visão do contrato das skills novas @LUI-197-CA1"
-check "$name: o comando do Node é o da skill ambiente" bash -c '[[ $1 == *"--node .claude/skills/ambiente/scripts/node-in-api.sh"* ]]' _ "$args"
+check "$name: o comando do Node é o script da raiz" bash -c '[[ $1 == *"--node scripts/node-in-api.sh"* ]]' _ "$args"
 check "$name: o comando do contrato é a visão da skill contrato" bash -c '[[ $1 == *"--contrato .claude/skills/contrato/scripts/contract-view.sh"* ]]' _ "$args"
 check "$name: os arquivos do contrato e o commit seguem" \
   bash -c '[[ $1 == *"--contrato-arquivos apps/api/openapi.json apps/api/prisma/schema.prisma"* && $1 == *"--commit abc1234"* ]]' _ "$args"
-check "$name: o Node e o contrato apontados existem" test -x "$ROOT/$SK/ambiente/scripts/node-in-api.sh" -a -x "$ROOT/$SK/contrato/scripts/contract-view.sh"
+check "$name: o Node e o contrato apontados existem" test -x "$ROOT/scripts/node-in-api.sh" -a -x "$ROOT/$SK/contrato/scripts/contract-view.sh"
 
 finish "do modo plan do verify.sh"

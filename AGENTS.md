@@ -72,7 +72,27 @@ As dependências instaladas, o `.env` e os dados do banco continuam e são reapr
 
 **Procedimentos raros**
 
-Recomeçar do zero (apagar o volume do banco e recriá-lo) e consertar a API que não sobe, inclusive ver a causa de um `up --wait` que termina com erro, estão na skill `/ambiente` (`.claude/skills/ambiente/SKILL.md`).
+**Recomeçar do zero.** Para apagar os dados e recriar o banco:
+
+```bash
+docker compose -f compose.dev.yaml down -v
+```
+
+O `-v` apaga o volume do banco: na próxima subida, o banco é recriado e as migrações rodam de novo. Para gerar também um `.env` e chaves novos, apague o `apps/api/.env` antes de subir. Depois, suba o ambiente como em "Subir e derrubar".
+
+**A API não sobe.** Se o `up --wait` termina com erro, veja a causa com:
+
+```bash
+docker compose -f compose.dev.yaml logs api
+```
+
+Quando o preparo da API falha (uma migração quebrada, um `.env` incompleto), o contêiner `api` sai e o `exec` deixa de funcionar nele. Para consertar, rode o comando num contêiner avulso, que não passa pelo preparo:
+
+```bash
+docker compose -f compose.dev.yaml run --rm api <comando>
+```
+
+Depois do conserto, suba o ambiente de novo.
 
 ### Banco e e-mails
 
@@ -99,7 +119,7 @@ Tudo o que diz respeito às frentes passa pelo `/worktree`, que tem cinco modos:
 
 **Trazer a `main` para a frente:** use o `/worktree sincronizar` quando o PR da frente fica desatualizado em relação à `main` (o ruleset não deixa mergear um PR assim) e no fim do ticket, antes do `full`, para a única verificação completa rodar contra a `main` atual. Os passos e a regra de cada tipo de conflito estão na skill.
 
-O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"). As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente (`.claude/skills/ambiente/scripts/frente-ambiente.sh`), e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
+O núcleo das frentes (`.claude/skills/worktree/scripts/frentes.sh`) lê os valores deste projeto de `.config/worktree` (ver "Configuração do projeto", em "Skills do ticket"). As regras de cada comando (a numeração e a guarda do slot, as recusas e a remoção) estão no cabeçalho do núcleo; o `.env` do slot, as portas e o Compose, no do comando de ambiente (`scripts/frente-ambiente.sh`), e o contrato das variáveis do `.env`, na LLD. O script não fala com o Linear: mover a issue para "In Progress" é da sessão do ticket.
 
 **Navegador:** os MCPs de navegador do projeto abrem um perfil isolado por instância (`--isolated` no `.mcp.json`), então duas sessões validam telas ao mesmo tempo, e o login feito num deles não persiste para a próxima sessão. No navegador do usuário, os cookies de dois slots colidem, porque o navegador não os separa por porta: o slot 1 recebe os cookies do slot 0, recusa a Sessão e apaga os cookies, e o login do slot 0 cai junto. Janelas e abas anônimas da mesma sessão do navegador dividem os cookies, então não resolvem. Abra cada slot num perfil do navegador diferente, um perfil por slot.
 
@@ -150,7 +170,7 @@ Um hook confere todo `git push` que você faz e o nega em dois casos: quando os 
 3. Rode `ACCEPTANCE_BODY_FILE=<arquivo> .claude/skills/verificar/scripts/verify.sh full`. Em branch que não altera `apps/`, a variável é dispensável.
 4. Faça o push.
 
-- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`) ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
+- **O que invalida a aprovação:** qualquer mudança em `apps/`, no `compose.dev.yaml`, nas pastas `scripts/` e `hooks/` de qualquer skill (`.claude/skills/<skill>/scripts/` e `.claude/skills/<skill>/hooks/`), na pasta `scripts/` da raiz ou num arquivo de aceite (`docs/tickets/<issue>/<ticket>/aceite.md`). Mudança só em documento fora desses caminhos não invalida, e uma branch que só altera esse tipo de documento não precisa de aprovação. O `AGENTS.md` de um projeto fica em `apps/`, então alterá-lo invalida.
 - **Não contorne o bloqueio.** Se um push sem verificação for mesmo necessário, como o de um trabalho pela metade, peça ao usuário, que o faz no terminal.
 
 **Aceite no pull request**
@@ -231,7 +251,7 @@ Uma lista só para o kit: cada skill lê as entradas dela no passo 0, e o valor 
 
 - **Pasta dos tickets:** `docs/tickets`. O Git versiona nela só o arquivo de aceite e o mapa de testes de cada pasta de ticket. O hook de congelamento recebe esta pasta na linha de comando dele, no `.claude/settings.json`.
 - **Pasta dos documentos:** `docs`.
-- **Comando do Node:** `.claude/skills/ambiente/scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
+- **Comando do Node:** `scripts/node-in-api.sh`, que roda o Node no contêiner `api`, sobre o repositório montado em `/repo`, porque a máquina não roda `node`.
 - **Comando do contrato:** `.claude/skills/contrato/scripts/contract-view.sh`, a visão legível do contrato e do schema entre dois pontos do Git.
 - **Arquivos do contrato:** `apps/api/openapi.json apps/api/prisma/schema.prisma`.
 
@@ -269,13 +289,13 @@ O atalho `.claude/skills/verificar/scripts/verify.sh plan <issue> <ticket> [<com
 O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas partes:
 
 - **Skills genéricas**, que servem a qualquer projeto: `/plan-ticket`, `/revisao-conformidade`, `/worktree`, `/proteger-harness`, `/implement` e `tdd`. Elas nomeiam papéis, e não comandos, e não citam dado deste projeto.
-- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar`, `/ambiente` (o Docker Compose, o Node no contêiner e o ambiente por slot de uma frente) e `/contrato` (a visão e o desvio do contrato), e as que nascem nos próximos tickets da LUI-193.
+- **Skills do projeto**, que guardam o que depende da stack daqui: `/verificar` e `/contrato` (a visão e o desvio do contrato).
 
 **A dependência vai do projeto para a genérica, e nunca o contrário.** O projeto pode carregar e chamar arquivo de uma skill genérica. Uma skill genérica não carrega arquivo do projeto nem de outra genérica; chamar outra skill pelo nome, como a `/implement` chama a `tdd`, não conta como dependência.
 
 **Configuração do projeto.** O que uma skill genérica precisa saber deste projeto (limites, comandos, classificações) mora na pasta `.config/` da raiz, um arquivo por skill genérica, com o nome dela, na sintaxe do `git config`, que o script ou o agente lê com `git config --file`. O valor de uma skill mora no arquivo dela quando ele existe (hoje, só o `.config/worktree`) e, senão, na lista "Valores das skills do ticket", acima. O arquivo nomeia comandos que as skills executam, então a lista de arquivos protegidos o bloqueia.
 
-**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). A verificação completa acha e roda os testes de todas as skills sem lista à mão.
+**Onde mora o mecanismo.** Script, hook e teste de um mecanismo moram dentro da skill do domínio dele, com os testes ao lado dos scripts (`<skill>/scripts/test/` e `<skill>/hooks/test/`). O script que várias skills compartilham, ou que não é de skill nenhuma, mora na pasta `scripts/` da raiz, com os testes em `scripts/test/`. Uma skill existe quando o agente a carrega sob demanda para seguir um procedimento, ou quando é dona de um mecanismo próprio; um procedimento raro fica neste arquivo. A verificação completa acha e roda os testes de todas as skills e os da `scripts/` da raiz sem lista à mão.
 
 **Se ninguém invocar a skill, nada quebra.** As regras e os comandos de entrada ficam neste arquivo, e uma skill só dá o passo a passo; o que não pode falhar é imposto por hook ou pela cadeia de skills (a `/implement` chama a `tdd`, o `/worktree sincronizar`, a revisão e a verificação), e não pela lembrança de invocar uma skill.
 
@@ -290,7 +310,7 @@ O fluxo do ticket roda sobre um kit de skills em `.claude/skills/`, em duas part
 - **Commits:** mensagens curtas e descritivas, focadas no porquê da mudança.
 - **Merge:** o merge é decisão do usuário. O agente só o faz quando o usuário autoriza expressamente aquele PR ou aquela tarefa, e só com o `Veredito` e a `Guarda do harness` verdes. Um PR de harness, que a Guarda reprova, só entra por override do usuário, que o faz no prompt. Sem autorização expressa, o agente não faz o merge, e uma negação do `gh pr merge` não se contorna por outro caminho.
 - **O que o merge pede:** o ruleset da `main` exige o check `Veredito` verde, o check `Guarda do harness` (que o usuário contorna como admin nos PRs de harness) e o PR atualizado com a `main` antes do merge, que o `/worktree sincronizar` traz. A cópia declarativa do ruleset é o `.github/rulesets/main.json`, e quem o aplica no GitHub é o usuário.
-- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `.config/`, os scripts e os hooks de qualquer skill e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
+- **Arquivos do harness:** os que a lista de arquivos protegidos marca como bloqueados (`.claude/skills/verificar/arquivos-protegidos.txt`, lida pela Guarda): `.github/`, `.claude/settings.json`, `.claude/hooks/`, `.claude/agents/`, `.config/`, os scripts e os hooks de qualquer skill, a pasta `scripts/` da raiz e a própria lista só mudam quando a tarefa é sobre o harness. Um pull request que os altera é reprovado pelo check `Guarda do harness` e só entra por override do usuário. Avise isso ao abrir o PR. O texto das skills não é arquivo de harness, de propósito: este arquivo vale mais que qualquer uma delas, e a regra do merge mora aqui, então enfraquecer o texto de uma skill não libera nada.
 
 ## Consulta à documentação de bibliotecas
 

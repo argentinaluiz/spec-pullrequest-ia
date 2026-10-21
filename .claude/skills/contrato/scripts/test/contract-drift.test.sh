@@ -14,10 +14,10 @@ source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 repo="$tmp/repo"
-mkdir -p "$tmp/bin" "$repo/.claude/skills/ambiente/scripts" "$repo/apps/api/prisma"
+mkdir -p "$tmp/bin" "$repo/scripts" "$repo/.claude/skills" "$repo/apps/api/prisma"
 cp -R "$ROOT/.claude/skills/contrato" "$repo/.claude/skills/"
 rm -rf "$repo/.claude/skills/contrato/scripts/test"
-cp "$ROOT/.claude/skills/ambiente/scripts/node-in-api.sh" "$repo/.claude/skills/ambiente/scripts/"
+cp "$ROOT/scripts/node-in-api.sh" "$repo/scripts/"
 
 # O `docker` falso: `diff` (a comparação do contrato) sai com FAKE_DIFF, 0 se os snapshots são iguais e 1 se diferem; o
 # `changelog` falha com FAKE_CHANGELOG_FAIL; o Node no contêiner devolve o Markdown de mentira; `exec api true` está no ar.

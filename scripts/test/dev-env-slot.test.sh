@@ -7,8 +7,8 @@
 # slot". Rodam na máquina, porque usam o `docker compose`. Quem chama é o .claude/skills/verificar/scripts/verify.sh.
 
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
-# shellcheck source=../../../verificar/scripts/test/sh-helpers.sh
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=../../.claude/skills/verificar/scripts/test/sh-helpers.sh
 source "$ROOT/.claude/skills/verificar/scripts/test/sh-helpers.sh"
 
 for tool in docker jq git; do

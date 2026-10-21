@@ -69,13 +69,16 @@ HEAD_REF="${HARNESS_HEAD_REF:-}"
 # No contêiner `api`, os scripts das skills ficam no mesmo caminho, dentro do repositório montado em /repo.
 PLAN_SKILL_SCRIPTS=.claude/skills/plan-ticket/scripts
 CONTRACT_DRIFT=.claude/skills/contrato/scripts/contract-drift.sh
+# As pastas que a busca de skill-tests.sh varre: a das skills e a de scripts do projeto, fora delas.
+SKILLS_DIR=.claude/skills
+PROJECT_SCRIPTS=scripts
 # O que a verificação lê. Só uma mudança nestes caminhos invalida a aprovação do modo completo. Além das
-# pastas fixas, entram as de scripts e de hooks de todas as skills (o mecanismo delas, que a verificação
-# confere), achadas por skill-tests.sh; o texto de uma skill não entra.
+# pastas fixas, entram as de scripts e de hooks de todas as skills e a de scripts do projeto (o mecanismo
+# deles, que a verificação confere), achadas por skill-tests.sh; o texto de uma skill não entra.
 VERIFIED_PATHS=(apps compose.dev.yaml docs/tickets)
 while IFS= read -r skill_dir; do
   VERIFIED_PATHS+=("$skill_dir")
-done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs)
+done < <(.claude/skills/verificar/scripts/verify/skill-tests.sh dirs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
 # O estado interno da verificação (as aprovações e a trava) fica na pasta de estado do harness, que
 # o .claude/skills/proteger-harness/scripts/harness-dir.sh define. Ela pode ficar vazia (a raiz não se alcança): só os modos que gravam
 # estado a exigem, com o `require_state`.
@@ -212,7 +215,7 @@ wait_for() {
     attempt();" >/dev/null 2>&1
 }
 
-# O Node no contêiner `api`: o .claude/skills/ambiente/scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
+# O Node no contêiner `api`: o scripts/node-in-api.sh, cujo cabeçalho diz como ele roda.
 node_in_api() {
   "$CONTRACT_NODE" "$@"
 }
@@ -229,14 +232,14 @@ HARNESS_SHELL_REPORT=reports/harness/shell-tests.json
 # Roda os testes do harness: os do conferidor e do renderizador do contrato e os das skills (o parser e a
 # página do plano, por exemplo) no contêiner `api`, e as suítes em shell (os hooks, a trava do modo
 # completo, os modos do verify.sh e as das skills) na máquina, pelo executor que grava o relatório delas. Os
-# testes das skills são achados por skill-tests.sh, sem lista à mão: uma skill nova com um
-# teste ao lado do script entra sozinha. Os dois relatórios passam pelo `check_report`, e um grupo que falha
+# testes das skills e os da pasta de scripts do projeto são achados por skill-tests.sh, sem lista à mão: uma skill
+# nova (ou um script novo da raiz) com um teste ao lado do script entra sozinho. Os dois relatórios passam pelo `check_report`, e um grupo que falha
 # não impede o outro de rodar.
 harness_tests() {
   local code=0
   local -a skill_node_tests skill_shell_tests
-  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs)
-  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh)
+  mapfile -t skill_node_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh cjs "$SKILLS_DIR" "$PROJECT_SCRIPTS")
+  mapfile -t skill_shell_tests < <(.claude/skills/verificar/scripts/verify/skill-tests.sh sh "$SKILLS_DIR" "$PROJECT_SCRIPTS")
   # O repórter próprio grava o relatório no formato do Vitest, para o `check_report` e o conferidor
   # lerem; o repórter `spec` segue na saída, para quem lê o log. Os testes são os mesmos caminhos
   # relativos aqui e no /repo, então a lista sai daqui.

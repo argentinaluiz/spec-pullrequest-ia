@@ -10,8 +10,8 @@ OASDIFF_IMAGE=tufin/oasdiff:v1.33.0
 API_SNAPSHOT=apps/api/openapi.json
 API_SCHEMA=apps/api/prisma/schema.prisma
 
-# O Node no contêiner, que roda o renderizador, e o renderizador: o comando do Node deste projeto é o da skill ambiente.
-CONTRACT_NODE=.claude/skills/ambiente/scripts/node-in-api.sh
+# O Node no contêiner, que roda o renderizador, e o renderizador: o comando do Node deste projeto é o `scripts/node-in-api.sh` da raiz.
+CONTRACT_NODE=scripts/node-in-api.sh
 CONTRACT_RENDERER=.claude/skills/contrato/scripts/contract-view.cjs
 
 # O `git diff` sem cor, sem diff externo, com os prefixos `a/` e `b/` fixos e os caminhos com acento sem aspas, seja qual for
